@@ -17,8 +17,8 @@ courtsRouter.get("/pricing", requirePermission("bookings.read"), handler(async (
 // Price per start hour. Customers see the new price at their next quote (the server recomputes it every time).
 courtsRouter.put("/pricing", requirePermission("courts.write"), handler(async (req, res) => {
   const b = parse(z.object({
-    hourlyRate: z.number().int().min(0).max(100000).optional(),
-    hours: z.array(z.object({ hour: z.number().int().min(0).max(23), price: z.number().int().min(0).max(100000) })).max(24).optional(),
+    hourlyRate: z.number().int().min(100, "at least Rs. 100").max(100000).optional(),
+    hours: z.array(z.object({ hour: z.number().int().min(0).max(23), price: z.number().int().min(100, "at least Rs. 100").max(100000) })).max(24).optional(),
   }), req.body);
   if (b.hourlyRate !== undefined) await setSetting("hourlyRate", String(b.hourlyRate));
   if (b.hours) {

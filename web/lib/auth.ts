@@ -1,6 +1,6 @@
 import { api, setToken } from "./api";
 
-export type Admin = { id: string; email: string; name: string; role: string };
+export type Admin = { id: string; email: string; name: string; role: string; permissions?: string[] };
 const ADMIN_KEY = "uf_admin_user";
 
 export async function login(email: string, password: string) {
@@ -18,3 +18,6 @@ export function logout() {
 export function currentAdmin(): Admin | null {
   try { return JSON.parse(localStorage.getItem(ADMIN_KEY) ?? "null"); } catch { return null; }
 }
+
+// UI only (hides buttons the role cannot use); the API checks every request again.
+export const canDo = (permission: string) => !!currentAdmin()?.permissions?.includes(permission);
