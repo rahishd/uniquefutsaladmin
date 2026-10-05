@@ -1,0 +1,712 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  phoneNumber          String                   @id
+  email                String?                  @unique
+  password             String
+  name                 String?
+  role                 String                   @default("user")
+  isActive             Boolean                  @default(true)
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+  avatar               String?
+  freeMatchesAvailable Int                      @default(0)
+  isVerified           Boolean                  @default(false)
+  loyaltyEligible      Boolean                  @default(false)
+  loyaltyProgress      Int                      @default(0)
+  googleSub            String?                  @unique
+  googleEmail          String?
+  bookings             Booking[]
+  subscriptions        MembershipSubscription[]
+  notifications        Notification[]
+  orders               Order[]
+  reviews              Review[]
+  transactions         Transaction[]
+}
+
+model Product {
+  id                String         @id @default(cuid())
+  name              String
+  description       String?
+  price             Float
+  categoryId        String
+  inventory         Int            @default(0)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  lowStockThreshold Int            @default(10)
+  unit              String         @default("pcs")
+  costPrice         Float?
+  logs              InventoryLog[]
+  orderItems        OrderItem[]
+  category          Category       @relation(fields: [categoryId], references: [id])
+  reviews           Review[]
+}
+
+model InventoryLog {
+  id           String   @id @default(cuid())
+  productId    String
+  change       Int
+  price        Float?
+  reason       String?
+  createdAt    DateTime @default(now())
+  cashAmount   Float    @default(0)
+  onlineAmount Float    @default(0)
+  product      Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model Category {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  slug      String    @unique
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  products  Product[]
+}
+
+model Order {
+  id          String       @id @default(cuid())
+  userId      String
+  totalPrice  Float
+  status      String       @default("pending")
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  user        User         @relation(fields: [userId], references: [phoneNumber])
+  items       OrderItem[]
+  payment     Payment?
+  transaction Transaction?
+}
+
+model OrderItem {
+  id        String   @id @default(cuid())
+  orderId   String
+  productId String
+  quantity  Int
+  price     Float
+  createdAt DateTime @default(now())
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id])
+
+  @@unique([orderId, productId])
+}
+
+model Payment {
+  id            String   @id @default(cuid())
+  orderId       String   @unique
+  amount        Float
+  status        String   @default("pending")
+  paymentMethod String?
+  transactionId String?  @unique
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  order         Order    @relation(fields: [orderId], references: [id])
+}
+
+model Wallet {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  balance   Float    @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Transaction {
+  id          String   @id @default(cuid())
+  userId      String
+  orderId     String?  @unique
+  amount      Float
+  type        String
+  description String?
+  createdAt   DateTime @default(now())
+  order       Order?   @relation(fields: [orderId], references: [id])
+  user        User     @relation(fields: [userId], references: [phoneNumber])
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  product   Product  @relation(fields: [productId], references: [id])
+  user      User     @relation(fields: [userId], references: [phoneNumber])
+
+  @@unique([userId, productId])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  type      String   @default("general")
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  href      String?
+  dedupeKey String?  @unique
+  user      User     @relation(fields: [userId], references: [phoneNumber])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String
+  entity    String
+  entityId  String
+  changes   String?
+  userId    String?
+  createdAt DateTime @default(now())
+}
+
+model Booking {
+  id               String    @id @default(cuid())
+  userId           String?
+  date             String
+  startTime        String
+  endTime          String
+  duration         Int
+  customerName     String?
+  customerEmail    String?
+  customerPhone    String?
+  basePrice        Float
+  addOns           String?
+  addOnsPrice      Float     @default(0)
+  promoCode        String?
+  discountAmount   Float     @default(0)
+  subtotal         Float
+  totalPrice       Float
+  paymentMethod    String
+  amountPaidNow    Float     @default(0)
+  remainingAmount  Float     @default(0)
+  paymentStatus    String    @default("pending")
+  status           String    @default("pending")
+  notes            String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  cashAmount       Float     @default(0)
+  onlineAmount     Float     @default(0)
+  waterBottles     Int       @default(0)
+  loyaltyEnabled   Boolean   @default(true)
+  source           String    @default("regular")
+  challengeId      String?
+  voucherId        String?
+  cancelledAt      DateTime?
+  holdExpiresAt    DateTime?
+  checkedInAt      DateTime?
+  paymentOrderCode String?
+  code             String?
+  user             User?     @relation(fields: [userId], references: [phoneNumber])
+
+  @@index([userId])
+  @@index([date])
+  @@index([customerPhone])
+  @@index([code])
+  @@index([status])
+}
+
+model Settings {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Expense {
+  id        String   @id @default(cuid())
+  itemName  String
+  category  String
+  quantity  String?
+  price     Float
+  date      String
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Tournament {
+  id            String         @id @default(cuid())
+  name          String
+  prizePool     Float
+  minTeams      Int
+  maxTeams      Int
+  startDate     String
+  endDate       String
+  isActive      Boolean        @default(true)
+  description   String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  completedAt   DateTime?
+  paymentStatus String         @default("unpaid")
+  status        String         @default("active")
+  totalAmount   Float          @default(0)
+  registrations Registration[]
+}
+
+model Registration {
+  id           String     @id @default(cuid())
+  tournamentId String
+  teamName     String
+  captainName  String
+  contactEmail String
+  contactPhone String
+  players      String
+  status       String     @default("pending")
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+}
+
+model GamezoneRecord {
+  id           String   @id @default(cuid())
+  customerName String
+  hours        Float
+  rate         Float
+  money        Float
+  date         String
+  timestamp    String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model MembershipPlan {
+  id                     String                   @id @default(cuid())
+  name                   String
+  description            String?
+  price                  Float
+  perks                  String
+  featured               Boolean                  @default(false)
+  isActive               Boolean                  @default(true)
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
+  pricingMatrix          String?
+  price1MonthDay         Int?
+  price1MonthEvening     Int?
+  price1MonthMorning     Int?
+  price3DaysDay          Int?
+  price3DaysEvening      Int?
+  price3DaysMorning      Int?
+  price3MonthsDay        Int?
+  price3MonthsEvening    Int?
+  price3MonthsMorning    Int?
+  discount1MonthDay      Int?                     @default(0)
+  discount1MonthEvening  Int?                     @default(0)
+  discount1MonthMorning  Int?                     @default(0)
+  discount3DaysDay       Int?                     @default(0)
+  discount3DaysEvening   Int?                     @default(0)
+  discount3DaysMorning   Int?                     @default(0)
+  discount3MonthsDay     Int?                     @default(0)
+  discount3MonthsEvening Int?                     @default(0)
+  discount3MonthsMorning Int?                     @default(0)
+  subscriptions          MembershipSubscription[]
+}
+
+model MembershipSubscription {
+  id                String         @id @default(cuid())
+  planId            String
+  userId            String
+  startDate         DateTime
+  endDate           DateTime
+  status            String         @default("pending")
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  paymentStatus     String         @default("pending")
+  paymentVerifiedAt DateTime?
+  paymentVerifiedBy String?
+  timeSlot          String?
+  chosenCategory    String?
+  chosenDuration    String?
+  totalPrice        Float?
+  chosenDays        String[]
+  discountAmount    Float          @default(0)
+  promoCode         String?
+  notes             String?
+  excludeDays       String[]
+  plan              MembershipPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  user              User           @relation(fields: [userId], references: [phoneNumber])
+}
+
+model SuperAdmin {
+  id          String    @id @default(cuid())
+  email       String    @unique
+  password    String
+  name        String?
+  isActive    Boolean   @default(true)
+  lastLoginAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Ad {
+  id        String   @id @default(cuid())
+  image     String
+  link      String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Gallery {
+  id          String   @id @default(cuid())
+  image       String
+  title       String?
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model UserOTP {
+  id          String   @id @default(cuid())
+  phoneNumber String   @unique
+  otp         String
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+}
+
+model PendingSignup {
+  phoneNumber String   @id
+  name        String
+  email       String?
+  password    String
+  otp         String
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+}
+
+model PageVisit {
+  id        String   @id @default(cuid())
+  date      String
+  page      String   @default("/")
+  userAgent String?
+  createdAt DateTime @default(now())
+}
+
+// ===================================================================
+// New customer app (additive only: new tables, no changes to old data).
+// User references below are phone numbers (User.phoneNumber), kept as plain strings.
+// ===================================================================
+
+model UserPrefs {
+  userId             String   @id
+  smsReminders       Boolean  @default(true)
+  promoNotifications Boolean  @default(true)
+  popupReminder      Boolean  @default(true)
+  language           String   @default("en")
+  mode               String   @default("player") // player | captain
+  location           String?
+  position           String? // GK | DEF | MID | FWD
+  updatedAt          DateTime @updatedAt
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model PaymentOrder {
+  id         String    @id @default(cuid())
+  orderCode  String    @unique // the booking / gamezone / membership code shown to the customer
+  purpose    String // game | gamezone | purchase | renew
+  userId     String?
+  guestPhone String?
+  method     String // esewa | fonepay | venue
+  amount     Int
+  status     String    @default("pending") // pending | paid | expired | failed | refunded
+  remarks    String
+  qrPayload  String?
+  gatewayRef String?
+  expiresAt  DateTime
+  paidAt     DateTime?
+  paidBy     String? // staff id for venue payments
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([status, expiresAt])
+}
+
+model PaymentEvent {
+  id         String   @id @default(cuid())
+  orderCode  String
+  source     String // gateway | staff | system
+  payload    String
+  receivedAt DateTime @default(now())
+
+  @@index([orderCode])
+}
+
+model LoyaltyEntry {
+  id         String   @id @default(cuid())
+  userId     String
+  kind       String // game | captain_win | goods | membership | free_game
+  points     Decimal  @db.Decimal(8, 1) // positive = earned, negative = spent on a free game
+  earnedOn   String // YYYY-MM-DD
+  expiresOn  String? // last valid day; null = never expires
+  sourceType String
+  sourceId   String
+  detail     String
+  createdAt  DateTime @default(now())
+
+  @@unique([kind, sourceType, sourceId])
+  @@index([userId])
+}
+
+model FreeGameVoucher {
+  id        String    @id @default(cuid())
+  userId    String
+  period    String // Morning | Day | Evening
+  cost      Decimal   @db.Decimal(8, 1)
+  status    String    @default("unused") // unused | used | void
+  bookingId String?
+  claimedAt DateTime  @default(now())
+  usedAt    DateTime?
+
+  @@index([userId, status])
+}
+
+model GoodsSale {
+  id     String   @id @default(cuid())
+  userId String?
+  phone  String?
+  amount Int
+  items  String?
+  soldBy String
+  soldAt DateTime @default(now())
+}
+
+model Team {
+  id        String       @id @default(cuid())
+  name      String       @unique
+  area      String       @default("Tilottama")
+  captainId String       @unique
+  createdAt DateTime     @default(now())
+  members   TeamMember[]
+}
+
+model TeamMember {
+  id       String   @id @default(cuid())
+  teamId   String
+  userId   String   @unique // a player can be in only one team
+  position String   @default("MID")
+  joinedAt DateTime @default(now())
+  team     Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([teamId])
+}
+
+model Challenge {
+  id               String            @id @default(cuid())
+  challengerTeamId String
+  challengedTeamId String
+  type             String // match | competition
+  date             String
+  startHour        Int
+  courtPrice       Int
+  loserPct         Int // 70 | 60 | 100
+  message          String?
+  status           String            @default("pending") // pending | accepted | declined | cancelled | expired
+  bookingId        String?
+  venuePaidAt      DateTime?
+  venuePaidBy      String?
+  createdAt        DateTime          @default(now())
+  results          ChallengeResult[]
+
+  @@index([challengerTeamId])
+  @@index([challengedTeamId])
+}
+
+model ChallengeResult {
+  id                String    @id @default(cuid())
+  challengeId       String
+  submittedByTeamId String
+  scoreSubmitter    Int
+  scoreOther        Int
+  status            String    @default("awaiting_approval") // awaiting_approval | approved | disputed
+  approvedBy        String?
+  resolutionNote    String?
+  createdAt         DateTime  @default(now())
+  challenge         Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+
+  @@index([challengeId])
+}
+
+model ChallengePrompt {
+  challengeId String
+  userId      String
+  shownAt     DateTime @default(now())
+
+  @@id([challengeId, userId])
+}
+
+model GzConsole {
+  id     String  @id @default(cuid())
+  name   String  @unique
+  active Boolean @default(true)
+}
+
+model GzGame {
+  id     String  @id @default(cuid())
+  title  String  @unique
+  active Boolean @default(true)
+}
+
+model GzPlan {
+  players           Int    @id // 1 | 2 | 4
+  label             String
+  ratePerPersonHour Int
+}
+
+model GzBooking {
+  id            String    @id @default(cuid())
+  code          String    @unique
+  userId        String?
+  guestName     String?
+  guestPhone    String?
+  consoleId     String
+  gameTitle     String
+  date          String
+  startHour     Int
+  hours         Int
+  players       Int
+  total         Int
+  paymentMethod String
+  paymentStatus String    @default("pending") // pending | pay_at_venue | paid | refunded
+  status        String    @default("confirmed") // confirmed | completed | cancelled | expired
+  holdExpiresAt DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([consoleId, date])
+  @@index([userId])
+}
+
+model ArrivalCheckin {
+  refId        String    @id // booking id or gamezone code
+  userId       String
+  confirmedAt  DateTime  @default(now())
+  snoozedUntil DateTime?
+  alertedAt    DateTime?
+}
+
+model TournamentRound {
+  id           String            @id @default(cuid())
+  tournamentId String
+  name         String
+  position     Int
+  matches      TournamentMatch[]
+
+  @@index([tournamentId])
+}
+
+model TournamentMatch {
+  id        String          @id @default(cuid())
+  roundId   String
+  home      String?
+  away      String?
+  status    String          @default("upcoming") // upcoming | live | finished
+  homeScore Int?
+  awayScore Int?
+  note      String?
+  startsAt  DateTime?
+  venue     String?
+  round     TournamentRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+
+  @@index([roundId])
+}
+
+// One row per booked hour. The unique (date, hour) is the final guard against two bookings taking the same hour.
+model BookingSlot {
+  id        String   @id @default(cuid())
+  date      String
+  hour      Int
+  bookingId String
+  createdAt DateTime @default(now())
+
+  @@unique([date, hour])
+  @@index([bookingId])
+}
+
+// One row per console and booked hour: the unique index is the final guard against double booking a console.
+model GzSlot {
+  id          String @id @default(cuid())
+  consoleId   String
+  date        String
+  hour        Int
+  bookingCode String
+
+  @@unique([consoleId, date, hour])
+  @@index([bookingCode])
+}
+
+model PlayerGameStat {
+  id         String   @id @default(cuid())
+  bookingId  String
+  userId     String
+  goals      Int      @default(0)
+  assists    Int      @default(0)
+  recordedBy String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([bookingId, userId])
+  @@index([userId])
+}
+
+// =====================================================================
+// ADMIN-OWNED TABLES (created by sql/*.sql in production; `npm run db:push` builds them locally).
+// Everything above this line mirrors the customer backend's schema: keep it in sync, never edit it here.
+// =====================================================================
+
+model StaffUser {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  role         String // owner | manager | frontdesk | accountant
+  passwordHash String
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model AdminAuditLog {
+  id        String   @id @default(cuid())
+  staffId   String
+  staffName String
+  action    String
+  entity    String
+  entityId  String?
+  details   String?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([entity, entityId])
+  @@index([staffId])
+}
+
+model SlotBlock {
+  id        String   @id @default(cuid())
+  date      String
+  hour      Int
+  reason    String
+  createdBy String
+  createdAt DateTime @default(now())
+
+  @@unique([date, hour])
+}

@@ -1,5 +1,5 @@
 // Fetch wrapper for the Unique Futsal API. Only the public API address is configured here; no secrets.
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api";
+const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5100/api";
 const TOKEN_KEY = "uf_admin_token";
 
 export class ApiError extends Error {

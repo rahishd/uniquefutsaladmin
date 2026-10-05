@@ -5,10 +5,10 @@ Admin portal for Unique Futsal. One repo, two apps:
 | Folder | What | Stack (planned) |
 |---|---|---|
 | `web/` | Admin frontend (desktop-first, responsive) | Next.js, TypeScript, Tailwind |
-| `server/` | Admin API, jobs, tests | Express, TypeScript, Prisma, PostgreSQL |
+| `server/` | Admin API, tests (shares the customer database) | Express, TypeScript, Prisma, PostgreSQL |
 | `docs/` | Plan, FRD, API reference, runbook | Markdown |
 
-Status: planning. See `docs/PLAN.md`. The portal will be connected to the customer site (`rahishd/uniquefutsalclient`) later.
+Status: web dashboard shell and admin API built (see `docs/API.md`, `server/README.md`). The portal will be connected to the customer site (`rahishd/uniquefutsalclient`) later.
 
 ## Rules
 - Development uses a local database only. Never point it at production data.
