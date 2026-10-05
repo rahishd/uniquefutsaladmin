@@ -12,6 +12,7 @@ import { gamezoneRouter } from "./modules/gamezone";
 import { loyaltyRouter } from "./modules/loyalty";
 import { overviewRouter } from "./modules/overview";
 import { paymentsRouter } from "./modules/payments";
+import { ledgerRouter } from "./modules/payments-ledger";
 import { promosRouter } from "./modules/promos";
 import { staffRouter } from "./modules/staff";
 import { teamsRouter } from "./modules/teams";
@@ -32,6 +33,7 @@ admin.use("/auth", authRouter); // login is the only route without a token
 admin.use(requireStaff); // everything below needs a valid staff token; each route then checks its permission
 admin.use("/staff", staffRouter);
 admin.use("/bookings", bookingsRouter);
+admin.use("/payments", ledgerRouter);
 admin.use("/payments", paymentsRouter);
 admin.use("/customers", customersRouter);
 admin.use("/courts", courtsRouter);
