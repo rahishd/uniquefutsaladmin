@@ -1,0 +1,281 @@
+import assert from "node:assert/strict";
+import { after, before, beforeEach, describe, it } from "node:test";
+import { addDaysKey, api, app, customer, customerToken, PASSWORD, prisma, request, reset, staff, todayKey } from "./helpers";
+
+const today = todayKey();
+const tomorrow = addDaysKey(today, 1);
+
+before(reset);
+beforeEach(reset);
+after(() => prisma.$disconnect());
+
+describe("auth and access", () => {
+  it("logs in, rejects a wrong password, and never reveals which part was wrong", async () => {
+    await staff("owner");
+    const ok = await request(app).post("/api/admin/auth/login").send({ email: "owner@test.np", password: PASSWORD });
+    assert.equal(ok.status, 200);
+    assert.ok(ok.body.data.token);
+    assert.equal(ok.body.data.admin.passwordHash, undefined);
+    const bad = await request(app).post("/api/admin/auth/login").send({ email: "owner@test.np", password: "nope" });
+    const none = await request(app).post("/api/admin/auth/login").send({ email: "ghost@test.np", password: "nope" });
+    assert.equal(bad.status, 401);
+    assert.equal(none.status, 401);
+    assert.equal(bad.body.message, none.body.message);
+  });
+
+  it("needs a token, and a customer token is not a staff token", async () => {
+    assert.equal((await request(app).get("/api/admin/bookings")).status, 401);
+    await customer("9800000001");
+    const r = await request(app).get("/api/admin/bookings").set({ Authorization: `Bearer ${customerToken("9800000001")}` });
+    assert.equal(r.status, 401);
+  });
+
+  it("a disabled staff member loses access at once", async () => {
+    const owner = await staff("owner");
+    const fd = await staff("frontdesk");
+    assert.equal((await api.get("/bookings", fd.auth)).status, 200);
+    assert.equal((await api.patch(`/staff/${fd.id}`, owner.auth, { isActive: false })).status, 200);
+    assert.equal((await api.get("/bookings", fd.auth)).status, 401);
+  });
+
+  it("enforces roles: front desk cannot manage staff, adjust points, or edit prices; accountant cannot book", async () => {
+    const fd = await staff("frontdesk");
+    const acc = await staff("accountant");
+    assert.equal((await api.get("/staff", fd.auth)).status, 403);
+    assert.equal((await api.post("/loyalty/adjust", fd.auth, { phone: "9800000001", points: 5, reason: "goodwill gift" })).status, 403);
+    assert.equal((await api.put("/courts/pricing", fd.auth, { hourlyRate: 1000 })).status, 403);
+    assert.equal((await api.post("/bookings/walk-in", acc.auth, { date: tomorrow, startTime: "10:00", customerName: "Ram" })).status, 403);
+    assert.equal((await api.get("/reports/revenue", acc.auth)).status, 200);
+  });
+
+  it("protects the last owner and your own account", async () => {
+    const owner = await staff("owner");
+    assert.equal((await api.patch(`/staff/${owner.id}`, owner.auth, { role: "manager" })).status, 400);
+    assert.equal((await api.patch(`/staff/${owner.id}`, owner.auth, { isActive: false })).status, 400);
+    const made = await api.post("/staff", owner.auth, { email: "m@test.np", name: "Mina", role: "manager", password: "another-long-pass" });
+    assert.equal(made.status, 201);
+    assert.equal(made.body.data.passwordHash, undefined);
+    assert.equal((await api.post("/staff", owner.auth, { email: "m@test.np", name: "Mina", role: "manager", password: "another-long-pass" })).status, 409);
+    assert.equal((await api.post("/staff", owner.auth, { email: "x@test.np", name: "Xi", role: "manager", password: "short" })).status, 400);
+  });
+});
+
+describe("bookings", () => {
+  it("walk-in books an hour once; the same hour is refused; cancelling frees it; writes are audited", async () => {
+    await prisma.settings.create({ data: { key: "hourlyRate", value: "1200" } });
+    const fd = await staff("frontdesk");
+    const body = { date: tomorrow, startTime: "18:00", duration: 2, customerName: "Ram Karki", customerPhone: "9811111111", paid: true };
+    const a = await api.post("/bookings/walk-in", fd.auth, body);
+    assert.equal(a.status, 201);
+    assert.equal(a.body.data.totalPrice, 2400);
+    assert.match(a.body.data.code, /^UF-/);
+    assert.equal((await api.post("/bookings/walk-in", fd.auth, { ...body, startTime: "19:00", duration: 1 })).status, 409);
+    assert.equal((await prisma.bookingSlot.count({ where: { date: tomorrow } })), 2);
+    assert.equal((await api.post(`/bookings/${a.body.data.id}/cancel`, fd.auth, {})).status, 200);
+    assert.equal(await prisma.bookingSlot.count({ where: { date: tomorrow } }), 0);
+    assert.equal((await prisma.booking.findUnique({ where: { id: a.body.data.id } }))?.status, "cancelled", "the record is kept");
+    assert.equal((await api.post(`/bookings/${a.body.data.id}/cancel`, fd.auth, {})).status, 409);
+    assert.equal((await api.post("/bookings/walk-in", fd.auth, body)).status, 201);
+    assert.ok((await prisma.adminAuditLog.count({ where: { entity: "booking" } })) >= 3);
+  });
+
+  it("refuses past dates and bad input", async () => {
+    const fd = await staff("frontdesk");
+    assert.equal((await api.post("/bookings/walk-in", fd.auth, { date: addDaysKey(today, -1), startTime: "10:00", customerName: "Ram" })).status, 400);
+    assert.equal((await api.post("/bookings/walk-in", fd.auth, { date: tomorrow, startTime: "10:30", customerName: "Ram" })).status, 400);
+    assert.equal((await api.post("/bookings/walk-in", fd.auth, { date: tomorrow, startTime: "10:00", customerName: "Ram", customerPhone: "123" })).status, 400);
+  });
+
+  it("completing a paid game awards points to a registered customer exactly once; guests and unpaid earn none", async () => {
+    await customer("9822222222");
+    const fd = await staff("frontdesk");
+    const mk = (extra: object) => api.post("/bookings/walk-in", fd.auth, { date: today, startTime: "06:00", customerName: "Sita", customerPhone: "9822222222", ...extra });
+    const paid = (await mk({ paid: true, priceOverride: 1250 })).body.data;
+    const done = await api.post(`/bookings/${paid.id}/complete`, fd.auth);
+    assert.equal(done.status, 200);
+    assert.equal(done.body.data.pointsAwarded, true);
+    const entries = await prisma.loyaltyEntry.findMany({ where: { userId: "9822222222" } });
+    assert.equal(entries.length, 1);
+    assert.equal(Number(entries[0].points), 12.5);
+    assert.equal((await api.post(`/bookings/${paid.id}/complete`, fd.auth)).status, 409);
+    assert.equal(await prisma.loyaltyEntry.count(), 1);
+
+    const unpaid = (await api.post("/bookings/walk-in", fd.auth, { date: today, startTime: "07:00", customerName: "Sita", customerPhone: "9822222222", priceOverride: 1000 })).body.data;
+    assert.equal((await api.post(`/bookings/${unpaid.id}/complete`, fd.auth)).body.data.pointsAwarded, false);
+    const guest = (await api.post("/bookings/walk-in", fd.auth, { date: today, startTime: "08:00", customerName: "Guest", paid: true, priceOverride: 1000 })).body.data;
+    assert.equal((await api.post(`/bookings/${guest.id}/complete`, fd.auth)).body.data.pointsAwarded, false);
+    assert.equal(await prisma.loyaltyEntry.count(), 1);
+  });
+
+  it("a future game cannot be completed or marked no-show", async () => {
+    const fd = await staff("frontdesk");
+    const b = (await api.post("/bookings/walk-in", fd.auth, { date: tomorrow, startTime: "10:00", customerName: "Ram" })).body.data;
+    assert.equal((await api.post(`/bookings/${b.id}/complete`, fd.auth)).status, 400);
+    assert.equal((await api.post(`/bookings/${b.id}/no-show`, fd.auth)).status, 400);
+  });
+
+  it("mark-paid settles an online hold and cancel of a paid online order creates a refund to record once", async () => {
+    await customer("9833333333");
+    const fd = await staff("frontdesk");
+    const b = await prisma.booking.create({ data: { userId: "9833333333", date: tomorrow, startTime: "17:00", endTime: "18:00", duration: 1, customerName: "Hari", basePrice: 1500, subtotal: 1500, totalPrice: 1500, paymentMethod: "esewa", status: "pending", paymentOrderCode: "UF-ORDER1", holdExpiresAt: new Date(Date.now() + 600000), code: "UF-ORDER1" } });
+    await prisma.paymentOrder.create({ data: { orderCode: "UF-ORDER1", purpose: "game", userId: "9833333333", method: "esewa", amount: 1500, remarks: "Regular game - UF-ORDER1", expiresAt: new Date(Date.now() + 600000) } });
+    assert.equal((await api.post(`/payments/UF-ORDER1/mark-paid`, fd.auth)).status, 200);
+    const paid = await prisma.booking.findUnique({ where: { id: b.id } });
+    assert.equal(paid?.paymentStatus, "completed");
+    assert.equal(paid?.status, "confirmed");
+    assert.equal((await api.post(`/payments/UF-ORDER1/mark-paid`, fd.auth)).status, 409);
+
+    assert.equal((await api.post(`/bookings/${b.id}/cancel`, fd.auth, { reason: "Rain" })).status, 200);
+    const due = await api.get("/payments/refunds?status=due", fd.auth);
+    assert.equal(due.body.data.length, 1);
+    assert.equal(due.body.data[0].orderCode, "UF-ORDER1");
+    assert.equal((await api.post("/payments/UF-ORDER1/refund", fd.auth, { method: "esewa", reference: "TXN1" })).status, 200);
+    assert.equal((await api.post("/payments/UF-ORDER1/refund", fd.auth, { method: "esewa" })).status, 409);
+    assert.equal((await api.get("/payments/refunds?status=due", fd.auth)).body.data.length, 0);
+    assert.equal(await prisma.notification.count({ where: { userId: "9833333333", type: "booking" } }), 1);
+  });
+});
+
+describe("courts, promos, loyalty, customers", () => {
+  it("blocked hours cannot be booked, and unblocking frees them", async () => {
+    const mgr = await staff("manager");
+    const blk = await api.post("/courts/blocks", mgr.auth, { date: tomorrow, hours: [10, 11], reason: "Floor repair" });
+    assert.equal(blk.status, 201);
+    assert.equal((await api.post("/bookings/walk-in", mgr.auth, { date: tomorrow, startTime: "11:00", customerName: "Ram" })).status, 409);
+    assert.equal((await api.post("/courts/blocks", mgr.auth, { date: tomorrow, hours: [11, 12], reason: "Overlap" })).status, 409);
+    assert.equal(await prisma.slotBlock.count({ where: { hour: 12 } }), 0, "a failed block leaves nothing behind");
+    const day = await api.get(`/courts/slots?date=${tomorrow}`, mgr.auth);
+    assert.equal(day.body.data.hours[10].state, "blocked");
+    assert.equal(day.body.data.hours[9].state, "free");
+    assert.equal((await api.del(`/courts/blocks/${blk.body.data[0].id}`, mgr.auth)).status, 200);
+    assert.equal((await api.post("/bookings/walk-in", mgr.auth, { date: tomorrow, startTime: "10:00", customerName: "Ram" })).status, 201);
+  });
+
+  it("pricing writes the same Settings keys the customer app reads", async () => {
+    const mgr = await staff("manager");
+    await api.put("/courts/pricing", mgr.auth, { hourlyRate: 1000, hours: [{ hour: 18, price: 1500 }] });
+    const stored = JSON.parse((await prisma.settings.findUnique({ where: { key: "hourlyPricing" } }))!.value);
+    assert.deepEqual(stored, [{ id: "ts-18", time: "18:00", price: 1500 }]);
+    const w = await api.post("/bookings/walk-in", mgr.auth, { date: tomorrow, startTime: "18:00", customerName: "Ram" });
+    assert.equal(w.body.data.totalPrice, 1500);
+  });
+
+  it("promo codes: create, no duplicates, validate, update, remove", async () => {
+    const mgr = await staff("manager");
+    const p = { code: "tihar20", type: "percent", value: 20, label: "20% off", appliedTo: "booking" };
+    const made = await api.post("/promos", mgr.auth, p);
+    assert.equal(made.status, 201);
+    assert.equal(made.body.data.code, "TIHAR20");
+    assert.equal((await api.post("/promos", mgr.auth, p)).status, 409);
+    assert.equal((await api.post("/promos", mgr.auth, { ...p, code: "BIG", value: 150 })).status, 400);
+    assert.equal((await api.put("/promos/TIHAR20", mgr.auth, { ...p, value: 25 })).status, 200);
+    assert.equal((await api.get("/promos", mgr.auth)).body.data[0].value, 25);
+    assert.equal((await api.del("/promos/TIHAR20", mgr.auth)).status, 200);
+    assert.equal((await api.get("/promos", mgr.auth)).body.data.length, 0);
+  });
+
+  it("goods sale awards Rs.100 = 1 point; only managers adjust; vouchers can be voided once", async () => {
+    await customer("9844444444");
+    const fd = await staff("frontdesk");
+    const mgr = await staff("manager");
+    const sale = await api.post("/loyalty/goods-sale", fd.auth, { phone: "9844444444", amount: 1050, items: "Water x5" });
+    assert.equal(sale.body.data.points, 10);
+    assert.equal((await api.post("/loyalty/goods-sale", fd.auth, { phone: "9855555555", amount: 500 })).status, 404);
+    assert.equal((await api.post("/loyalty/adjust", mgr.auth, { phone: "9844444444", points: -3, reason: "Wrong sale entered" })).status, 200);
+    const l = await api.get("/loyalty/customers/9844444444", fd.auth);
+    assert.equal(l.body.data.approxBalance, 7);
+    const v = await prisma.freeGameVoucher.create({ data: { userId: "9844444444", period: "Day", cost: 125 } });
+    assert.equal((await api.post(`/loyalty/vouchers/${v.id}/void`, mgr.auth)).status, 200);
+    assert.equal((await api.post(`/loyalty/vouchers/${v.id}/void`, mgr.auth)).status, 409);
+  });
+
+  it("customers: search, never expose the password, suspend and reactivate", async () => {
+    await customer("9866666666", "Gita Rai");
+    const fd = await staff("frontdesk");
+    const list = await api.get("/customers?q=gita", fd.auth);
+    assert.equal(list.body.data.total, 1);
+    assert.equal(JSON.stringify(list.body).includes("password"), false);
+    const detail = await api.get("/customers/9866666666", fd.auth);
+    assert.equal(JSON.stringify(detail.body).includes("hash-not-exposed"), false);
+    assert.equal((await api.post("/customers/9866666666/suspend", fd.auth)).status, 403, "front desk cannot suspend");
+    const mgr = await staff("manager");
+    assert.equal((await api.post("/customers/9866666666/suspend", mgr.auth)).status, 200);
+    assert.equal((await prisma.user.findUnique({ where: { phoneNumber: "9866666666" } }))?.isActive, false);
+    assert.equal((await api.post("/customers/9866666666/unsuspend", mgr.auth)).status, 200);
+  });
+});
+
+describe("gamezone, teams, notices, reports", () => {
+  it("gamezone: mark paid, cancel a paid session creates a refund and frees the console hour", async () => {
+    const fd = await staff("frontdesk");
+    await prisma.gzBooking.create({ data: { code: "GZ-1", guestName: "Bikash", guestPhone: "9877777777", consoleId: "c1", gameTitle: "FIFA 26", date: tomorrow, startHour: 14, hours: 1, players: 2, total: 400, paymentMethod: "esewa", status: "confirmed" } });
+    await prisma.gzSlot.create({ data: { consoleId: "c1", date: tomorrow, hour: 14, bookingCode: "GZ-1" } });
+    await prisma.paymentOrder.create({ data: { orderCode: "GZ-1", purpose: "gamezone", method: "esewa", amount: 400, remarks: "Gamezone PS5 - GZ-1", expiresAt: new Date(Date.now() + 600000) } });
+    assert.equal((await api.post("/gamezone/bookings/GZ-1/mark-paid", fd.auth)).status, 200);
+    assert.equal((await api.post("/gamezone/bookings/GZ-1/mark-paid", fd.auth)).status, 409);
+    assert.equal((await api.post("/gamezone/bookings/GZ-1/cancel", fd.auth)).status, 200);
+    assert.equal(await prisma.gzSlot.count(), 0);
+    assert.equal((await api.get("/payments/refunds?status=due", fd.auth)).body.data.length, 1);
+  });
+
+  it("gamezone catalog: duplicate names refused, plans only for 1, 2 or 4 players", async () => {
+    const mgr = await staff("manager");
+    assert.equal((await api.post("/gamezone/consoles", mgr.auth, { name: "PS5 Station 1" })).status, 201);
+    assert.equal((await api.post("/gamezone/consoles", mgr.auth, { name: "PS5 Station 1" })).status, 409);
+    assert.equal((await api.put("/gamezone/plans/2", mgr.auth, { label: "2 players", ratePerPersonHour: 200 })).status, 200);
+    assert.equal((await api.put("/gamezone/plans/3", mgr.auth, { label: "3 players", ratePerPersonHour: 200 })).status, 400);
+  });
+
+  it("disputes: approve awards the winning captain 5 points once; void removes the result", async () => {
+    await customer("9810000001"); await customer("9810000002");
+    const a = await prisma.team.create({ data: { name: "Reds", captainId: "9810000001" } });
+    const b = await prisma.team.create({ data: { name: "Blues", captainId: "9810000002" } });
+    const ch = await prisma.challenge.create({ data: { challengerTeamId: a.id, challengedTeamId: b.id, type: "match", date: today, startHour: 18, courtPrice: 2000, loserPct: 70, status: "accepted" } });
+    const r = await prisma.challengeResult.create({ data: { challengeId: ch.id, submittedByTeamId: a.id, scoreSubmitter: 3, scoreOther: 1, status: "disputed" } });
+    const fd = await staff("frontdesk");
+    const list = await api.get("/teams/disputes", fd.auth);
+    assert.equal(list.body.data.length, 1);
+    assert.equal((await api.post(`/teams/results/${r.id}/resolve`, fd.auth, { action: "approve", scoreSubmitter: 1, scoreOther: 4 })).status, 400);
+    assert.equal((await api.post(`/teams/results/${r.id}/resolve`, fd.auth, { action: "approve", scoreSubmitter: 2, scoreOther: 1, note: "Checked CCTV" })).status, 200);
+    const pts = await prisma.loyaltyEntry.findMany({ where: { userId: "9810000001", kind: "captain_win" } });
+    assert.equal(pts.length, 1);
+    assert.equal(Number(pts[0].points), 5);
+    assert.equal((await api.post(`/teams/results/${r.id}/resolve`, fd.auth, { action: "approve" })).status, 409);
+    const s = await api.get(`/teams/settlements?date=${today}`, fd.auth);
+    assert.deepEqual(s.body.data[0].split, { challenger: 600, challenged: 1400, basis: "loser pays 70%" });
+    assert.equal((await api.post(`/teams/challenges/${ch.id}/venue-paid`, fd.auth)).status, 200);
+    assert.equal(await prisma.notification.count({ where: { type: "match", title: { contains: "Did you win" } } }), 2);
+
+    const r2 = await prisma.challengeResult.create({ data: { challengeId: ch.id, submittedByTeamId: b.id, scoreSubmitter: 1, scoreOther: 0, status: "disputed" } });
+    assert.equal((await api.post(`/teams/results/${r2.id}/resolve`, fd.auth, { action: "void" })).status, 200);
+    assert.equal(await prisma.challengeResult.count({ where: { id: r2.id } }), 0);
+  });
+
+  it("broadcast respects promo opt-outs and inactive customers", async () => {
+    await customer("9820000001"); await customer("9820000002"); await customer("9820000003");
+    await prisma.userPrefs.create({ data: { userId: "9820000002", promoNotifications: false } });
+    await prisma.user.update({ where: { phoneNumber: "9820000003" }, data: { isActive: false } });
+    const mgr = await staff("manager");
+    const promo = await api.post("/notifications/broadcast", mgr.auth, { type: "promo", title: "Tihar offer", message: "20% off this week", href: "/promos" });
+    assert.equal(promo.body.data.sent, 1);
+    const general = await api.post("/notifications/broadcast", mgr.auth, { type: "general", title: "Closed Friday", message: "Venue closed for Dashain" });
+    assert.equal(general.body.data.sent, 2);
+    assert.equal((await api.post("/notifications/broadcast", mgr.auth, { type: "promo", title: "x", message: "bad link", href: "https://evil.example" })).status, 400);
+  });
+
+  it("dashboard, revenue report and audit log work; the audit log never holds passwords", async () => {
+    const owner = await staff("owner");
+    await api.post("/bookings/walk-in", owner.auth, { date: today, startTime: "09:00", customerName: "Ram", paid: true, priceOverride: 1000 });
+    const dash = await api.get("/dashboard", owner.auth);
+    assert.equal(dash.body.data.bookingsToday, 1);
+    assert.equal(dash.body.data.revenueToday, 1000);
+    const rev = await api.get(`/reports/revenue?from=${today}&to=${today}`, owner.auth);
+    assert.equal(rev.body.data.totals.cash, 1000);
+    assert.equal((await api.get(`/reports/revenue?from=2020-01-01&to=${today}`, owner.auth)).status, 400);
+    await api.post("/staff", owner.auth, { email: "n@test.np", name: "Nima", role: "frontdesk", password: "secret-password-1" });
+    const log = await api.get("/audit?entity=staff", owner.auth);
+    assert.ok(log.body.data.total >= 2);
+    assert.equal(JSON.stringify(log.body).includes("secret-password-1"), false);
+    assert.equal(JSON.stringify(log.body).includes("passwordHash"), false);
+  });
+});

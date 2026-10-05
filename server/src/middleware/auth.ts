@@ -1,0 +1,38 @@
+import { NextFunction, Request, Response } from "express";
+import jwt from "jsonwebtoken";
+import env from "../config/env";
+import { prisma } from "../db";
+import { AppError } from "../lib/http";
+import { Permission, can } from "../lib/permissions";
+
+export interface Staff { id: string; email: string; name: string; role: string }
+declare module "express-serve-static-core" {
+  interface Request { staff?: Staff }
+}
+
+export const signStaffToken = (s: Staff) =>
+  jwt.sign({ id: s.id, role: s.role, aud: "admin" }, env.ADMIN_JWT_SECRET, { expiresIn: env.ADMIN_JWT_EXPIRE as jwt.SignOptions["expiresIn"] });
+
+// A valid ADMIN token is required. Customer tokens (different secret and audience) never pass.
+// The account is re-read on every request, so disabling a staff member takes effect immediately.
+export async function requireStaff(req: Request, _res: Response, next: NextFunction) {
+  try {
+    const token = req.headers.authorization?.replace(/^Bearer /, "");
+    if (!token) throw new AppError(401, "Sign in required");
+    let id: string;
+    try {
+      id = (jwt.verify(token, env.ADMIN_JWT_SECRET, { audience: "admin" }) as { id: string }).id;
+    } catch {
+      throw new AppError(401, "Session expired, sign in again");
+    }
+    const s = await prisma.staffUser.findUnique({ where: { id } });
+    if (!s || !s.isActive) throw new AppError(401, "Account disabled");
+    req.staff = { id: s.id, email: s.email, name: s.name, role: s.role };
+    next();
+  } catch (e) {
+    next(e);
+  }
+}
+
+export const requirePermission = (p: Permission) => (req: Request, _res: Response, next: NextFunction) =>
+  req.staff && can(req.staff.role, p) ? next() : next(new AppError(403, "You do not have permission for this"));

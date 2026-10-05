@@ -1,0 +1,181 @@
+import { Prisma } from "@prisma/client";
+import { Router } from "express";
+import { randomInt } from "crypto";
+import { z } from "zod";
+import { prisma } from "../db";
+import { audit } from "../lib/audit";
+import { awardForCompletedBooking, notify } from "../lib/customer-effects";
+import { todayKey } from "../lib/dates";
+import { AppError, dateStr, handler, page, param, parse, send, timeStr } from "../lib/http";
+import { requirePermission } from "../middleware/auth";
+import { getHourPrice } from "./settings-store";
+
+export const bookingsRouter = Router();
+
+// Same short code the customer sees ("UF-7K3QX9"); no 0/O/1/I so it is easy to read over the phone.
+const ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+async function uniqueCode(): Promise<string> {
+  for (let i = 0; i < 10; i++) {
+    const code = "UF-" + Array.from({ length: 6 }, () => ALPHABET[randomInt(ALPHABET.length)]).join("");
+    if (!(await prisma.booking.findFirst({ where: { code }, select: { id: true } }))) return code;
+  }
+  throw new AppError(500, "Could not make a booking code");
+}
+
+const withCode = <T extends { id: string; code: string | null }>(b: T) => ({ ...b, code: b.code ?? "UF-" + b.id.slice(-6).toUpperCase() });
+
+async function load(idOrCode: string) {
+  const b = await prisma.booking.findFirst({ where: { OR: [{ id: idOrCode }, { code: idOrCode }] } });
+  if (!b) throw new AppError(404, "Booking not found");
+  return b;
+}
+
+bookingsRouter.get("/", requirePermission("bookings.read"), handler(async (req, res) => {
+  const q = req.query as Record<string, string | undefined>;
+  const { take, skip, pageNo, limit } = page(q);
+  const where: Prisma.BookingWhereInput = {
+    ...(q.date ? { date: q.date } : { ...(q.from || q.to ? { date: { ...(q.from ? { gte: q.from } : {}), ...(q.to ? { lte: q.to } : {}) } } : {}) }),
+    ...(q.status ? { status: q.status } : {}),
+    ...(q.paymentStatus ? { paymentStatus: q.paymentStatus } : {}),
+    ...(q.q ? { OR: [{ code: { contains: q.q, mode: "insensitive" } }, { customerName: { contains: q.q, mode: "insensitive" } }, { customerPhone: { contains: q.q } }, { userId: { contains: q.q } }] } : {}),
+  };
+  const [rows, total] = await Promise.all([
+    prisma.booking.findMany({ where, orderBy: [{ date: "desc" }, { startTime: "desc" }], take, skip }),
+    prisma.booking.count({ where }),
+  ]);
+  send(res, { items: rows.map(withCode), total, page: pageNo, limit });
+}));
+
+bookingsRouter.get("/:id", requirePermission("bookings.read"), handler(async (req, res) => {
+  const b = await load(param(req, "id"));
+  const [order, stats] = await Promise.all([
+    b.paymentOrderCode ? prisma.paymentOrder.findUnique({ where: { orderCode: b.paymentOrderCode } }) : null,
+    prisma.playerGameStat.findMany({ where: { bookingId: b.id } }),
+  ]);
+  send(res, { booking: withCode(b), paymentOrder: order, playerStats: stats });
+}));
+
+// Walk-in: staff books an hour for someone standing at the desk (or phoning in).
+const walkIn = z.object({
+  date: dateStr, startTime: timeStr, duration: z.number().int().min(1).max(4).default(1),
+  customerName: z.string().min(2).max(60),
+  customerPhone: z.string().regex(/^9\d{9}$/, "mobile number like 98XXXXXXXX").optional(),
+  paymentMethod: z.enum(["venue", "esewa", "fonepay"]).default("venue"),
+  paid: z.boolean().default(false),
+  priceOverride: z.number().int().min(0).optional(),
+  notes: z.string().max(300).optional(),
+});
+
+bookingsRouter.post("/walk-in", requirePermission("bookings.write"), handler(async (req, res) => {
+  const b = parse(walkIn, req.body);
+  if (b.date < todayKey()) throw new AppError(400, "Pick today or a later date");
+  const startHour = Number(b.startTime.slice(0, 2));
+  if (startHour + b.duration > 24) throw new AppError(400, "The booking cannot pass midnight");
+  let basePrice = 0;
+  for (let i = 0; i < b.duration; i++) basePrice += await getHourPrice(startHour + i);
+  const total = b.priceOverride ?? basePrice;
+  const user = b.customerPhone ? await prisma.user.findUnique({ where: { phoneNumber: b.customerPhone }, select: { phoneNumber: true } }) : null;
+  const code = await uniqueCode();
+  try {
+    const created = await prisma.$transaction(async (tx) => {
+      const row = await tx.booking.create({
+        data: {
+          userId: user?.phoneNumber ?? null, date: b.date, startTime: b.startTime, endTime: `${String(startHour + b.duration).padStart(2, "0")}:00`, duration: b.duration,
+          customerName: b.customerName, customerPhone: b.customerPhone ?? null, basePrice, subtotal: basePrice, totalPrice: total,
+          discountAmount: Math.max(0, basePrice - total), paymentMethod: b.paymentMethod, status: "confirmed",
+          paymentStatus: b.paid ? "completed" : "pending", amountPaidNow: b.paid ? total : 0, remainingAmount: b.paid ? 0 : total,
+          cashAmount: b.paid && b.paymentMethod === "venue" ? total : 0, onlineAmount: b.paid && b.paymentMethod !== "venue" ? total : 0,
+          notes: ["WALK_IN", b.notes].filter(Boolean).join(" | "), code,
+        },
+      });
+      // One row per hour; the unique (date, hour) index is the final guard against double booking.
+      await tx.bookingSlot.createMany({ data: Array.from({ length: b.duration }, (_, i) => ({ date: b.date, hour: startHour + i, bookingId: row.id })) });
+      return row;
+    });
+    await audit(req, "walk-in", "booking", created.id, { code, date: b.date, startTime: b.startTime, total, paid: b.paid });
+    send(res, withCode(created), "Booking created", 201);
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") throw new AppError(409, "That hour is already booked or blocked");
+    throw e;
+  }
+}));
+
+bookingsRouter.post("/:id/cancel", requirePermission("bookings.write"), handler(async (req, res) => {
+  const { reason } = parse(z.object({ reason: z.string().max(200).optional() }), req.body ?? {});
+  const b = await load(param(req, "id"));
+  if (b.status === "cancelled" || b.status === "completed") throw new AppError(409, `This booking is already ${b.status}`);
+  await prisma.$transaction(async (tx) => {
+    // The record is kept (customer records are never deleted); only the slot is freed.
+    await tx.booking.update({ where: { id: b.id }, data: { status: "cancelled", cancelledAt: new Date(), holdExpiresAt: null } });
+    await tx.bookingSlot.deleteMany({ where: { bookingId: b.id } });
+    await tx.freeGameVoucher.updateMany({ where: { bookingId: b.id, status: "used" }, data: { status: "unused", bookingId: null, usedAt: null } });
+    const order = b.paymentOrderCode ? await tx.paymentOrder.findUnique({ where: { orderCode: b.paymentOrderCode } }) : null;
+    if (order?.status === "paid") {
+      await tx.paymentOrder.update({ where: { id: order.id }, data: { status: "refunded" } });
+      await tx.paymentEvent.create({ data: { orderCode: order.orderCode, source: "staff", payload: JSON.stringify({ event: "REFUND_DUE", reason: "CANCELLED_BY_STAFF", amount: order.amount, method: order.method }) } });
+    }
+  });
+  if (b.userId) await notify(prisma, { userId: b.userId, type: "booking", title: "Booking cancelled", message: `Your booking on ${b.date} at ${b.startTime} was cancelled by the venue.${reason ? " " + reason : ""}`, href: "/book", dedupeKey: `booking-staff-cancel-${b.id}` });
+  await audit(req, "cancel", "booking", b.id, { reason });
+  send(res, null, "Booking cancelled");
+}));
+
+bookingsRouter.post("/:id/complete", requirePermission("bookings.write"), handler(async (req, res) => {
+  const b = await load(param(req, "id"));
+  if (!["pending", "confirmed"].includes(b.status)) throw new AppError(409, `Only pending or confirmed bookings can be completed (this one is ${b.status})`);
+  if (b.date > todayKey()) throw new AppError(400, "A future booking cannot be completed yet");
+  const done = await prisma.booking.update({ where: { id: b.id }, data: { status: "completed" } });
+  const awarded = await awardForCompletedBooking(done);
+  await audit(req, "complete", "booking", b.id, { pointsAwarded: awarded });
+  send(res, { booking: withCode(done), pointsAwarded: awarded }, "Booking completed");
+}));
+
+bookingsRouter.post("/:id/no-show", requirePermission("bookings.write"), handler(async (req, res) => {
+  const b = await load(param(req, "id"));
+  if (!["pending", "confirmed"].includes(b.status)) throw new AppError(409, `This booking is ${b.status}`);
+  if (b.date > todayKey()) throw new AppError(400, "A future booking cannot be a no-show");
+  const upd = await prisma.booking.update({ where: { id: b.id }, data: { status: "no_show" } });
+  await audit(req, "no-show", "booking", b.id);
+  send(res, withCode(upd), "Marked as no-show");
+}));
+
+// Money collected at the venue (or confirmed by staff) for a booking.
+bookingsRouter.post("/:id/mark-paid", requirePermission("payments.write"), handler(async (req, res) => {
+  const { method } = parse(z.object({ method: z.enum(["venue", "esewa", "fonepay"]).default("venue") }), req.body ?? {});
+  const b = await load(param(req, "id"));
+  if (b.status === "cancelled") throw new AppError(409, "This booking is cancelled");
+  if (b.paymentStatus === "completed") throw new AppError(409, "Already paid");
+  const total = b.totalPrice;
+  await prisma.$transaction(async (tx) => {
+    await tx.booking.update({
+      where: { id: b.id },
+      data: { paymentStatus: "completed", status: b.status === "pending" ? "confirmed" : b.status, holdExpiresAt: null, amountPaidNow: total, remainingAmount: 0, cashAmount: method === "venue" ? total : b.cashAmount, onlineAmount: method === "venue" ? b.onlineAmount : total },
+    });
+    if (b.paymentOrderCode) {
+      await tx.paymentOrder.updateMany({ where: { orderCode: b.paymentOrderCode, status: { in: ["pending", "expired"] } }, data: { status: "paid", paidAt: new Date(), paidBy: req.staff!.id } });
+      await tx.paymentEvent.create({ data: { orderCode: b.paymentOrderCode, source: "staff", payload: JSON.stringify({ event: "MARKED_PAID", by: req.staff!.id, method }) } });
+    }
+  });
+  const fresh = await load(b.id);
+  if (fresh.status === "completed") await awardForCompletedBooking(fresh);
+  await audit(req, "mark-paid", "booking", b.id, { method, total });
+  send(res, withCode(fresh), "Marked as paid");
+}));
+
+// Goals and assists for a game that has started.
+bookingsRouter.put("/:id/player-stats", requirePermission("bookings.write"), handler(async (req, res) => {
+  const { stats } = parse(z.object({ stats: z.array(z.object({ phone: z.string().regex(/^9\d{9}$/), goals: z.number().int().min(0).max(50), assists: z.number().int().min(0).max(50) })).max(30) }), req.body);
+  const b = await load(param(req, "id"));
+  if (b.date > todayKey()) throw new AppError(400, "The game has not started yet");
+  const users = await prisma.user.findMany({ where: { phoneNumber: { in: stats.map((s) => s.phone) } }, select: { phoneNumber: true } });
+  const known = new Set(users.map((u) => u.phoneNumber));
+  const missing = stats.filter((s) => !known.has(s.phone)).map((s) => s.phone);
+  if (missing.length) throw new AppError(400, `Not registered players: ${missing.join(", ")}`);
+  await prisma.$transaction(stats.map((s) => prisma.playerGameStat.upsert({
+    where: { bookingId_userId: { bookingId: b.id, userId: s.phone } },
+    update: { goals: s.goals, assists: s.assists, recordedBy: req.staff!.id },
+    create: { bookingId: b.id, userId: s.phone, goals: s.goals, assists: s.assists, recordedBy: req.staff!.id },
+  })));
+  await audit(req, "player-stats", "booking", b.id, { players: stats.length });
+  send(res, null, "Stats saved");
+}));

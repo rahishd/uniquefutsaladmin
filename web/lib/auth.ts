@@ -4,7 +4,7 @@ export type Admin = { id: string; email: string; name: string; role: string };
 const ADMIN_KEY = "uf_admin_user";
 
 export async function login(email: string, password: string) {
-  const data = await api<{ token: string; admin: Admin }>("/admin/login", { method: "POST", body: JSON.stringify({ email, password }) });
+  const data = await api<{ token: string; admin: Admin }>("/admin/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
   setToken(data.token);
   try { localStorage.setItem(ADMIN_KEY, JSON.stringify(data.admin)); } catch {}
   return data.admin;
