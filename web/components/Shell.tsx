@@ -84,7 +84,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         {nav("/", "Home", LayoutDashboard)}
         {nav("/bookings", "Bookings", CalendarDays)}
         <div className="flex flex-1 justify-center">
-          <Link href="/bookings" aria-label="New booking" className="-mt-7 grid h-16 w-16 place-items-center rounded-full bg-brand text-white shadow-lg ring-4 ring-surface">
+          <Link href="/slots" aria-label="Slots: book a customer" className="-mt-7 grid h-16 w-16 place-items-center rounded-full bg-brand text-white shadow-lg ring-4 ring-surface">
             <Plus size={30} />
           </Link>
         </div>
