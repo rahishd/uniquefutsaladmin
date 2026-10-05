@@ -26,6 +26,11 @@ export async function api<T = unknown>(path: string, init: RequestInit = {}): Pr
     headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...init.headers },
   });
   const body = await res.json().catch(() => null);
+  if (res.status === 401 && token) {
+    // Session expired or account disabled: sign out and go to the login page.
+    setToken(null);
+    if (typeof window !== "undefined") window.location.replace("/login");
+  }
   if (!res.ok) throw new ApiError(res.status, body?.message ?? `Request failed (${res.status})`);
   return (body?.data ?? body) as T;
 }
