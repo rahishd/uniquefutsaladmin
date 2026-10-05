@@ -31,21 +31,6 @@ overviewRouter.get("/dashboard", handler(async (_req, res) => {
   });
 }));
 
-// "I'm coming" check-ins for today's court bookings and Gamezone sessions.
-overviewRouter.get("/arrivals", requirePermission("bookings.read"), handler(async (_req, res) => {
-  const today = todayKey();
-  const [bookings, gz] = await Promise.all([
-    prisma.booking.findMany({ where: { date: today, status: { notIn: ["cancelled", "expired"] } }, select: { id: true, code: true, startTime: true, customerName: true, customerPhone: true, userId: true } }),
-    prisma.gzBooking.findMany({ where: { date: today, status: { notIn: ["cancelled", "expired"] } }, select: { code: true, startHour: true, guestName: true, guestPhone: true, userId: true } }),
-  ]);
-  const checkins = await prisma.arrivalCheckin.findMany({ where: { refId: { in: [...bookings.map((b) => b.id), ...gz.map((g) => g.code)] } }, orderBy: { confirmedAt: "desc" } });
-  send(res, checkins.map((c) => {
-    const b = bookings.find((x) => x.id === c.refId);
-    const g = gz.find((x) => x.code === c.refId);
-    return { kind: b ? "court" : "gamezone", code: b?.code ?? g?.code ?? c.refId, time: b ? b.startTime : g ? `${String(g.startHour).padStart(2, "0")}:00` : null, name: b?.customerName ?? g?.guestName ?? null, phone: c.userId, confirmedAt: c.confirmedAt };
-  }));
-}));
-
 // ---- broadcast ----
 overviewRouter.post("/notifications/broadcast", requirePermission("notifications.write"), handler(async (req, res) => {
   const b = parse(z.object({

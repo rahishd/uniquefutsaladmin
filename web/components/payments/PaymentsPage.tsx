@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Banknote, ChevronLeft, ChevronRight, Search, Smartphone, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { Badge } from "../bookings/Badge";
+import CollectModal from "./CollectModal";
 import { prettyDate, rs } from "@/lib/bookings";
-import { ApiError } from "@/lib/api";
-import { Filters, Kind, Ledger, METHOD_LABEL, Mode, PAGE_SIZE, PayStatus, Period, Row, Summary, collect, listPayments, paymentSummary } from "@/lib/payments";
+import { Filters, Kind, Ledger, METHOD_LABEL, Mode, PAGE_SIZE, PayStatus, Period, Row, Summary, listPayments, paymentSummary } from "@/lib/payments";
 
 const STATUS_TABS: { id: PayStatus | ""; label: string }[] = [
   { id: "", label: "All" }, { id: "paid", label: "Paid" }, { id: "unpaid", label: "Unpaid" }, { id: "cancelled", label: "Cancelled" },
@@ -28,51 +28,6 @@ function Card({ title, value, sub, tone }: { title: string; value: string; sub: 
       <p className="text-xs text-muted">{title}</p>
       <p className={`text-xl font-bold ${tone ?? ""}`}>{value}</p>
       <p className="text-xs text-muted">{sub}</p>
-    </div>
-  );
-}
-
-function CollectModal({ row, onClose, onDone }: { row: Row; onClose: () => void; onDone: () => void }) {
-  const [method, setMethod] = useState<"venue" | "esewa" | "fonepay">(row.method === "esewa" || row.method === "fonepay" ? row.method : "venue");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-
-  async function save() {
-    setBusy(true);
-    setError("");
-    try {
-      await collect(row, method);
-      onDone();
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Could not save the payment");
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center" onClick={onClose}>
-      <div role="dialog" aria-label="Collect payment" onClick={(e) => e.stopPropagation()} className="w-full max-w-sm space-y-4 rounded-t-3xl bg-surface p-5 sm:rounded-3xl">
-        <div className="flex items-start justify-between">
-          <div>
-            <h2 className="text-lg font-bold">Collect payment</h2>
-            <p className="text-sm text-muted">{row.customer || "Guest"} · {row.code}</p>
-          </div>
-          <button onClick={onClose} aria-label="Close" className="rounded-full p-1 hover:bg-surface-2"><X size={20} /></button>
-        </div>
-        <p className="text-3xl font-bold">{rs(row.amount)}</p>
-        <fieldset className="space-y-2">
-          <legend className="mb-1 text-sm font-medium">How was it paid?</legend>
-          {(row.kind === "court" ? (["venue", "esewa", "fonepay"] as const) : ([row.method as "venue" | "esewa" | "fonepay"])).map((m) => (
-            <label key={m} className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 text-sm ${method === m ? "border-brand bg-brand/5" : "border-line"}`}>
-              <input type="radio" name="how" checked={method === m} onChange={() => setMethod(m)} className="accent-[var(--brand)]" />
-              {m === "venue" ? <Banknote size={18} /> : <Smartphone size={18} />}
-              {METHOD_LABEL[m] ?? m}
-            </label>
-          ))}
-        </fieldset>
-        {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600" role="alert">{error}</p>}
-        <button disabled={busy} onClick={save} className="w-full rounded-xl bg-brand py-3 font-semibold text-white disabled:opacity-60">{busy ? "Saving…" : "Mark as paid"}</button>
-      </div>
     </div>
   );
 }
@@ -201,7 +156,7 @@ export default function PaymentsPage() {
         </div>
       )}
 
-      {collecting && <CollectModal row={collecting} onClose={() => setCollecting(null)} onDone={() => { setCollecting(null); setTick((t) => t + 1); }} />}
+      {collecting && <CollectModal target={collecting} onClose={() => setCollecting(null)} onDone={() => { setCollecting(null); setTick((t) => t + 1); }} />}
     </div>
   );
 }

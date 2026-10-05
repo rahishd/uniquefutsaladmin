@@ -66,7 +66,9 @@ export const paymentSummary = (f: Filters) => {
   return api<Summary>(`/admin/payments/summary?${qs}`);
 };
 
-export const collect = (row: Row, method: "venue" | "esewa" | "fonepay") =>
+export type CollectTarget = Pick<Row, "kind" | "ref" | "code" | "customer" | "amount" | "method">;
+
+export const collect = (row: CollectTarget, method: "venue" | "esewa" | "fonepay") =>
   row.kind === "court"
     ? api(`/admin/bookings/${encodeURIComponent(row.ref)}/mark-paid`, { method: "POST", body: JSON.stringify({ method }) })
     : api(`/admin/gamezone/bookings/${encodeURIComponent(row.ref)}/mark-paid`, { method: "POST", body: "{}" });

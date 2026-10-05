@@ -388,3 +388,33 @@ describe("payments ledger", () => {
     assert.deepEqual(s.unpaidCash, { sum: 400, count: 1 });
   });
 });
+
+describe("arrivals", () => {
+  it("lists today's live bookings and sessions with who has checked in; cancelled, other days and ledger rows are left out", async () => {
+    await customer("9890000001", "Registered Rita");
+    const fd = await staff("frontdesk");
+    const mk = (code: string, startTime: string, extra: object = {}) => prisma.booking.create({ data: { date: today, startTime, endTime: "23:00", duration: 1, customerName: code, basePrice: 1000, subtotal: 1000, totalPrice: 1000, paymentMethod: "venue", status: "confirmed", code, ...extra } });
+    const a = await mk("UF-ARR1", "18:00", { paymentStatus: "completed" });
+    await mk("UF-ARR2", "19:00");
+    await mk("UF-ARR3", "20:00", { status: "cancelled" });
+    await mk("UF-ARR4", "21:00", { date: tomorrow });
+    await mk("UF-ARR5", "12:00", { notes: "MEMBERSHIP_PAYMENT", paymentMethod: "membership" });
+    await mk("UF-ARR6", "17:00", { customerName: null, userId: "9890000001" });
+    await prisma.gzBooking.create({ data: { code: "GZ-ARR", guestName: "Gamer", guestPhone: "9877000009", consoleId: "c1", gameTitle: "FIFA", date: today, startHour: 15, hours: 2, players: 2, total: 800, paymentMethod: "esewa", paymentStatus: "paid", status: "confirmed" } });
+    await prisma.arrivalCheckin.create({ data: { refId: a.id, userId: "9800000001" } });
+    await prisma.arrivalCheckin.create({ data: { refId: "GZ-ARR", userId: "9877000009" } });
+
+    const r = (await api.get("/arrivals", fd.auth)).body.data;
+    assert.equal(r.date, today);
+    assert.ok(Number.isInteger(r.nowMinutes) && r.nowMinutes >= 0 && r.nowMinutes < 1440);
+    assert.deepEqual(r.items.map((i: { code: string }) => i.code), ["GZ-ARR", "UF-ARR6", "UF-ARR1", "UF-ARR2"], "sorted by start time");
+    const by = Object.fromEntries(r.items.map((i: { code: string }) => [i.code, i]));
+    assert.ok(by["UF-ARR1"].checkedInAt && by["GZ-ARR"].checkedInAt);
+    assert.equal(by["UF-ARR2"].checkedInAt, null);
+    assert.equal(by["UF-ARR1"].paid, true);
+    assert.equal(by["UF-ARR2"].paid, false);
+    assert.equal(by["UF-ARR6"].name, "Registered Rita", "a registered customer's name is looked up");
+    assert.equal(by["GZ-ARR"].endTime, "17:00");
+    assert.equal(by["GZ-ARR"].kind, "gamezone");
+  });
+});
