@@ -15,7 +15,7 @@ Dates `YYYY-MM-DD`, times `HH:00`, Nepal time, money in whole rupees. List endpo
 | Bookings | `GET /bookings?scope=today|upcoming|previous&date&from&to&status&paymentStatus&q` | bookings.read | scope orders the list (upcoming/today oldest first, previous newest first); membership ledger rows are hidden |
 | | `GET /bookings/counts` | bookings.read | `{upcoming,today,previous}` for the tab badges |
 | | `GET /bookings/:id` | bookings.read | id or code; includes payment order and player stats |
-| | `POST /bookings/walk-in` | bookings.write | `{date,startTime,duration,customerName,customerPhone?,paymentMethod,paid,priceOverride?,notes?}`; price from Settings; unique (date, hour) guard → 409 |
+| | `POST /bookings/walk-in` | bookings.write | `{date,startTime,duration,customerName,customerPhone?,paymentMethod,paid,priceOverride?,notes?}`; price from Settings; unique (date, hour) guard → 409. Dates within 60 days of today; an hour that has already passed is logged as `completed` (and a paid game by a registered customer earns its points) |
 | | `POST /bookings/:id/cancel` | bookings.write | keeps the record, frees the slot, returns a used voucher, paid online order → `refunded` + REFUND_DUE |
 | | `POST /bookings/:id/complete` | bookings.write | not for future games; awards price/100 points once (paid, registered, regular games only) |
 | | `POST /bookings/:id/no-show` | bookings.write | |
@@ -27,7 +27,7 @@ Dates `YYYY-MM-DD`, times `HH:00`, Nepal time, money in whole rupees. List endpo
 | | `POST /payments/:orderCode/refund` | payments.write | records a refund you paid out (`REFUND_PAID`) once |
 | | `POST /payments/:orderCode/mark-paid` | payments.write | court and Gamezone orders |
 | Courts | `GET /courts/pricing`, `PUT /courts/pricing` | bookings.read / courts.write | writes the Settings keys the customer app reads |
-| | `GET /courts/slots?date` | bookings.read | every hour: free, booked (who) or blocked |
+| | `GET /courts/slots?date` | bookings.read | every hour 0-23: free, booked (booking summary with name, phone, code, price, status) or blocked; powers the Slots timeline |
 | | `GET/POST /courts/blocks`, `DELETE /courts/blocks/:id` | courts.write | a block also takes the (date, hour) slot so customers cannot book it |
 | Customers | `GET /customers?q&status`, `GET /customers/:phone` | customers.read | never returns password data |
 | | `PATCH /customers/:phone`, `POST /customers/:phone/suspend|unsuspend` | customers.write | |

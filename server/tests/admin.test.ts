@@ -79,32 +79,42 @@ describe("bookings", () => {
     assert.ok((await prisma.adminAuditLog.count({ where: { entity: "booking" } })) >= 3);
   });
 
-  it("refuses past dates and bad input", async () => {
+  it("refuses dates far away and bad input; a game that already happened is logged as completed and earns points once", async () => {
     const fd = await staff("frontdesk");
-    assert.equal((await api.post("/bookings/walk-in", fd.auth, { date: addDaysKey(today, -1), startTime: "10:00", customerName: "Ram" })).status, 400);
+    assert.equal((await api.post("/bookings/walk-in", fd.auth, { date: addDaysKey(today, -90), startTime: "10:00", customerName: "Ram" })).status, 400);
+    assert.equal((await api.post("/bookings/walk-in", fd.auth, { date: addDaysKey(today, 90), startTime: "10:00", customerName: "Ram" })).status, 400);
     assert.equal((await api.post("/bookings/walk-in", fd.auth, { date: tomorrow, startTime: "10:30", customerName: "Ram" })).status, 400);
+    await customer("9877000001");
+    const retro = await api.post("/bookings/walk-in", fd.auth, { date: addDaysKey(today, -1), startTime: "10:00", customerName: "Ram", customerPhone: "9877000001", paid: true, priceOverride: 1150 });
+    assert.equal(retro.status, 201);
+    assert.equal(retro.body.data.status, "completed");
+    assert.equal(Number((await prisma.loyaltyEntry.findFirstOrThrow({ where: { userId: "9877000001" } })).points), 11.5);
     assert.equal((await api.post("/bookings/walk-in", fd.auth, { date: tomorrow, startTime: "10:00", customerName: "Ram", customerPhone: "123" })).status, 400);
   });
 
-  it("completing a paid game awards points to a registered customer exactly once; guests and unpaid earn none", async () => {
+  it("a paid game earns points exactly once; guests and unpaid bookings earn none", async () => {
     await customer("9822222222");
     const fd = await staff("frontdesk");
-    const mk = (extra: object) => api.post("/bookings/walk-in", fd.auth, { date: today, startTime: "06:00", customerName: "Sita", customerPhone: "9822222222", ...extra });
-    const paid = (await mk({ paid: true, priceOverride: 1250 })).body.data;
-    const done = await api.post(`/bookings/${paid.id}/complete`, fd.auth);
-    assert.equal(done.status, 200);
-    assert.equal(done.body.data.pointsAwarded, true);
+    // Yesterday's hours have passed, so these are logged as completed.
+    const mk = (startTime: string, extra: object) => api.post("/bookings/walk-in", fd.auth, { date: addDaysKey(today, -1), startTime, customerName: "Sita", customerPhone: "9822222222", ...extra });
+    const paid = (await mk("06:00", { paid: true, priceOverride: 1250 })).body.data;
+    assert.equal(paid.status, "completed");
     const entries = await prisma.loyaltyEntry.findMany({ where: { userId: "9822222222" } });
     assert.equal(entries.length, 1);
     assert.equal(Number(entries[0].points), 12.5);
-    assert.equal((await api.post(`/bookings/${paid.id}/complete`, fd.auth)).status, 409);
+    assert.equal((await api.post(`/bookings/${paid.id}/complete`, fd.auth)).status, 409, "already completed");
     assert.equal(await prisma.loyaltyEntry.count(), 1);
 
-    const unpaid = (await api.post("/bookings/walk-in", fd.auth, { date: today, startTime: "07:00", customerName: "Sita", customerPhone: "9822222222", priceOverride: 1000 })).body.data;
-    assert.equal((await api.post(`/bookings/${unpaid.id}/complete`, fd.auth)).body.data.pointsAwarded, false);
-    const guest = (await api.post("/bookings/walk-in", fd.auth, { date: today, startTime: "08:00", customerName: "Guest", paid: true, priceOverride: 1000 })).body.data;
-    assert.equal((await api.post(`/bookings/${guest.id}/complete`, fd.auth)).body.data.pointsAwarded, false);
+    await mk("07:00", { priceOverride: 1000 }); // unpaid
+    await api.post("/bookings/walk-in", fd.auth, { date: addDaysKey(today, -1), startTime: "08:00", customerName: "Guest", paid: true, priceOverride: 1000 }); // guest
     assert.equal(await prisma.loyaltyEntry.count(), 1);
+
+    // A confirmed paid game completed by hand awards points exactly once.
+    const live = await prisma.booking.create({ data: { userId: "9822222222", date: today, startTime: "05:00", endTime: "06:00", duration: 1, customerName: "Sita", basePrice: 900, subtotal: 900, totalPrice: 900, paymentMethod: "venue", status: "confirmed", paymentStatus: "completed", code: "UF-LIVE1" } });
+    const done = await api.post(`/bookings/${live.id}/complete`, fd.auth);
+    assert.equal(done.body.data.pointsAwarded, true);
+    assert.equal((await api.post(`/bookings/${live.id}/complete`, fd.auth)).status, 409);
+    assert.equal(await prisma.loyaltyEntry.count(), 2);
   });
 
   it("a future game cannot be completed or marked no-show", async () => {

@@ -20,6 +20,16 @@ const e = (method: string, path: string, note: string, status: EndpointStatus = 
 
 export const modules: Module[] = [
   {
+    slug: "slots", title: "Slots", group: "Operations", icon: "clock",
+    summary: "Day timeline of every hour: who is playing, open hours, and manual booking.",
+    clientFeatures: ["Free hours listed per date", "Pay at venue or online", "Guest vs registered customers", "Free cancellation until start"],
+    adminTasks: ["See a whole day at once (booked, completed, open, blocked)", "Tap + to book a customer by hand (walk-in or phone)", "Log a game that already happened", "Reject (cancel) a booking"],
+    endpoints: [
+      e("GET", "/admin/courts/slots", "all hours of a date with who booked them"), e("POST", "/admin/bookings/walk-in", "manual booking"),
+      e("POST", "/admin/bookings/:id/cancel", "reject a booking"), e("GET", "/admin/customers", "find a registered customer"),
+    ],
+  },
+  {
     slug: "bookings", title: "Bookings", group: "Operations", icon: "calendar",
     summary: "Court bookings made in the app (online, pay at venue, free-game voucher, guest).",
     clientFeatures: ["Slots up to 10 days ahead", "Quote, promo and voucher at checkout", "Guest vs registered rules", "10 minute QR hold", "Free cancellation until start", "Quick Rebook", "Short booking code (UF-XXXXXX)"],

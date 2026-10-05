@@ -5,7 +5,7 @@ import { z } from "zod";
 import { prisma } from "../db";
 import { audit } from "../lib/audit";
 import { awardForCompletedBooking, notify } from "../lib/customer-effects";
-import { todayKey } from "../lib/dates";
+import { addDaysKey, currentHour, todayKey } from "../lib/dates";
 import { AppError, dateStr, handler, page, param, parse, send, timeStr } from "../lib/http";
 import { requirePermission } from "../middleware/auth";
 import { getHourPrice } from "./settings-store";
@@ -90,7 +90,8 @@ const walkIn = z.object({
 
 bookingsRouter.post("/walk-in", requirePermission("bookings.write"), handler(async (req, res) => {
   const b = parse(walkIn, req.body);
-  if (b.date < todayKey()) throw new AppError(400, "Pick today or a later date");
+  // Staff may log a game that already happened (retroactive) or book ahead, within a sane range.
+  if (b.date < addDaysKey(todayKey(), -60) || b.date > addDaysKey(todayKey(), 60)) throw new AppError(400, "Pick a date within 60 days of today");
   const startHour = Number(b.startTime.slice(0, 2));
   if (startHour + b.duration > 24) throw new AppError(400, "The booking cannot pass midnight");
   let basePrice = 0;
@@ -98,13 +99,15 @@ bookingsRouter.post("/walk-in", requirePermission("bookings.write"), handler(asy
   const total = b.priceOverride ?? basePrice;
   const user = b.customerPhone ? await prisma.user.findUnique({ where: { phoneNumber: b.customerPhone }, select: { phoneNumber: true } }) : null;
   const code = await uniqueCode();
+  // A game whose hour has already passed is logged as completed.
+  const ended = b.date < todayKey() || (b.date === todayKey() && startHour + b.duration <= currentHour());
   try {
     const created = await prisma.$transaction(async (tx) => {
       const row = await tx.booking.create({
         data: {
           userId: user?.phoneNumber ?? null, date: b.date, startTime: b.startTime, endTime: `${String(startHour + b.duration).padStart(2, "0")}:00`, duration: b.duration,
           customerName: b.customerName, customerPhone: b.customerPhone ?? null, basePrice, subtotal: basePrice, totalPrice: total,
-          discountAmount: Math.max(0, basePrice - total), paymentMethod: b.paymentMethod, status: "confirmed",
+          discountAmount: Math.max(0, basePrice - total), paymentMethod: b.paymentMethod, status: ended ? "completed" : "confirmed",
           paymentStatus: b.paid ? "completed" : "pending", amountPaidNow: b.paid ? total : 0, remainingAmount: b.paid ? 0 : total,
           cashAmount: b.paid && b.paymentMethod === "venue" ? total : 0, onlineAmount: b.paid && b.paymentMethod !== "venue" ? total : 0,
           notes: ["WALK_IN", b.notes].filter(Boolean).join(" | "), code,
@@ -114,7 +117,8 @@ bookingsRouter.post("/walk-in", requirePermission("bookings.write"), handler(asy
       await tx.bookingSlot.createMany({ data: Array.from({ length: b.duration }, (_, i) => ({ date: b.date, hour: startHour + i, bookingId: row.id })) });
       return row;
     });
-    await audit(req, "walk-in", "booking", created.id, { code, date: b.date, startTime: b.startTime, total, paid: b.paid });
+    if (ended) await awardForCompletedBooking(created);
+    await audit(req, "walk-in", "booking", created.id, { code, date: b.date, startTime: b.startTime, total, paid: b.paid, retroactive: ended });
     send(res, withCode(created), "Booking created", 201);
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") throw new AppError(409, "That hour is already booked or blocked");
