@@ -32,7 +32,7 @@ async function load(idOrCode: string) {
 
 // Membership payment rows are an accounting ledger, not games on the court: the customer app hides them too.
 // (SQL NOT on a NULL note would drop every booking without notes, so NULL is allowed explicitly.)
-const NOT_LEDGER: Prisma.BookingWhereInput = { AND: [{ OR: [{ notes: null }, { notes: { not: { contains: "MEMBERSHIP_PAYMENT" } } }] }, { paymentMethod: { not: "membership" } }] };
+export const NOT_LEDGER: Prisma.BookingWhereInput = { AND: [{ OR: [{ notes: null }, { notes: { not: { contains: "MEMBERSHIP_PAYMENT" } } }] }, { paymentMethod: { not: "membership" } }] };
 
 function scopeDate(scope: string): string | Prisma.StringFilter {
   const t = todayKey();
@@ -186,7 +186,7 @@ bookingsRouter.post("/:id/mark-paid", requirePermission("payments.write"), handl
   await prisma.$transaction(async (tx) => {
     await tx.booking.update({
       where: { id: b.id },
-      data: { paymentStatus: "completed", status: b.status === "pending" ? "confirmed" : b.status, holdExpiresAt: null, amountPaidNow: total, remainingAmount: 0, cashAmount: method === "venue" ? total : b.cashAmount, onlineAmount: method === "venue" ? b.onlineAmount : total },
+      data: { paymentStatus: "completed", status: b.status === "pending" ? "confirmed" : b.status, holdExpiresAt: null, paymentMethod: method, amountPaidNow: total, remainingAmount: 0, cashAmount: method === "venue" ? total : b.cashAmount, onlineAmount: method === "venue" ? b.onlineAmount : total },
     });
     if (b.paymentOrderCode) {
       await tx.paymentOrder.updateMany({ where: { orderCode: b.paymentOrderCode, status: { in: ["pending", "expired"] } }, data: { status: "paid", paidAt: new Date(), paidBy: req.staff!.id } });

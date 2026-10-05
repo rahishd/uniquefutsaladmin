@@ -325,3 +325,66 @@ describe("booking calendar", () => {
     assert.equal((await api.get("/bookings/calendar?month=nope", fd.auth)).status, 400);
   });
 });
+
+describe("payments ledger", () => {
+  const mk = (n: number, paymentMethod: string, extra: object = {}) => prisma.booking.create({ data: { date: today, startTime: `${String(5 + n).padStart(2, "0")}:00`, endTime: "23:00", duration: 1, customerName: `Cust ${n}`, customerPhone: `98000000${String(n).padStart(2, "0")}`, basePrice: 1000, subtotal: 1000, totalPrice: 1000 + n, paymentMethod, status: "confirmed", paymentStatus: "pending", code: `UF-LED${n}`, ...extra } });
+
+  it("shows paid, unpaid and cancelled with cash/online modes, filters and totals; membership ledger rows are not payments", async () => {
+    const acc = await staff("accountant");
+    await mk(1, "venue", { paymentStatus: "completed" });            // paid cash 1001
+    await mk(2, "venue", { paymentStatus: "completed" });            // paid cash 1002
+    await mk(3, "esewa", { paymentStatus: "completed" });            // paid esewa 1003
+    await mk(4, "fonepay", { paymentStatus: "completed" });          // paid fonepay 1004
+    await mk(5, "venue");                                            // unpaid cash 1005
+    await mk(6, "esewa");                                            // unpaid online 1006
+    await mk(7, "esewa", { status: "cancelled" });                   // cancelled
+    await mk(8, "membership", { notes: "MEMBERSHIP_PAYMENT", paymentStatus: "completed" }); // not a payment
+
+    const all = (await api.get("/payments/ledger", acc.auth)).body.data;
+    assert.equal(all.total, 7);
+    const by = (q: string) => api.get(`/payments/ledger?${q}`, acc.auth).then((r) => r.body.data);
+    assert.equal((await by("status=paid")).total, 4);
+    assert.equal((await by("status=unpaid")).total, 2);
+    assert.equal((await by("status=cancelled")).total, 1);
+    assert.equal((await by("mode=cash")).total, 3);
+    assert.equal((await by("mode=online")).total, 4);
+    assert.equal((await by("mode=fonepay")).total, 1);
+    assert.equal((await by("status=unpaid&mode=cash")).items[0].code, "UF-LED5");
+    assert.equal((await by("q=cust 3")).items[0].method, "esewa");
+    assert.deepEqual((await by("status=paid&mode=cash")).items.map((i: { mode: string }) => i.mode), ["cash", "cash"]);
+
+    const s = (await api.get("/payments/summary", acc.auth)).body.data;
+    assert.deepEqual(s.paid, { sum: 1001 + 1002 + 1003 + 1004, count: 4 });
+    assert.deepEqual(s.paidCash, { sum: 2003, count: 2 });
+    assert.deepEqual(s.paidOnline, { sum: 2007, count: 2 });
+    assert.deepEqual(s.unpaid, { sum: 1005 + 1006, count: 2 });
+    assert.equal(s.cancelled, 1);
+    assert.equal((await api.get("/payments/summary?mode=cash", acc.auth)).body.data.unpaid.sum, 1005);
+    assert.equal((await api.get("/payments/ledger?status=nope", acc.auth)).status, 400);
+  });
+
+  it("collecting an unpaid booking moves it to paid and records how it was really paid", async () => {
+    const fd = await staff("frontdesk");
+    const b = await mk(5, "venue");
+    assert.equal((await api.post(`/bookings/${b.id}/mark-paid`, fd.auth, { method: "esewa" })).status, 200);
+    const row = (await api.get("/payments/ledger?q=UF-LED5", fd.auth)).body.data.items[0];
+    assert.equal(row.status, "paid");
+    assert.equal(row.method, "esewa");
+    assert.equal(row.mode, "online");
+    assert.equal((await api.get("/payments/summary", fd.auth)).body.data.unpaid.count, 0);
+  });
+
+  it("gamezone sessions use the same statuses and modes", async () => {
+    const fd = await staff("frontdesk");
+    const gz = (code: string, paymentMethod: string, paymentStatus: string, status = "confirmed") => prisma.gzBooking.create({ data: { code, guestName: code, guestPhone: "9877000000", consoleId: "c1", gameTitle: "FIFA", date: today, startHour: 14, hours: 1, players: 2, total: 400, paymentMethod, paymentStatus, status } });
+    await gz("GZ-A", "venue", "pay_at_venue");
+    await gz("GZ-B", "esewa", "paid");
+    await gz("GZ-C", "fonepay", "pending", "expired");
+    const l = (await api.get("/payments/ledger?kind=gamezone", fd.auth)).body.data;
+    assert.equal(l.total, 3);
+    assert.deepEqual(Object.fromEntries(l.items.map((i: { code: string; status: string }) => [i.code, i.status])), { "GZ-A": "unpaid", "GZ-B": "paid", "GZ-C": "cancelled" });
+    const s = (await api.get("/payments/summary?kind=gamezone", fd.auth)).body.data;
+    assert.deepEqual(s.paidOnline, { sum: 400, count: 1 });
+    assert.deepEqual(s.unpaidCash, { sum: 400, count: 1 });
+  });
+});

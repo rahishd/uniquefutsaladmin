@@ -20,9 +20,11 @@ Dates `YYYY-MM-DD`, times `HH:00`, Nepal time, money in whole rupees. List endpo
 | | `POST /bookings/:id/cancel` | bookings.write | keeps the record, frees the slot, returns a used voucher, paid online order → `refunded` + REFUND_DUE |
 | | `POST /bookings/:id/complete` | bookings.write | not for future games; awards price/100 points once (paid, registered, regular games only) |
 | | `POST /bookings/:id/no-show` | bookings.write | |
-| | `POST /bookings/:id/mark-paid` | payments.write | `{method: venue|esewa|fonepay}` |
+| | `POST /bookings/:id/mark-paid` | payments.write | `{method: venue|esewa|fonepay}`; records how it was really paid (the booking's method is updated) |
 | | `PUT /bookings/:id/player-stats` | bookings.write | goals and assists for registered players |
-| Payments | `GET /payments?status&purpose&method&q` | payments.read | |
+| Payments | `GET /payments/ledger?kind=court|gamezone&status=paid|unpaid|cancelled&mode=cash|online|esewa|fonepay&from&to&q` | payments.read | one row per court booking or Gamezone session with paid / unpaid / cancelled and cash (pay at venue) or online (eSewa, Fonepay); `from`/`to` are game dates; membership ledger rows excluded |
+| | `GET /payments/summary` (same filters, without status) | payments.read | paid, unpaid, cancelled counts and sums, split cash / online / eSewa / Fonepay |
+| | `GET /payments?status&purpose&method&q` | payments.read | gateway payment orders |
 | | `GET /payments/reconciliation` | payments.read | paid orders whose booking is unpaid, expired-but-paid, failed gateway events |
 | | `GET /payments/refunds?status=due|paid` | payments.read | |
 | | `POST /payments/:orderCode/refund` | payments.write | records a refund you paid out (`REFUND_PAID`) once |
