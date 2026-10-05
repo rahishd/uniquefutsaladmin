@@ -11,7 +11,7 @@ Dates `YYYY-MM-DD`, times `HH:00`, Nepal time, money in whole rupees. List endpo
 | | `GET /auth/me`, `POST /auth/change-password` | any staff | |
 | Staff | `GET /staff`, `POST /staff`, `PATCH /staff/:id` | staff.manage | cannot disable or demote yourself; one active owner always remains |
 | Dashboard | `GET /dashboard` | any staff | bookings and revenue today, pending payments, disputes, refunds due, arrivals, new customers |
-| Arrivals | `GET /arrivals` | bookings.read | today's "I'm coming" check-ins (court and Gamezone) |
+| Arrivals | `GET /arrivals` | bookings.read | today's live court bookings and Gamezone sessions: `{date, nowMinutes, items[{kind,code,time,endTime,name,phone,amount,paid,method,status,checkedInAt}]}`; `checkedInAt` is set when the customer tapped "I'm coming". The page groups them: on the way, not confirmed, finished |
 | Bookings | `GET /bookings?scope=today|upcoming|previous&date&from&to&status&paymentStatus&q` | bookings.read | scope orders the list (upcoming/today oldest first, previous newest first); membership ledger rows are hidden |
 | | `GET /bookings/counts` | bookings.read | `{upcoming,today,previous}` for the tab badges |
 | | `GET /bookings/calendar?month=YYYY-MM` | bookings.read | `[{date,count}]` live bookings per day, for the calendar dots |

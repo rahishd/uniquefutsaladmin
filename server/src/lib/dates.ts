@@ -24,3 +24,10 @@ export function addMonthsKey(k: string, months: number): string {
 
 const hourFmt = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kathmandu", hour: "2-digit", hourCycle: "h23" });
 export const currentHour = (now: Date = new Date()): number => Number(hourFmt.format(now));
+
+const clockFmt = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kathmandu", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+// Minutes since midnight in Nepal
+export const nowMinutes = (now: Date = new Date()): number => {
+  const [h, m] = clockFmt.format(now).split(":").map(Number);
+  return h * 60 + m;
+};

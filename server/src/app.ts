@@ -4,6 +4,7 @@ import helmet from "helmet";
 import env from "./config/env";
 import { AppError } from "./lib/http";
 import { requireStaff } from "./middleware/auth";
+import { arrivalsRouter } from "./modules/arrivals";
 import { authRouter } from "./modules/auth";
 import { bookingsRouter } from "./modules/bookings";
 import { courtsRouter } from "./modules/courts";
@@ -32,6 +33,7 @@ const admin = express.Router();
 admin.use("/auth", authRouter); // login is the only route without a token
 admin.use(requireStaff); // everything below needs a valid staff token; each route then checks its permission
 admin.use("/staff", staffRouter);
+admin.use("/arrivals", arrivalsRouter);
 admin.use("/bookings", bookingsRouter);
 admin.use("/payments", ledgerRouter);
 admin.use("/payments", paymentsRouter);
