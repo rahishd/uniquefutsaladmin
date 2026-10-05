@@ -418,3 +418,12 @@ describe("arrivals", () => {
     assert.equal(by["GZ-ARR"].kind, "gamezone");
   });
 });
+
+describe("price validation", () => {
+  it("refuses prices below Rs. 100", async () => {
+    const mgr = await staff("manager");
+    assert.equal((await api.put("/courts/pricing", mgr.auth, { hours: [{ hour: 18, price: 0 }] })).status, 400);
+    assert.equal((await api.put("/courts/pricing", mgr.auth, { hourlyRate: 50 })).status, 400);
+    assert.equal((await api.put("/courts/pricing", mgr.auth, { hours: [{ hour: 18, price: 1350 }] })).status, 200);
+  });
+});

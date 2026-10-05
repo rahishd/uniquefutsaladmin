@@ -29,7 +29,7 @@ Dates `YYYY-MM-DD`, times `HH:00`, Nepal time, money in whole rupees. List endpo
 | | `GET /payments/refunds?status=due|paid` | payments.read | |
 | | `POST /payments/:orderCode/refund` | payments.write | records a refund you paid out (`REFUND_PAID`) once |
 | | `POST /payments/:orderCode/mark-paid` | payments.write | court and Gamezone orders |
-| Courts | `GET /courts/pricing`, `PUT /courts/pricing` | bookings.read / courts.write | writes the Settings keys the customer app reads |
+| Courts | `GET /courts/pricing`, `PUT /courts/pricing` | bookings.read / courts.write | writes the Settings keys the customer app reads; every price is Rs. 100 to Rs. 100,000 |
 | | `GET /courts/slots?date` | bookings.read | every hour 0-23: free, booked (booking summary with name, phone, code, price, status) or blocked; powers the Slots timeline |
 | | `GET/POST /courts/blocks`, `DELETE /courts/blocks/:id` | courts.write | a block also takes the (date, hour) slot so customers cannot book it |
 | Customers | `GET /customers?q&status`, `GET /customers/:phone` | customers.read | never returns password data |
