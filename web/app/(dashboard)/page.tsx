@@ -6,7 +6,7 @@ import { Eye, EyeOff } from "lucide-react";
 import { icons } from "@/components/icons";
 import { groups, modules } from "@/lib/nav";
 
-const quick = ["bookings", "arrivals", "payments", "customers"];
+const quick = ["slots", "bookings", "payments", "arrivals"];
 
 // Numbers stay "—" until the functional pages are connected to the API. No fake data.
 const attention = [

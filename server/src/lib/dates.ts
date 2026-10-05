@@ -21,3 +21,6 @@ export function addMonthsKey(k: string, months: number): string {
   target.setUTCDate(Math.min(day, last));
   return key(target);
 }
+
+const hourFmt = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kathmandu", hour: "2-digit", hourCycle: "h23" });
+export const currentHour = (now: Date = new Date()): number => Number(hourFmt.format(now));
