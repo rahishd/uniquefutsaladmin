@@ -12,7 +12,8 @@ Dates `YYYY-MM-DD`, times `HH:00`, Nepal time, money in whole rupees. List endpo
 | Staff | `GET /staff`, `POST /staff`, `PATCH /staff/:id` | staff.manage | cannot disable or demote yourself; one active owner always remains |
 | Dashboard | `GET /dashboard` | any staff | bookings and revenue today, pending payments, disputes, refunds due, arrivals, new customers |
 | Arrivals | `GET /arrivals` | bookings.read | today's "I'm coming" check-ins (court and Gamezone) |
-| Bookings | `GET /bookings?date&from&to&status&paymentStatus&q` | bookings.read | |
+| Bookings | `GET /bookings?scope=today|upcoming|previous&date&from&to&status&paymentStatus&q` | bookings.read | scope orders the list (upcoming/today oldest first, previous newest first); membership ledger rows are hidden |
+| | `GET /bookings/counts` | bookings.read | `{upcoming,today,previous}` for the tab badges |
 | | `GET /bookings/:id` | bookings.read | id or code; includes payment order and player stats |
 | | `POST /bookings/walk-in` | bookings.write | `{date,startTime,duration,customerName,customerPhone?,paymentMethod,paid,priceOverride?,notes?}`; price from Settings; unique (date, hour) guard → 409 |
 | | `POST /bookings/:id/cancel` | bookings.write | keeps the record, frees the slot, returns a used voucher, paid online order → `refunded` + REFUND_DUE |

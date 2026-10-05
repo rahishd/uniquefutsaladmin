@@ -279,3 +279,28 @@ describe("gamezone, teams, notices, reports", () => {
     assert.equal(JSON.stringify(log.body).includes("passwordHash"), false);
   });
 });
+
+describe("bookings list scopes", () => {
+  it("splits upcoming, today and previous, orders them, searches, and hides membership ledger rows", async () => {
+    const fd = await staff("frontdesk");
+    const mk = (date: string, startTime: string, extra: object = {}) => prisma.booking.create({ data: { date, startTime, endTime: "23:00", duration: 1, customerName: "Ram", customerPhone: "9811111111", basePrice: 1000, subtotal: 1000, totalPrice: 1000, paymentMethod: "venue", status: "confirmed", code: `UF-${date}-${startTime}`, ...extra } });
+    await mk(addDaysKey(today, 2), "10:00");
+    await mk(addDaysKey(today, 1), "18:00");
+    await mk(today, "20:00");
+    await mk(today, "07:00", { customerName: "Sita" });
+    await mk(addDaysKey(today, -1), "09:00", { status: "completed" });
+    await mk(addDaysKey(today, -3), "09:00", { status: "cancelled" });
+    await mk(today, "12:00", { notes: "MEMBERSHIP_PAYMENT ledger", paymentMethod: "membership" });
+
+    const up = (await api.get("/bookings?scope=upcoming", fd.auth)).body.data;
+    assert.deepEqual(up.items.map((b: { date: string }) => b.date), [addDaysKey(today, 1), addDaysKey(today, 2)], "soonest first");
+    const td = (await api.get("/bookings?scope=today", fd.auth)).body.data;
+    assert.deepEqual(td.items.map((b: { startTime: string }) => b.startTime), ["07:00", "20:00"], "by start time, ledger row hidden");
+    const prev = (await api.get("/bookings?scope=previous", fd.auth)).body.data;
+    assert.deepEqual(prev.items.map((b: { date: string }) => b.date), [addDaysKey(today, -1), addDaysKey(today, -3)], "newest first");
+    assert.equal((await api.get("/bookings?scope=previous&status=cancelled", fd.auth)).body.data.total, 1);
+    assert.equal((await api.get("/bookings?scope=today&q=sita", fd.auth)).body.data.total, 1);
+    assert.deepEqual((await api.get("/bookings/counts", fd.auth)).body.data, { upcoming: 2, today: 2, previous: 2 });
+    assert.equal((await api.get("/bookings?scope=today&limit=1&page=2", fd.auth)).body.data.items.length, 1);
+  });
+});

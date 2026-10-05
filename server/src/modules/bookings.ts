@@ -30,20 +30,42 @@ async function load(idOrCode: string) {
   return b;
 }
 
+// Membership payment rows are an accounting ledger, not games on the court: the customer app hides them too.
+// (SQL NOT on a NULL note would drop every booking without notes, so NULL is allowed explicitly.)
+const NOT_LEDGER: Prisma.BookingWhereInput = { AND: [{ OR: [{ notes: null }, { notes: { not: { contains: "MEMBERSHIP_PAYMENT" } } }] }, { paymentMethod: { not: "membership" } }] };
+
+function scopeDate(scope: string): string | Prisma.StringFilter {
+  const t = todayKey();
+  return scope === "today" ? t : scope === "upcoming" ? { gt: t } : { lt: t };
+}
+
 bookingsRouter.get("/", requirePermission("bookings.read"), handler(async (req, res) => {
   const q = req.query as Record<string, string | undefined>;
   const { take, skip, pageNo, limit } = page(q);
+  const scope = q.scope && ["upcoming", "today", "previous"].includes(q.scope) ? q.scope : undefined;
+  const dateFilter = scope ? scopeDate(scope) : q.date ? q.date : q.from || q.to ? { ...(q.from ? { gte: q.from } : {}), ...(q.to ? { lte: q.to } : {}) } : undefined;
   const where: Prisma.BookingWhereInput = {
-    ...(q.date ? { date: q.date } : { ...(q.from || q.to ? { date: { ...(q.from ? { gte: q.from } : {}), ...(q.to ? { lte: q.to } : {}) } } : {}) }),
-    ...(q.status ? { status: q.status } : {}),
-    ...(q.paymentStatus ? { paymentStatus: q.paymentStatus } : {}),
-    ...(q.q ? { OR: [{ code: { contains: q.q, mode: "insensitive" } }, { customerName: { contains: q.q, mode: "insensitive" } }, { customerPhone: { contains: q.q } }, { userId: { contains: q.q } }] } : {}),
+    AND: [
+      NOT_LEDGER,
+      ...(dateFilter ? [{ date: dateFilter }] : []),
+      ...(q.status ? [{ status: q.status }] : []),
+      ...(q.paymentStatus ? [{ paymentStatus: q.paymentStatus }] : []),
+      ...(q.q ? [{ OR: [{ code: { contains: q.q, mode: "insensitive" as const } }, { customerName: { contains: q.q, mode: "insensitive" as const } }, { customerPhone: { contains: q.q } }, { userId: { contains: q.q } }] }] : []),
+    ],
   };
+  // Upcoming reads soonest first; today by start time; previous newest first.
+  const asc = scope === "upcoming" || scope === "today";
   const [rows, total] = await Promise.all([
-    prisma.booking.findMany({ where, orderBy: [{ date: "desc" }, { startTime: "desc" }], take, skip }),
+    prisma.booking.findMany({ where, orderBy: asc ? [{ date: "asc" }, { startTime: "asc" }] : [{ date: "desc" }, { startTime: "desc" }], take, skip }),
     prisma.booking.count({ where }),
   ]);
   send(res, { items: rows.map(withCode), total, page: pageNo, limit });
+}));
+
+// Tab badges: how many bookings are upcoming, today and previous (cancelled and expired holds included in previous).
+bookingsRouter.get("/counts", requirePermission("bookings.read"), handler(async (_req, res) => {
+  const [upcoming, today, previous] = await Promise.all(["upcoming", "today", "previous"].map((s) => prisma.booking.count({ where: { AND: [NOT_LEDGER, { date: scopeDate(s) }] } })));
+  send(res, { upcoming, today, previous });
 }));
 
 bookingsRouter.get("/:id", requirePermission("bookings.read"), handler(async (req, res) => {
