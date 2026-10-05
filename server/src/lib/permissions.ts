@@ -7,6 +7,7 @@ export const PERMISSIONS = [
   "loyalty.read", "loyalty.write", "loyalty.adjust",
   "teams.read", "teams.write",
   "gamezone.read", "gamezone.write",
+  "membership.read", "membership.write",
   "notifications.write",
   "reports.read", "audit.read",
   "settings.write", "staff.manage",
@@ -21,8 +22,8 @@ const all = [...PERMISSIONS] as Permission[];
 export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   owner: all,
   manager: all.filter((p) => p !== "staff.manage"),
-  frontdesk: ["bookings.read", "bookings.write", "payments.read", "payments.write", "customers.read", "loyalty.read", "loyalty.write", "teams.read", "teams.write", "gamezone.read", "gamezone.write"],
-  accountant: ["bookings.read", "payments.read", "payments.write", "customers.read", "loyalty.read", "gamezone.read", "reports.read", "audit.read"],
+  frontdesk: ["bookings.read", "bookings.write", "payments.read", "payments.write", "customers.read", "loyalty.read", "loyalty.write", "teams.read", "teams.write", "gamezone.read", "gamezone.write", "membership.read"],
+  accountant: ["bookings.read", "payments.read", "payments.write", "customers.read", "loyalty.read", "gamezone.read", "membership.read", "reports.read", "audit.read"],
 };
 
 export const can = (role: string, p: Permission) => (ROLE_PERMISSIONS[role as Role] ?? []).includes(p);

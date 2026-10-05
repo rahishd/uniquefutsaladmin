@@ -10,6 +10,13 @@ export async function login(email: string, password: string) {
   return data.admin;
 }
 
+// Re-reads the signed-in staff member (role and permissions) so a permission change takes effect without signing in again.
+export async function refreshAdmin(): Promise<Admin | null> {
+  const me = await api<Admin>("/admin/auth/me");
+  try { localStorage.setItem(ADMIN_KEY, JSON.stringify(me)); } catch {}
+  return me;
+}
+
 export function logout() {
   setToken(null);
   try { localStorage.removeItem(ADMIN_KEY); } catch {}

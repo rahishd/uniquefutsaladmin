@@ -7,7 +7,7 @@ import { Bell, CalendarDays, LayoutGrid, LayoutDashboard, LogOut, Plus, Search, 
 import { icons } from "./icons";
 import { groups, modules } from "@/lib/nav";
 import { getToken } from "@/lib/api";
-import { currentAdmin, logout, type Admin } from "@/lib/auth";
+import { currentAdmin, logout, refreshAdmin, type Admin } from "@/lib/auth";
 
 // Sign-in guard is only for the UI; the API enforces staff access on every request.
 export default function Shell({ children }: { children: React.ReactNode }) {
@@ -17,12 +17,20 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const ready = signedIn === true;
   const admin: Admin | null = ready ? currentAdmin() : null;
   const [open, setOpen] = useState(false);
+  const [fresh, setFresh] = useState(false); // permissions re-read from the server for this page load
 
   useEffect(() => {
     if (signedIn === false) router.replace("/login");
   }, [signedIn, router]);
 
-  if (!ready) return <div className="grid min-h-screen place-items-center text-sm text-muted">Loading…</div>;
+  useEffect(() => {
+    if (!ready) return;
+    let live = true;
+    refreshAdmin().catch(() => {}).finally(() => { if (live) setFresh(true); });
+    return () => { live = false; };
+  }, [ready]);
+
+  if (!ready || !fresh) return <div className="grid min-h-screen place-items-center text-sm text-muted">Loading…</div>;
 
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 

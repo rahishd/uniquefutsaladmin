@@ -306,6 +306,13 @@ model MembershipPlan {
   discount3MonthsDay     Int?                     @default(0)
   discount3MonthsEvening Int?                     @default(0)
   discount3MonthsMorning Int?                     @default(0)
+  // ADMIN ADDITION (sql/002_membership_6_months.sql): the customer schema needs the same six columns before it can offer 6 months
+  price6MonthsDay        Int?
+  price6MonthsEvening    Int?
+  price6MonthsMorning    Int?
+  discount6MonthsDay     Int?                     @default(0)
+  discount6MonthsEvening Int?                     @default(0)
+  discount6MonthsMorning Int?                     @default(0)
   subscriptions          MembershipSubscription[]
 }
 

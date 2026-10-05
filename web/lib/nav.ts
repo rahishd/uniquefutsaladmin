@@ -100,9 +100,11 @@ export const modules: Module[] = [
     clientFeatures: ["Offers with discounted prices per shift", "Request a plan (pending until staff verify payment)", "4 PM to 8 PM never offered", "Points for 3 and 6 month plans"],
     adminTasks: ["Plans CRUD and featured plan", "Subscriptions list, verify payment (activates)", "Manual subscription, renew, extend, suspend", "Settlement and invoice"],
     endpoints: [
+      e("GET", "/admin/membership/plans", "plans with the shift x 1/3/6 month price matrix"),
+      e("POST", "/admin/membership/plans", "create a plan"),
+      e("PUT", "/admin/membership/plans/:id", "edit prices, perks, featured, active"),
       e("GET", "/admin/membership/subscriptions", "subscriptions (customer backend has it today)", "needed"),
       e("POST", "/admin/membership/verify-payment", "activate", "needed"),
-      e("GET", "/admin/membership/plans", "plans CRUD", "needed"),
     ],
   },
   {
