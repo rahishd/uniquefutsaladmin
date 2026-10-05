@@ -11,7 +11,7 @@ export { app, prisma, request, todayKey, addDaysKey };
 export const PASSWORD = "correct-horse-battery";
 
 export async function reset() {
-  for (const t of ["AdminAuditLog", "SlotBlock", "StaffUser", "BookingSlot", "PlayerGameStat", "PaymentEvent", "PaymentOrder", "LoyaltyEntry", "FreeGameVoucher", "GoodsSale", "ChallengeResult", "ChallengePrompt", "Challenge", "TeamMember", "Team", "GzSlot", "GzBooking", "GzConsole", "GzGame", "GzPlan", "ArrivalCheckin", "Notification", "UserPrefs", "Booking", "User", "Settings"]) {
+  for (const t of ["AdminAuditLog", "SlotBlock", "StaffUser", "BookingSlot", "PlayerGameStat", "PaymentEvent", "PaymentOrder", "LoyaltyEntry", "FreeGameVoucher", "GoodsSale", "ChallengeResult", "ChallengePrompt", "Challenge", "TeamMember", "Team", "GzSlot", "GzBooking", "GzConsole", "GzGame", "GzPlan", "ArrivalCheckin", "Notification", "UserPrefs", "Booking", "MembershipSubscription", "MembershipPlan", "User", "Settings"]) {
     await prisma.$executeRawUnsafe(`DELETE FROM "${t}"`);
   }
 }

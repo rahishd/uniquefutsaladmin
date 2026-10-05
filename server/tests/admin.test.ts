@@ -427,3 +427,61 @@ describe("price validation", () => {
     assert.equal((await api.put("/courts/pricing", mgr.auth, { hours: [{ hour: 18, price: 1350 }] })).status, 200);
   });
 });
+
+describe("membership plans", () => {
+  const none = { price: null, discount: 0 };
+  const matrix = (over: Record<string, Record<string, { price: number | null; discount: number }>> = {}) => ({
+    morning: { "1_month": { price: 6000, discount: 500 }, "3_months": { price: 16000, discount: 0 }, "6_months": { price: 30000, discount: 2000 } },
+    day: { "1_month": { price: 5000, discount: 0 }, "3_months": none, "6_months": none },
+    evening: { "1_month": none, "3_months": none, "6_months": none },
+    ...over,
+  });
+  const plan = (extra: object = {}) => ({ name: "Premium", description: "Best value", perks: ["Priority booking", "Free water"], featured: false, isActive: true, matrix: matrix(), ...extra });
+
+  it("saves each shift and length in the columns the customer app reads, including 6 months", async () => {
+    const mgr = await staff("manager");
+    const r = await api.post("/membership/plans", mgr.auth, plan());
+    assert.equal(r.status, 201);
+    const row = (await prisma.membershipPlan.findUniqueOrThrow({ where: { id: r.body.data.id } })) as unknown as Record<string, unknown>;
+    assert.equal(row.price1MonthMorning, 6000);
+    assert.equal(row.discount1MonthMorning, 500);
+    assert.equal(row.price3MonthsMorning, 16000);
+    assert.equal(row.price6MonthsMorning, 30000);
+    assert.equal(row.discount6MonthsMorning, 2000);
+    assert.equal(row.price1MonthDay, 5000);
+    assert.equal(row.price3MonthsDay, null);
+    assert.equal(row.price, 5000, "legacy price = cheapest 1-month price (the app lists plans by it)");
+    assert.equal(row.perks, JSON.stringify(["Priority booking", "Free water"]));
+    const list = (await api.get("/membership/plans", mgr.auth)).body.data;
+    assert.equal(list[0].matrix.morning["1_month"].customerPays, 5500, "price minus discount, like the customer app");
+    assert.equal(list[0].matrix.morning["6_months"].customerPays, 28000);
+    assert.equal(list[0].matrix.evening["1_month"].customerPays, null);
+    assert.deepEqual(list[0].perks, ["Priority booking", "Free water"]);
+  });
+
+  it("only one plan is featured; edits replace the prices; retiring keeps the plan", async () => {
+    const mgr = await staff("manager");
+    const a = (await api.post("/membership/plans", mgr.auth, plan({ name: "Basic", featured: true }))).body.data;
+    const b = (await api.post("/membership/plans", mgr.auth, plan({ name: "Premium", featured: true }))).body.data;
+    assert.equal((await prisma.membershipPlan.findUniqueOrThrow({ where: { id: a.id } })).featured, false);
+    const upd = await api.put(`/membership/plans/${b.id}`, mgr.auth, plan({ name: "Premium", featured: true, isActive: false, matrix: matrix({ evening: { "1_month": { price: 4500, discount: 0 }, "3_months": none, "6_months": none } }) }));
+    assert.equal(upd.status, 200);
+    assert.equal(upd.body.data.matrix.evening["1_month"].price, 4500);
+    assert.equal(upd.body.data.isActive, false);
+    assert.equal(await prisma.membershipPlan.count(), 2, "nothing deleted");
+    assert.equal((await api.put("/membership/plans/nope", mgr.auth, plan())).status, 404);
+  });
+
+  it("rejects bad prices, an active plan with no prices, and staff without permission", async () => {
+    const mgr = await staff("manager");
+    const fd = await staff("frontdesk");
+    assert.equal((await api.post("/membership/plans", mgr.auth, plan({ matrix: matrix({ day: { "1_month": { price: 50, discount: 0 }, "3_months": none, "6_months": none } }) }))).status, 400);
+    assert.equal((await api.post("/membership/plans", mgr.auth, plan({ matrix: matrix({ day: { "1_month": { price: 5000, discount: 5000 }, "3_months": none, "6_months": none } }) }))).status, 400);
+    const empty = { morning: { "1_month": none, "3_months": none, "6_months": none }, day: { "1_month": none, "3_months": none, "6_months": none }, evening: { "1_month": none, "3_months": none, "6_months": none } };
+    assert.equal((await api.post("/membership/plans", mgr.auth, plan({ matrix: empty }))).status, 400);
+    assert.equal((await api.post("/membership/plans", mgr.auth, plan({ matrix: empty, isActive: false }))).status, 201, "a draft with no prices is fine while inactive");
+    assert.equal((await api.get("/membership/plans", fd.auth)).status, 200);
+    assert.equal((await api.post("/membership/plans", fd.auth, plan())).status, 403);
+    assert.equal((await api.get("/audit?entity=membership-plan", mgr.auth)).body.data.total, 1);
+  });
+});

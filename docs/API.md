@@ -32,6 +32,7 @@ Dates `YYYY-MM-DD`, times `HH:00`, Nepal time, money in whole rupees. List endpo
 | Courts | `GET /courts/pricing`, `PUT /courts/pricing` | bookings.read / courts.write | writes the Settings keys the customer app reads; every price is Rs. 100 to Rs. 100,000 |
 | | `GET /courts/slots?date` | bookings.read | every hour 0-23: free, booked (booking summary with name, phone, code, price, status) or blocked; powers the Slots timeline |
 | | `GET/POST /courts/blocks`, `DELETE /courts/blocks/:id` | courts.write | a block also takes the (date, hour) slot so customers cannot book it |
+| Membership plans | `GET /membership/plans`, `POST /membership/plans`, `PUT /membership/plans/:id` | membership.read / membership.write | price matrix morning, day, evening x 1, 3, 6 months; each cell `{price|null, discount}` (customer pays price - discount); plans are never deleted, retire with `isActive:false`; one featured plan at a time; the old `price` column is kept at the cheapest 1-month price |
 | Customers | `GET /customers?q&status`, `GET /customers/:phone` | customers.read | never returns password data |
 | | `PATCH /customers/:phone`, `POST /customers/:phone/suspend|unsuspend` | customers.write | |
 | Promos | `GET/POST /promos`, `PUT/DELETE /promos/:code`, `GET /promos/usage` | promos.write (usage: reports.read) | stored in Settings `promoCodes`; the customer server re-validates at checkout |
@@ -49,9 +50,12 @@ Dates `YYYY-MM-DD`, times `HH:00`, Nepal time, money in whole rupees. List endpo
 | Audit | `GET /audit?entity&action&staffId&entityId` | audit.read | |
 
 ## Not built yet (still served by the customer backend)
-Membership plans and subscriptions, tournaments and tie-sheets, ads, gallery, site info, inventory and goods stock, expenses, SMS, venue settings and Wi-Fi. They are marked "To build" in the web dashboard.
+Membership subscriptions (requests, verifying payment, renewals), tournaments and tie-sheets, ads, gallery, site info, inventory and goods stock, expenses, SMS, venue settings and Wi-Fi. They are marked "To build" in the web dashboard.
 
 ## Known limits
 - Notices written here appear in the customer's bell, but closed-app Web Push is sent by the customer server only; broadcasts made here do not push until the two servers are connected (or this server gets the VAPID keys).
 - Loyalty adjustments use existing ledger kinds (`game` for additions, `free_game` for removals) so the customer app's points summary keeps working.
 - The customer app is the source of truth for how many points are spendable; `approxBalance` here is indicative.
+
+## 6-month memberships need a customer-app change
+`sql/002_membership_6_months.sql` adds six nullable columns to the customer table `MembershipPlan` (`price6Months{Morning,Day,Evening}`, `discount6Months{Morning,Day,Evening}`). The customer backend ignores them today (it only offers `1_month` and `3_months`). Before 6 months can be sold the customer repo must add the same columns to its Prisma schema, accept `6_months` in `POST /membership/request`, compute the end date, and award the 6-month points (`half`: 70). Until then 6-month prices are stored but not shown to customers.
