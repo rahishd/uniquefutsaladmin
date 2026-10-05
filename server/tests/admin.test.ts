@@ -314,3 +314,14 @@ describe("bookings list scopes", () => {
     assert.equal((await api.get("/bookings?scope=today&limit=1&page=2", fd.auth)).body.data.items.length, 1);
   });
 });
+
+describe("booking calendar", () => {
+  it("counts live bookings per day for a month and ignores cancelled ones", async () => {
+    const fd = await staff("frontdesk");
+    const mk = (date: string, startTime: string, status = "confirmed") => prisma.booking.create({ data: { date, startTime, endTime: "23:00", duration: 1, customerName: "Ram", basePrice: 1000, subtotal: 1000, totalPrice: 1000, paymentMethod: "venue", status, code: `UF-CAL-${date}-${startTime}` } });
+    await mk("2026-03-10", "10:00"); await mk("2026-03-10", "11:00"); await mk("2026-03-10", "12:00", "cancelled"); await mk("2026-03-21", "10:00"); await mk("2026-04-01", "10:00");
+    const r = await api.get("/bookings/calendar?month=2026-03", fd.auth);
+    assert.deepEqual(r.body.data.sort((a: { date: string }, b: { date: string }) => a.date.localeCompare(b.date)), [{ date: "2026-03-10", count: 2 }, { date: "2026-03-21", count: 1 }]);
+    assert.equal((await api.get("/bookings/calendar?month=nope", fd.auth)).status, 400);
+  });
+});

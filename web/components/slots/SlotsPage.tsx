@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight, Clock, Lock, Plus, X } from "lucide-react";
+import { CalendarDays, Clock, Lock, Plus, X } from "lucide-react";
 import BookSlotModal from "./BookSlotModal";
+import DatePicker from "./DatePicker";
 import BookingDetailSheet from "../bookings/BookingDetailSheet";
 import { Booking, bookingDetail, rs } from "@/lib/bookings";
-import { Hour, OPEN_FROM, OPEN_TO, SlotBooking, getDay, hourLabel, longDate, nowHour, rejectBooking, shiftDate, todayKey } from "@/lib/slots";
+import { Hour, OPEN_FROM, OPEN_TO, SlotBooking, getDay, hourLabel, nowHour, rejectBooking, todayKey } from "@/lib/slots";
 
 const CARD: Record<string, { bg: string; label: string }> = {
   confirmed: { bg: "bg-red-600", label: "CONFIRMED MATCH" },
@@ -85,18 +86,11 @@ export default function SlotsPage() {
     <div className="mx-auto max-w-4xl space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-black italic tracking-tight"><span>FIELD</span> <span className="text-orange-500">TIMELINE</span></h1>
+          <h1 className="text-2xl font-bold">Book a Slot (manual)</h1>
+          <p className="text-3xl font-black italic tracking-tight"><span>FIELD</span> <span className="text-orange-500">TIMELINE</span></p>
           <p className="text-xs text-muted">Visual occupancy grid for daily matches.</p>
         </div>
-        <div className="flex items-center gap-1 rounded-full bg-surface px-2 py-1.5 shadow-sm">
-          <button onClick={() => go(shiftDate(date, -1))} aria-label="Previous day" className="rounded-full p-1.5 hover:bg-surface-2"><ChevronLeft size={16} /></button>
-          <label className="relative flex cursor-pointer items-center gap-2 px-2 text-[11px] font-extrabold tracking-wide">
-            <CalendarDays size={14} className="text-orange-500" />
-            {longDate(date)}
-            <input type="date" value={date} onChange={(e) => e.target.value && go(e.target.value)} aria-label="Pick a date" className="absolute inset-0 cursor-pointer opacity-0" />
-          </label>
-          <button onClick={() => go(shiftDate(date, 1))} aria-label="Next day" className="rounded-full p-1.5 hover:bg-surface-2"><ChevronRight size={16} /></button>
-        </div>
+        <DatePicker date={date} onChange={go} />
       </div>
 
       {date !== todayKey() && <button onClick={() => go(todayKey())} className="text-sm font-semibold text-brand">Back to today</button>}

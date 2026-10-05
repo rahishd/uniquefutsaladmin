@@ -63,6 +63,17 @@ bookingsRouter.get("/", requirePermission("bookings.read"), handler(async (req, 
 }));
 
 // Tab badges: how many bookings are upcoming, today and previous (cancelled and expired holds included in previous).
+// Calendar dots: live bookings per day for one month (`?month=YYYY-MM`). Cancelled and expired bookings do not count.
+bookingsRouter.get("/calendar", requirePermission("bookings.read"), handler(async (req, res) => {
+  const month = parse(z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "use YYYY-MM"), req.query.month);
+  const rows = await prisma.booking.groupBy({
+    by: ["date"],
+    where: { AND: [NOT_LEDGER, { date: { gte: `${month}-01`, lte: `${month}-31` } }, { status: { notIn: ["cancelled", "expired"] } }] },
+    _count: { _all: true },
+  });
+  send(res, rows.map((r) => ({ date: r.date, count: r._count._all })));
+}));
+
 bookingsRouter.get("/counts", requirePermission("bookings.read"), handler(async (_req, res) => {
   const [upcoming, today, previous] = await Promise.all(["upcoming", "today", "previous"].map((s) => prisma.booking.count({ where: { AND: [NOT_LEDGER, { date: scopeDate(s) }] } })));
   send(res, { upcoming, today, previous });
