@@ -1,5 +1,6 @@
 "use client";
 
+import CustomerSuggest from "../CustomerSuggest";
 import { useEffect, useState } from "react";
 import { CheckCircle2, X } from "lucide-react";
 import { ApiError } from "@/lib/api";
@@ -167,10 +168,10 @@ export default function BulkBookModal({ startDate, onClose, onBooked }: { startD
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
-              <label className={lab}>Mobile number <span className="font-normal text-muted">(optional)</span><input inputMode="numeric" maxLength={10} value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))} placeholder="98XXXXXXXX" className={`${input} mt-1`} />
+              <label className={lab}>Mobile number <span className="font-normal text-muted">(optional)</span><CustomerSuggest by="phone" value={phone} onChange={setPhone} onPick={(c) => { setPhone(c.phoneNumber); if (c.name) setName(c.name); }} placeholder="98XXXXXXXX" className={`${input} mt-1`} />
                 {registered && <span className="mt-1 block text-xs font-normal text-brand">Registered: {registered}. Points go to their account.</span>}
               </label>
-              <label className={lab}>Customer or team name<input value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" className={`${input} mt-1`} /></label>
+              <label className={lab}>Customer or team name<CustomerSuggest by="name" value={name} onChange={setName} onPick={(c) => { setPhone(c.phoneNumber); if (c.name) setName(c.name); }} placeholder="Full name" className={`${input} mt-1`} /></label>
               <label className={lab}>Price per game (Rs.) <span className="font-normal text-muted">empty = court price</span><input inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value.replace(/\D/g, ""))} className={`${input} mt-1`} /></label>
               <label className={lab}>Payment<select value={payment} onChange={(e) => setPayment(e.target.value)} className={`${input} mt-1`}>{PAYMENT.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}</select></label>
             </div>
