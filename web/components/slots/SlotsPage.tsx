@@ -10,35 +10,66 @@ import { guard } from "@/lib/access";
 import { Booking, bookingDetail, rs } from "@/lib/bookings";
 import { Hour, OPEN_FROM, OPEN_TO, SlotBooking, getDay, hourLabel, nowHour, rejectBooking, todayKey } from "@/lib/slots";
 
-const CARD: Record<string, { bg: string; label: string }> = {
-  confirmed: { bg: "bg-red-600", label: "CONFIRMED MATCH" },
-  pending: { bg: "bg-amber-500", label: "PENDING PAYMENT" },
-  completed: { bg: "bg-slate-600", label: "SESSION COMPLETED" },
-  no_show: { bg: "bg-slate-500", label: "NO-SHOW" },
+const STATUS_LABEL: Record<string, string> = {
+  confirmed: "CONFIRMED MATCH",
+  pending: "PENDING PAYMENT",
+  completed: "SESSION COMPLETED",
+  no_show: "NO-SHOW",
 };
+
+// What the card shows at a glance: yellow = tournament, green = paid, red = not paid.
+const isTournament = (b: SlotBooking) => b.customerPhone === "Tournament" || /(Tournament)/i.test(b.customerName ?? "") || /tournament/i.test(b.notes ?? "");
+const isStaffBooked = (b: SlotBooking) => /WALK_IN/.test(b.notes ?? "");
+const isBulk = (b: SlotBooking) => /BULK /.test(b.notes ?? "");
+
+function look(b: SlotBooking) {
+  if (isTournament(b)) return { bg: "bg-yellow-400 text-slate-900", chip: "bg-black/15 text-slate-900", btn: "text-slate-900", tone: "TOURNAMENT" };
+  if (b.paymentStatus === "completed") return { bg: "bg-emerald-600 text-white", chip: "bg-white/20 text-white", btn: "text-emerald-700", tone: "PAID" };
+  return { bg: "bg-red-600 text-white", chip: "bg-white/20 text-white", btn: "text-red-600", tone: "UNPAID" };
+}
 
 function BookedCard({ h, onOpen, onReject }: { h: Hour; onOpen: () => void; onReject: () => void }) {
   const b = h.booking as SlotBooking;
-  const c = CARD[b.status] ?? { bg: "bg-slate-600", label: b.status.toUpperCase() };
+  const c = look(b);
+  const label = STATUS_LABEL[b.status] ?? b.status.toUpperCase();
   const first = Number(b.startTime.slice(0, 2)) === h.hour;
   const live = b.status === "confirmed" || b.status === "pending";
+  const tags: string[] = [];
+  if (isTournament(b)) tags.push("TOURNAMENT");
+  if (isStaffBooked(b)) tags.push(isBulk(b) ? "BOOKED BY STAFF (BULK)" : "BOOKED BY STAFF");
+  if (b.promoCode) tags.push(`PROMO ${b.promoCode}${b.discountAmount > 0 ? ` (-${rs(b.discountAmount)})` : ""}`);
   return (
-    <div className={`flex flex-col gap-3 rounded-2xl ${c.bg} p-3 text-white shadow-sm sm:flex-row sm:items-center sm:gap-4 sm:p-4`}>
+    <div className={`flex flex-col gap-3 rounded-2xl ${c.bg} p-3 shadow-sm sm:flex-row sm:items-center sm:gap-4 sm:p-4`}>
       <button onClick={onOpen} className="flex min-w-0 flex-1 items-center gap-3 text-left sm:gap-4" aria-label={`Details for ${b.customerName ?? "booking"}`}>
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white/20"><CalendarDays size={20} /></span>
+        <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ${c.chip}`}><CalendarDays size={20} /></span>
         <span className="min-w-0">
-          <span className="block text-[10px] font-bold tracking-wider opacity-80">{c.label}{!first ? ` · HOUR ${h.hour - Number(b.startTime.slice(0, 2)) + 1} OF ${b.duration}` : ""}</span>
-          <span className="block truncate text-base font-extrabold italic leading-tight sm:text-lg">{(b.customerName || "Guest").toUpperCase()}{b.customerPhone ? ` - ${b.customerPhone}` : ""}</span>
-          <span className="block text-[10px] font-semibold tracking-wide opacity-80">
+          <span className="block text-[10px] font-bold tracking-wider opacity-80">{label}{!first ? ` · HOUR ${h.hour - Number(b.startTime.slice(0, 2)) + 1} OF ${b.duration}` : ""}</span>
+          <span className="block truncate text-base font-extrabold italic leading-tight sm:text-lg">{(b.customerName || "Guest").toUpperCase()}{b.customerPhone && b.customerPhone !== "Tournament" ? ` - ${b.customerPhone}` : ""}</span>
+          <span className="block text-[10px] font-semibold tracking-wide opacity-90">
             {b.duration} HOUR SESSION · {rs(b.totalPrice)} · {b.paymentStatus === "completed" ? "PAID" : "UNPAID"} · ID: #{b.code.replace("UF-", "")}
           </span>
+          {tags.length > 0 && (
+            <span className="mt-1 flex flex-wrap gap-1">
+              {tags.map((t) => <span key={t} className={`rounded-full px-2 py-0.5 text-[9px] font-extrabold tracking-wider ${c.chip}`}>{t}</span>)}
+            </span>
+          )}
         </span>
       </button>
       {live && first && (
-        <button onClick={onReject} className="flex shrink-0 items-center gap-1 self-end rounded-full bg-white px-3 py-1.5 text-[11px] font-bold tracking-wide text-red-600 sm:self-auto">
+        <button onClick={onReject} className={`flex shrink-0 items-center gap-1 self-end rounded-full bg-white px-3 py-1.5 text-[11px] font-bold tracking-wide sm:self-auto ${c.btn}`}>
           <X size={13} /> REJECT
         </button>
       )}
+    </div>
+  );
+}
+
+function Legend() {
+  const items = [["bg-emerald-600", "Paid"], ["bg-red-600", "Not paid"], ["bg-yellow-400", "Tournament"]] as const;
+  return (
+    <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted" aria-label="Colour guide">
+      {items.map(([bg, l]) => <span key={l} className="flex items-center gap-1.5"><span className={`h-3 w-3 rounded ${bg}`} />{l}</span>)}
+      <span>Tags show if staff booked it by hand or a promo code was used.</span>
     </div>
   );
 }
@@ -109,6 +140,7 @@ export default function SlotsPage() {
           <span className="w-full text-xs text-muted sm:w-auto">Tap + on an open hour to book a customer by hand. Open hours are 5 AM to 10 PM.</span>
         </div>
 
+        <Legend />
         {error && <p className="mb-3 rounded-xl bg-red-500/10 p-3 text-sm text-red-600" role="alert">{error}</p>}
         {!hours && !error && <p className="py-12 text-center text-sm text-muted">Loading the day…</p>}
 
