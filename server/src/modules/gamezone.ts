@@ -3,6 +3,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db";
 import { audit } from "../lib/audit";
+import { notify } from "../lib/customer-effects";
 import { AppError, handler, page, param, parse, send } from "../lib/http";
 import { requirePermission } from "../middleware/auth";
 
@@ -33,6 +34,7 @@ gamezoneRouter.post("/bookings/:code/mark-paid", requirePermission("gamezone.col
     prisma.gzBooking.update({ where: { code: b.code }, data: { paymentStatus: "paid", holdExpiresAt: null } }),
     prisma.paymentOrder.updateMany({ where: { orderCode: b.code, status: { in: ["pending", "expired"] } }, data: { status: "paid", paidAt: new Date(), paidBy: req.staff!.id } }),
   ]);
+  if (b.userId) await notify(prisma, { userId: b.userId, type: "gamezone", title: "Payment received", message: `Rs. ${b.total} for your Gamezone session ${b.code} was received.`, href: "/gamezone", dedupeKey: `gz-paid-${b.code}` });
   await audit(req, "mark-paid", "gamezone", b.code, { total: b.total });
   send(res, null, "Marked as paid");
 }));
@@ -41,6 +43,7 @@ gamezoneRouter.post("/bookings/:code/complete", requirePermission("gamezone.mana
   const b = await load(param(req, "code"));
   if (b.status !== "confirmed") throw new AppError(409, `Only confirmed sessions can be completed (this one is ${b.status})`);
   await prisma.gzBooking.update({ where: { code: b.code }, data: { status: "completed" } });
+  if (b.userId) await notify(prisma, { userId: b.userId, type: "gamezone", title: "Thanks for playing", message: `Your Gamezone session ${b.code} is complete. See you again soon!`, href: "/gamezone", dedupeKey: `gz-done-${b.code}` });
   await audit(req, "complete", "gamezone", b.code);
   send(res, null, "Session completed");
 }));
@@ -57,6 +60,7 @@ gamezoneRouter.post("/bookings/:code/cancel", requirePermission("gamezone.manage
       await tx.paymentEvent.create({ data: { orderCode: b.code, source: "staff", payload: JSON.stringify({ event: "REFUND_DUE", reason: "CANCELLED_BY_STAFF", amount: order.amount, method: order.method }) } });
     }
   });
+  if (b.userId) await notify(prisma, { userId: b.userId, type: "gamezone", title: "Gamezone session cancelled", message: `Your Gamezone session ${b.code} was cancelled by the venue.${b.paymentStatus === "paid" ? " Your payment will be refunded." : ""}`, href: "/gamezone", dedupeKey: `gz-cancel-${b.code}` });
   await audit(req, "cancel", "gamezone", b.code);
   send(res, null, "Session cancelled");
 }));
