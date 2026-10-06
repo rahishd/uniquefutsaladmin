@@ -137,7 +137,7 @@ bookingsRouter.post("/collect-dues", requirePermission("payments.collect"), hand
     pay: { payments: b.payments, fonepayQrId: b.fonepayQrId, single: b.payments ? undefined : b.method === "fonepay" ? ("fonepay" as const) : ("cash" as const) },
   });
   await audit(req, "collect-dues", "booking", anchor.id, { bookings: rows.map((x) => x.code ?? x.id), goodsDues: goodsDues.map((g) => g.items), total: r.total, payments: r.payments, bill: r.code });
-  send(res, { count: r.count, total: r.total, billCode: r.code, points: Math.round((r.pointsGoods + r.pointsGames) * 10) / 10, payments: r.payments }, `Collected Rs. ${r.total} for ${r.count} due${r.count === 1 ? "" : "s"}`);
+  send(res, { count: r.count, total: r.total, billCode: r.code, points: Math.round((r.pointsGoods + r.pointsGames) * 10) / 10, payments: r.payments, lines: r.lines }, `Collected Rs. ${r.total} for ${r.count} due${r.count === 1 ? "" : "s"}`);
 }));
 
 bookingsRouter.get("/:id", requirePermission("bookings.view"), handler(async (req, res) => {
