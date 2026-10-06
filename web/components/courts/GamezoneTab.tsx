@@ -2,21 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { Pencil, Plus } from "lucide-react";
+import Switch from "../Switch";
 import { rs } from "@/lib/bookings";
 import { ApiError } from "@/lib/api";
 import { canDo } from "@/lib/auth";
 import { DEFAULT_GZ_PLANS, GzCatalog, GzItem, GzPlan, addConsole, addGame, getGzCatalog, patchConsole, patchGame, saveGzPlan } from "@/lib/courts";
 
 const field = "w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-brand disabled:opacity-60";
-
-function Switch({ on, onChange, label, disabled }: { on: boolean; onChange: () => void; label: string; disabled?: boolean }) {
-  return (
-    <button type="button" role="switch" aria-checked={on} aria-label={label} disabled={disabled} onClick={onChange}
-      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50 ${on ? "bg-brand" : "bg-slate-400/50"}`}>
-      <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${on ? "left-[22px]" : "left-0.5"}`} />
-    </button>
-  );
-}
 
 // Consoles and games share this list: name, on/off switch, rename, and an add form.
 function CatalogList({ title, hint, singular, items, editable, onAdd, onToggle, onRename }: {

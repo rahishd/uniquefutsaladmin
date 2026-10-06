@@ -694,6 +694,18 @@ model Complaint {
   @@index([status, createdAt])
 }
 
+// Promo codes switched OFF for one customer (customer backend migration 20261008000001_customer_promo_rules). A row = blocked.
+model CustomerPromoRule {
+  id        String   @id @default(cuid())
+  userId    String
+  code      String
+  createdBy String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, code])
+  @@index([userId])
+}
+
 // =====================================================================
 // ADMIN-OWNED TABLES (created by sql/*.sql in production; `npm run db:push` builds them locally).
 // Everything above this line mirrors the customer backend's schema: keep it in sync, never edit it here.

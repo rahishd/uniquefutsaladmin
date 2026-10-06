@@ -69,3 +69,14 @@ Membership subscriptions (requests, verifying payment, renewals), tournaments an
 | `PATCH /complaints/:id` | complaints.write | `{status?, reply? (max 1000)}`; sets `resolvedAt` when resolved or closed, clears it on reopen; creates a `complaint` notification for the customer only when something changed; audited |
 
 Front desk, manager and owner can read and answer complaints; accountants cannot. The table `Complaint` belongs to the customer backend (migration `20261007000001_complaints`); `sql/003_complaints_mirror.sql` only creates it (IF NOT EXISTS) in a local admin database. Photos are `/uploads/complaints/...` paths served by the customer backend (the admin web reads them from `NEXT_PUBLIC_CUSTOMER_ORIGIN`) or full cloud URLs. The in-app notice is written to the shared notification table; closed-app Web Push for it is sent by the customer server only.
+
+## Customers page
+| Method and path | Permission | Notes |
+|---|---|---|
+| `GET /customers?q&mode=captain|player&status=active|suspended&page&limit` | customers.read | each item has `mode` and `stats {gamesPlayed, gamezoneSessions, paidTotal, unpaidTotal, openComplaints}` (court bookings by account; paid excludes cancelled; unpaid = not yet paid and not cancelled) |
+| `GET /customers/:phone/profile` | customers.read | one call with: `games` (played, coming up, cancelled, no-shows, first/last game, recent 10), `payments` (paid cash / online, unpaid, recent 10 court + Gamezone), `goods` (extra items sold at the venue: total, count, list), `complaints` (total, open, recent 5), `tournaments.entered` (registrations with their phone) and `tournaments.challengesHosted` (challenge matches their team sent), `profile` (captain or regular, position, location, team, challenge record W/D/L), `promos` (every code with `enabled`, plus `allOff`) |
+| `PUT /customers/:phone/promos` | customers.write | `{code, enabled}`; `code` is a promo code or `*` for all. Off = a row in `CustomerPromoRule`; on = row removed. Audited (`promo-disable` / `promo-enable`) |
+
+**Promo codes are on for everyone by default. Switching one off for a customer is remembered and enforced by the customer backend** at every later booking quote, booking and membership request (and the code is hidden from that customer's Promos page). It stays off until staff switch it back on. The table `CustomerPromoRule` belongs to the customer backend (migration `20261008000001_customer_promo_rules`); `sql/004_customer_promo_rules_mirror.sql` only creates it (IF NOT EXISTS) in a local admin database.
+
+"Tournaments hosted": tournaments are created by the venue; the customer app has no customer-run tournaments. The profile shows tournaments the customer entered (as team contact) and challenge matches their team hosted.

@@ -15,10 +15,12 @@ const TABS: { id: CStatus | ""; label: string; key: keyof CCounts }[] = [
 ];
 
 export default function ComplaintsPage() {
-  const [status, setStatus] = useState<CStatus | "">("open");
+  const [status, setStatus] = useState<CStatus | "">(typeof window !== "undefined" && new URLSearchParams(window.location.search).get("q") ? "" : "open");
   const [category, setCategory] = useState("");
-  const [search, setSearch] = useState("");
-  const [q, setQ] = useState("");
+  // opened from a customer with ?q=<phone>: start on that customer, across all statuses
+  const fromLink = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("q") ?? "" : "";
+  const [search, setSearch] = useState(fromLink);
+  const [q, setQ] = useState(fromLink);
   const [pageNo, setPageNo] = useState(1);
   const [data, setData] = useState<CList | null>(null);
   const [counts, setCounts] = useState<CCounts | null>(null);

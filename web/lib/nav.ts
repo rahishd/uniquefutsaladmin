@@ -87,11 +87,11 @@ export const modules: Module[] = [
     clientFeatures: ["Profile, location, position", "Preferences (SMS, promo, pop-up)", "Player / Captain mode", "Booking and payment history", "Gameplay stats"],
     adminTasks: ["Search and open a customer (profile, bookings, points, team)", "Edit details", "Suspend / unsuspend", "Anonymise on request (money records kept)"],
     endpoints: [
-      e("GET", "/admin/customers", "search / list"),
-      e("GET", "/admin/customers/:phone", "profile, bookings, points, team"),
-      e("PATCH", "/admin/customers/:phone", "edit"),
-      e("POST", "/admin/customers/:phone/suspend", "suspend"),
-      e("POST", "/admin/customers/:phone/unsuspend", "reactivate"),
+      e("GET", "/admin/customers", "list with games, paid, unpaid and open complaints; filter captains / players"),
+      e("GET", "/admin/customers/:phone/profile", "games, payments, extra items, complaints, tournaments, captain profile, promo settings"),
+      e("PUT", "/admin/customers/:phone/promos", "switch a promo code (or all) on or off for one customer"),
+      e("PATCH", "/admin/customers/:phone", "edit name or email"),
+      e("POST", "/admin/customers/:phone/suspend", "suspend (and /unsuspend)"),
     ],
   },
   {
