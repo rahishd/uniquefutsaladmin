@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { icons } from "@/components/icons";
-import { canSee } from "@/lib/access";
 import { groups, modules } from "@/lib/nav";
 
 const quick = ["slots", "bookings", "payments", "arrivals"];
@@ -60,7 +59,7 @@ export default function Home() {
           </button>
         </div>
         <div className="grid grid-cols-4 gap-2 px-3 py-4">
-          {quick.filter(canSee).map((slug) => {
+          {quick.map((slug) => {
             const m = modules.find((x) => x.slug === slug)!;
             return <Tile key={slug} href={`/${slug}`} label={m.title} Icon={icons[m.icon]} />;
           })}
@@ -68,12 +67,12 @@ export default function Home() {
       </section>
 
       <Card title="Needs attention">
-        {attention.filter((a) => canSee(a.href.slice(1))).map((a) => <Tile key={a.label} href={a.href} label={a.label} Icon={icons[a.icon]} badge="—" />)}
+        {attention.map((a) => <Tile key={a.label} href={a.href} label={a.label} Icon={icons[a.icon]} badge="—" />)}
       </Card>
 
-      {groups.filter((g) => modules.some((m) => m.group === g && canSee(m.slug))).map((g) => (
+      {groups.map((g) => (
         <Card key={g} title={g}>
-          {modules.filter((m) => m.group === g && canSee(m.slug)).map((m) => <Tile key={m.slug} href={`/${m.slug}`} label={m.title} Icon={icons[m.icon]} />)}
+          {modules.filter((m) => m.group === g).map((m) => <Tile key={m.slug} href={`/${m.slug}`} label={m.title} Icon={icons[m.icon]} />)}
         </Card>
       ))}
     </div>

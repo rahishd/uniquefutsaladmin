@@ -29,7 +29,7 @@ async function withCustomers(rows: Row[]) {
   }));
 }
 
-complaintsRouter.get("/", requirePermission("complaints.read"), handler(async (req, res) => {
+complaintsRouter.get("/", requirePermission("complaints.view"), handler(async (req, res) => {
   const q = req.query as Record<string, string | undefined>;
   const { take, skip, pageNo, limit } = page(q);
   const status = q.status && (STATUSES as readonly string[]).includes(q.status) ? q.status : undefined;
@@ -45,14 +45,14 @@ complaintsRouter.get("/", requirePermission("complaints.read"), handler(async (r
 }));
 
 // Tab badges
-complaintsRouter.get("/counts", requirePermission("complaints.read"), handler(async (_req, res) => {
+complaintsRouter.get("/counts", requirePermission("complaints.view"), handler(async (_req, res) => {
   const g = await prisma.complaint.groupBy({ by: ["status"], _count: { _all: true } });
   const out: Record<string, number> = { all: 0, open: 0, in_review: 0, resolved: 0, closed: 0 };
   for (const r of g) { out[r.status] = r._count._all; out.all += r._count._all; }
   send(res, out);
 }));
 
-complaintsRouter.get("/:id", requirePermission("complaints.read"), handler(async (req, res) => {
+complaintsRouter.get("/:id", requirePermission("complaints.view"), handler(async (req, res) => {
   const c = await prisma.complaint.findFirst({ where: { OR: [{ id: param(req, "id") }, { code: param(req, "id") }] } });
   if (!c) throw new AppError(404, "Complaint not found");
   const [item] = await withCustomers([c]);
@@ -60,7 +60,7 @@ complaintsRouter.get("/:id", requirePermission("complaints.read"), handler(async
   send(res, { ...item, customerComplaints: history });
 }));
 
-complaintsRouter.patch("/:id", requirePermission("complaints.write"), handler(async (req, res) => {
+complaintsRouter.patch("/:id", requirePermission("complaints.reply"), handler(async (req, res) => {
   const b = parse(z.object({ status: z.enum(STATUSES).optional(), reply: z.string().trim().max(1000, "Keep the reply under 1000 characters").optional() }), req.body);
   if (b.status === undefined && !b.reply) throw new AppError(400, "Choose a status or write a reply");
   const c = await prisma.complaint.findUnique({ where: { id: param(req, "id") } });

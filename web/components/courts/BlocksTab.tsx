@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Lock, Trash2 } from "lucide-react";
 import { prettyDate } from "@/lib/bookings";
 import { ApiError } from "@/lib/api";
-import { canDo } from "@/lib/auth";
+import { guard } from "@/lib/access";
 import { Block, HOURS, addBlock, getBlocks, removeBlock } from "@/lib/courts";
 import { hourLabel, todayKey } from "@/lib/slots";
 
@@ -20,7 +20,7 @@ export default function BlocksTab() {
   const [hours, setHours] = useState<number[]>([]);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
-  const editable = canDo("courts.write");
+  const editable = true;
 
   useEffect(() => {
     let live = true;
@@ -40,6 +40,7 @@ export default function BlocksTab() {
 
   async function submit(ev: React.FormEvent) {
     ev.preventDefault();
+    if (!guard("courts.block")) return;
     setError("");
     setNote("");
     if (!date) return setError("Pick a date.");
@@ -60,6 +61,7 @@ export default function BlocksTab() {
   }
 
   async function remove(b: Block) {
+    if (!guard("courts.block")) return;
     if (!window.confirm(`Open ${hourLabel(b.hour)} on ${prettyDate(b.date)} for booking again?`)) return;
     try {
       await removeBlock(b.id);

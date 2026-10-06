@@ -1,4 +1,6 @@
 // Fetch wrapper for the Unique Futsal API. Only the public API address is configured here; no secrets.
+import { showDenied } from "./access";
+
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5100/api";
 const TOKEN_KEY = "uf_admin_token";
 
@@ -31,6 +33,7 @@ export async function api<T = unknown>(path: string, init: RequestInit = {}): Pr
     setToken(null);
     if (typeof window !== "undefined") window.location.replace("/login");
   }
+  if (res.status === 403) showDenied();
   if (!res.ok) throw new ApiError(res.status, body?.message ?? `Request failed (${res.status})`);
   return (body?.data ?? body) as T;
 }

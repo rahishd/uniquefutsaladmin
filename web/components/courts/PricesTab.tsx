@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { rs } from "@/lib/bookings";
 import { ApiError } from "@/lib/api";
-import { canDo } from "@/lib/auth";
+import { guard } from "@/lib/access";
 import { HOURS, Pricing, SHIFTS, getPricing, priceMap, savePricing } from "@/lib/courts";
 import { hourLabel } from "@/lib/slots";
 
@@ -20,7 +20,7 @@ export default function PricesTab() {
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [tick, setTick] = useState(0);
-  const editable = canDo("courts.write");
+  const editable = true;
 
   useEffect(() => {
     let live = true;
@@ -50,6 +50,7 @@ export default function PricesTab() {
   };
 
   async function save() {
+    if (!guard("courts.price")) return;
     setBusy(true);
     setError("");
     setNote("");
@@ -69,7 +70,6 @@ export default function PricesTab() {
 
   return (
     <div className="space-y-4">
-      {!editable && <p className="rounded-xl bg-surface-2 p-3 text-sm text-muted">You can view prices. Only a manager or owner can change them.</p>}
       {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600" role="alert">{error}</p>}
       {note && <p className="rounded-xl bg-brand/10 p-3 text-sm text-brand" role="status">{note}</p>}
 

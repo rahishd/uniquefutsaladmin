@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Gamepad2, Phone, RefreshCw, Trophy } from "lucide-react";
 import { Badge } from "../bookings/Badge";
 import CollectModal from "../payments/CollectModal";
-import { canDo } from "@/lib/auth";
+import { guard } from "@/lib/access";
 import { rs } from "@/lib/bookings";
 import { METHOD_LABEL } from "@/lib/payments";
 import { ArrivalItem, ArrivalsDay, getArrivals, groupOf, span, startText } from "@/lib/arrivals";
@@ -37,7 +37,7 @@ function Card({ i, now, at, onCollect }: { i: ArrivalItem; now: number; at: numb
         {i.paid ? <Badge tone="bg-brand/15 text-brand">Paid</Badge> : <Badge tone="bg-amber-500/15 text-amber-600">Unpaid {rs(i.amount)}</Badge>}
         <Badge tone="bg-surface-2 text-muted">{i.method === "venue" ? "Cash at venue" : METHOD_LABEL[i.method] ?? i.method}</Badge>
         <span className="ml-auto flex gap-2">
-          {!i.paid && canDo("payments.write") && <button onClick={onCollect} className="rounded-full bg-brand px-3 py-1.5 text-xs font-semibold text-white">Collect</button>}
+          {!i.paid && <button onClick={() => guard("payments.collect") && onCollect()} className="rounded-full bg-brand px-3 py-1.5 text-xs font-semibold text-white">Collect</button>}
           {i.phone && (
             <a href={`tel:${i.phone}`} aria-label={`Call ${i.name ?? i.phone}`} className="flex items-center gap-1 rounded-full border border-line px-3 py-1.5 text-xs font-semibold">
               <Phone size={13} /> {i.phone}

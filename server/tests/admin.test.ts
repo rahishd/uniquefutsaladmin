@@ -282,7 +282,7 @@ describe("gamezone, teams, notices, reports", () => {
     const rev = await api.get(`/reports/revenue?from=${today}&to=${today}`, owner.auth);
     assert.equal(rev.body.data.totals.cash, 1000);
     assert.equal((await api.get(`/reports/revenue?from=2020-01-01&to=${today}`, owner.auth)).status, 400);
-    await api.post("/staff", owner.auth, { email: "n@test.np", name: "Nima", accountType: "staff", permissions: ["bookings.read"], password: "secret-password-1" });
+    await api.post("/staff", owner.auth, { email: "n@test.np", name: "Nima", accountType: "staff", permissions: ["bookings.view"], password: "secret-password-1" });
     const log = await api.get("/audit?entity=staff", owner.auth);
     assert.ok(log.body.data.total >= 2);
     assert.equal(JSON.stringify(log.body).includes("secret-password-1"), false);

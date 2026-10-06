@@ -8,16 +8,19 @@ import AccountSheet from "./AccountSheet";
 import { ApiError } from "@/lib/api";
 import { currentAdmin } from "@/lib/auth";
 import { ago } from "@/lib/complaints";
-import { Account, Catalog, ROLE_LABEL, getCatalog, levelsOf, listStaff, updateStaff } from "@/lib/staff";
+import { guard } from "@/lib/access";
+import { Account, Catalog, ROLE_LABEL, getCatalog, listStaff, updateStaff } from "@/lib/staff";
 
-// Short text about what a staff account can use, for example "Bookings, Payments (view) and 3 more".
+// Short text about what an account can do, for example "12 permissions: Bookings, Payments and 2 more".
 function summary(a: Account, c: Catalog | null) {
-  if (a.accountType === "admin") return "All access";
+  if (a.accountType === "admin") return a.role === "owner" ? "Everything, including accounts" : "Everything except accounts";
   if (!c) return "";
-  const { levels } = levelsOf(c.features, a.effective);
-  const areas = c.features.filter((f) => levels[f.id] !== "none").map((f) => `${f.label.split(",")[0].split(" &")[0]}${levels[f.id] === "view" ? " (view)" : ""}`);
-  if (areas.length === 0) return "Dashboard only";
-  return areas.length <= 4 ? areas.join(", ") : `${areas.slice(0, 3).join(", ")} and ${areas.length - 3} more`;
+  const has = new Set(a.effective);
+  const used = c.sections.filter((s) => s.permissions.some((p) => has.has(p.key)));
+  const n = c.assignable.filter((p) => has.has(p)).length;
+  if (n === 0) return "Nothing yet (can only sign in)";
+  const names = used.map((s) => s.label);
+  return `${n} of ${c.assignable.length} permissions: ${names.length <= 3 ? names.join(", ") : `${names.slice(0, 3).join(", ")} and ${names.length - 3} more`}`;
 }
 
 export default function StaffPage() {
@@ -38,6 +41,7 @@ export default function StaffPage() {
   }, [tick]);
 
   async function toggle(a: Account) {
+    if (!guard("staff.manage")) return;
     if (!window.confirm(a.isActive ? `Disable ${a.name}? They are signed out at once and cannot sign in until you enable the account again.` : `Enable ${a.name}?`)) return;
     try {
       await updateStaff(a.id, { isActive: !a.isActive });
@@ -70,12 +74,12 @@ export default function StaffPage() {
             <p className="truncate text-sm text-muted">{a.email}</p>
           </div>
         </div>
-        <p className="text-sm"><span className="text-muted">Can use: </span><strong>{summary(a, catalog)}</strong></p>
+        <p className="text-sm"><span className="text-muted">Can do: </span><strong>{summary(a, catalog)}</strong></p>
         <div className="flex items-center justify-between gap-2 border-t border-line pt-2">
           <span className="text-xs text-muted">{a.lastLoginAt ? `Last signed in ${ago(a.lastLoginAt)}` : "Has not signed in yet"}</span>
           {!locked && (
             <span className="flex items-center gap-3">
-              <button onClick={() => setSheet(a)} className="flex items-center gap-1.5 rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold"><Pencil size={13} /> {a.accountType === "staff" ? "Edit access" : "Edit"}</button>
+              <button onClick={() => guard("staff.manage") && setSheet(a)} className="flex items-center gap-1.5 rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold"><Pencil size={13} /> {a.accountType === "staff" ? "Permissions" : "Edit"}</button>
               {!mine && <Switch on={a.isActive} label={`${a.isActive ? "Disable" : "Enable"} ${a.name}`} onChange={() => toggle(a)} />}
             </span>
           )}
@@ -89,9 +93,9 @@ export default function StaffPage() {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Staff &amp; Roles</h1>
-          <p className="text-sm text-muted">Admins can do everything. For staff, you choose exactly what each person can see and do.</p>
+          <p className="text-sm text-muted">Only the Owner can change these. Admins can do everything except manage accounts. For staff, tick exactly what each person may do.</p>
         </div>
-        <button onClick={() => setSheet("new")} className="flex shrink-0 items-center gap-1.5 rounded-full bg-brand px-4 py-2.5 text-sm font-semibold text-white"><Plus size={16} /> Add account</button>
+        <button onClick={() => guard("staff.manage") && setSheet("new")} className="flex shrink-0 items-center gap-1.5 rounded-full bg-brand px-4 py-2.5 text-sm font-semibold text-white"><Plus size={16} /> Add account</button>
       </div>
 
       {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600" role="alert">{error}</p>}
@@ -100,11 +104,11 @@ export default function StaffPage() {
       {accounts && (
         <>
           <section className="space-y-2">
-            <h2 className="px-1 text-sm font-bold">Admins <span className="font-normal text-muted">· all access ({admins.length})</span></h2>
+            <h2 className="px-1 text-sm font-bold">Admins <span className="font-normal text-muted">· everything except accounts ({admins.length})</span></h2>
             <ul className="space-y-2">{admins.map(card)}</ul>
           </section>
           <section className="space-y-2">
-            <h2 className="px-1 text-sm font-bold">Staff <span className="font-normal text-muted">· access you choose ({staff.length})</span></h2>
+            <h2 className="px-1 text-sm font-bold">Staff <span className="font-normal text-muted">· only what you tick ({staff.length})</span></h2>
             {staff.length === 0 && <p className="rounded-2xl bg-surface py-8 text-center text-sm text-muted shadow-sm">No staff accounts yet. Add one and tick what they may do.</p>}
             <ul className="space-y-2">{staff.map(card)}</ul>
           </section>

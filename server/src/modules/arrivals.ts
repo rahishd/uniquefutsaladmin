@@ -12,7 +12,7 @@ export const arrivalsRouter = Router();
 const hh = (h: number) => `${String(h).padStart(2, "0")}:00`;
 const DEAD = ["cancelled", "expired"];
 
-arrivalsRouter.get("/", requirePermission("bookings.read"), handler(async (_req, res) => {
+arrivalsRouter.get("/", requirePermission("arrivals.view"), handler(async (_req, res) => {
   const today = todayKey();
   const [bookings, gz] = await Promise.all([
     prisma.booking.findMany({ where: { AND: [NOT_LEDGER, { date: today, status: { notIn: DEAD } }] } }),

@@ -8,7 +8,7 @@ import CancellationsSection from "./CancellationsSection";
 import VipSection from "./VipSection";
 import VipTag from "./VipTag";
 import { ApiError } from "@/lib/api";
-import { canDo } from "@/lib/auth";
+import { guard } from "@/lib/access";
 import { prettyDate, rs, STATUS as BOOKING_STATUS } from "@/lib/bookings";
 import { STATUS as COMPLAINT_STATUS, ago } from "@/lib/complaints";
 import { METHOD_LABEL } from "@/lib/payments";
@@ -42,7 +42,7 @@ export default function CustomerSheet({ customer, onClose, onChanged }: { custom
   const [p, setP] = useState<Profile | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
-  const canWrite = canDo("customers.write");
+  const canWrite = true;
 
   useEffect(() => {
     let live = true;
@@ -53,6 +53,7 @@ export default function CustomerSheet({ customer, onClose, onChanged }: { custom
   }, [customer.phoneNumber]);
 
   async function toggleActive() {
+    if (!guard("customers.suspend")) return;
     if (!p) return;
     const next = !p.user.isActive;
     if (!window.confirm(next ? `Let ${p.user.name ?? p.user.phoneNumber} use the app again?` : `Suspend ${p.user.name ?? p.user.phoneNumber}? They will not be able to sign in. Their records are kept.`)) return;
@@ -180,7 +181,7 @@ export default function CustomerSheet({ customer, onClose, onChanged }: { custom
 
             <CancellationsSection p={p} canWrite={canWrite} busy={busy === "active"} onToggleActive={toggleActive} />
 
-            <VipSection p={p} canManage={canDo("customers.write")} />
+            <VipSection p={p} />
 
             <Section title="Complaints">
               <p className="text-sm">{p.complaints.total} sent{p.complaints.open > 0 ? <> · <strong className="text-amber-600">{p.complaints.open} still open</strong></> : ""}</p>
@@ -197,7 +198,7 @@ export default function CustomerSheet({ customer, onClose, onChanged }: { custom
                   })}
                 </ul>
               )}
-              {p.complaints.total > 0 && canDo("complaints.read") && <Link href={`/complaints?q=${encodeURIComponent(customer.phoneNumber)}`} className="inline-block text-sm font-semibold text-brand">Open in Complaints</Link>}
+              {p.complaints.total > 0 && <Link href={`/complaints?q=${encodeURIComponent(customer.phoneNumber)}`} className="inline-block text-sm font-semibold text-brand">Open in Complaints</Link>}
             </Section>
 
             <Section title="Tournaments and hosting" hint="Tournaments are run by the venue. Customers enter them with a team, and captains can host challenge matches.">

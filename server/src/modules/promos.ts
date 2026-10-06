@@ -24,9 +24,9 @@ const promo = z.object({
 }).refine((p) => p.type !== "percent" || p.value <= 100, { message: "A percent discount cannot be more than 100", path: ["value"] });
 
 // The customer app reads promo codes from Settings and validates again at checkout, so this only stores them.
-promosRouter.get("/", requirePermission("promos.read"), handler(async (_req, res) => send(res, await getPromoCodes())));
+promosRouter.get("/", requirePermission("promos.view"), handler(async (_req, res) => send(res, await getPromoCodes())));
 
-promosRouter.post("/", requirePermission("promos.write"), handler(async (req, res) => {
+promosRouter.post("/", requirePermission("promos.create"), handler(async (req, res) => {
   const p = parse(promo, req.body) as PromoCode;
   const all = await getPromoCodes();
   if (all.some((x) => x.code.toUpperCase() === p.code)) throw new AppError(409, "This code already exists");
@@ -35,7 +35,7 @@ promosRouter.post("/", requirePermission("promos.write"), handler(async (req, re
   send(res, p, "Promo created", 201);
 }));
 
-promosRouter.put("/:code", requirePermission("promos.write"), handler(async (req, res) => {
+promosRouter.put("/:code", requirePermission("promos.edit"), handler(async (req, res) => {
   const code = param(req, "code").toUpperCase();
   const p = parse(promo, { ...req.body, code }) as PromoCode;
   const all = await getPromoCodes();
@@ -47,7 +47,7 @@ promosRouter.put("/:code", requirePermission("promos.write"), handler(async (req
   send(res, p, "Promo saved");
 }));
 
-promosRouter.delete("/:code", requirePermission("promos.write"), handler(async (req, res) => {
+promosRouter.delete("/:code", requirePermission("promos.delete"), handler(async (req, res) => {
   const code = param(req, "code").toUpperCase();
   const all = await getPromoCodes();
   if (!all.some((x) => x.code.toUpperCase() === code)) throw new AppError(404, "Promo not found");
@@ -57,7 +57,7 @@ promosRouter.delete("/:code", requirePermission("promos.write"), handler(async (
 }));
 
 // How often each code was used on real (not cancelled) bookings, and the discount given.
-promosRouter.get("/usage", requirePermission("reports.read"), handler(async (_req, res) => {
+promosRouter.get("/usage", requirePermission("reports.view"), handler(async (_req, res) => {
   const rows = await prisma.booking.groupBy({ by: ["promoCode"], where: { promoCode: { not: null }, status: { notIn: ["cancelled", "expired"] } }, _count: { _all: true }, _sum: { discountAmount: true } });
   send(res, rows.map((r) => ({ code: r.promoCode, uses: r._count._all, discountGiven: r._sum.discountAmount ?? 0 })));
 }));

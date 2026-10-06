@@ -6,7 +6,7 @@ import { Profile } from "@/lib/customers";
 
 // Read-only: the Customers page only shows that a VIP privilege was given, and its code.
 // Giving, changing, pausing and removing a VIP code is done on the VIP Privilege page.
-export default function VipSection({ p, canManage }: { p: Profile; canManage: boolean }) {
+export default function VipSection({ p }: { p: Profile }) {
   const vip = p.vip;
   return (
     <section className={`space-y-2 rounded-2xl border p-4 ${vip ? "border-amber-400/60 bg-amber-400/10" : "border-line"}`}>
@@ -19,9 +19,7 @@ export default function VipSection({ p, canManage }: { p: Profile; canManage: bo
       ) : (
         <p className="text-sm text-muted">No VIP privilege given.</p>
       )}
-      {canManage && (
-        <Link href="/vip" className="inline-block text-sm font-semibold text-brand">{vip ? "Manage on the VIP Privilege page" : "Give VIP privilege on the VIP Privilege page"}</Link>
-      )}
+      <Link href="/vip" className="inline-block text-sm font-semibold text-brand">{vip ? "Manage on the VIP Privilege page" : "Give VIP privilege on the VIP Privilege page"}</Link>
     </section>
   );
 }

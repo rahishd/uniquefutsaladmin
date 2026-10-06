@@ -5,7 +5,7 @@ import { z } from "zod";
 import { prisma } from "../db";
 import { audit } from "../lib/audit";
 import { AppError, handler, parse, send } from "../lib/http";
-import { effectivePermissions, isAdminRole } from "../lib/permissions";
+import { effectivePermissions, isAdminRole, isOwnerRole } from "../lib/permissions";
 import { requireStaff, signStaffToken } from "../middleware/auth";
 
 export const authRouter = Router();
@@ -23,7 +23,7 @@ const loginLimiter = rateLimit({
 });
 
 const view = (s: { id: string; email: string; name: string; role: string; permissions: string[] }) => ({
-  id: s.id, email: s.email, name: s.name, role: s.role, isAdmin: isAdminRole(s.role),
+  id: s.id, email: s.email, name: s.name, role: s.role, isAdmin: isAdminRole(s.role), isOwner: isOwnerRole(s.role),
   permissions: effectivePermissions(s),
 });
 
