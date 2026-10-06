@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, ReceiptText } from "lucide-react";
 import { ApiError } from "@/lib/api";
-import { Log, PAGE_SIZE, Paged, Sale, listLogs, listSales, rs } from "@/lib/inventory";
+import { Bill, Log, PAGE_SIZE, Paged, Sale, listBills, listLogs, listSales, rs } from "@/lib/inventory";
 
 const when = (iso: string) => new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true });
 
@@ -33,6 +33,44 @@ function usePaged<T>(load: (page: number) => Promise<Paged<T>>, tick: number) {
 }
 
 export function Sales({ tick }: { tick: number }) {
+  const [view, setView] = useState<"bills" | "goods">("bills");
+  return (
+    <div className="space-y-3">
+      <div className="grid max-w-sm grid-cols-2 gap-1 rounded-xl bg-surface p-1 shadow-sm">
+        {([["bills", "Customer bills"], ["goods", "All goods sales"]] as const).map(([v, l]) => <button key={v} aria-pressed={view === v} onClick={() => setView(v)} className={`rounded-lg px-3 py-2 text-sm font-semibold ${view === v ? "bg-brand text-white" : "text-muted"}`}>{l}</button>)}
+      </div>
+      {view === "bills" ? <Bills tick={tick} /> : <GoodsSales tick={tick} />}
+    </div>
+  );
+}
+
+function Bills({ tick }: { tick: number }) {
+  const { page, setPage, data, error } = usePaged<Bill>(listBills, tick);
+  return (
+    <div className="space-y-3">
+      {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600" role="alert">{error}</p>}
+      {!data && !error && <p className="py-8 text-center text-sm text-muted">Loading bills…</p>}
+      {data?.items.length === 0 && <div className="grid place-items-center gap-2 rounded-2xl bg-surface py-12 text-center text-muted shadow-sm"><ReceiptText size={32} strokeWidth={1.5} /><p>No customer bills yet. Enter a customer number when selling to make one.</p></div>}
+      <ul className="grid items-start gap-3 xl:grid-cols-2">
+        {data?.items.map((b) => (
+          <li key={b.id} className="space-y-2 rounded-2xl bg-surface p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0"><p className="truncate font-semibold">{b.customerName ?? b.customerPhone}</p><p className="text-xs text-muted">{b.customerPhone} · <span className="font-mono">{b.code}</span> · {when(b.createdAt)} · {b.paymentMethod === "cash" ? "Cash" : "Online"}</p></div>
+              <p className="shrink-0 text-lg font-bold">{rs(b.total)}</p>
+            </div>
+            <ul className="space-y-0.5 text-sm">
+              {b.lines.map((l, i) => <li key={i} className="flex justify-between gap-3"><span className="truncate text-muted">{l.type === "goods" && l.quantity > 1 ? `${l.quantity} x ` : ""}{l.label}</span><span>{rs(l.amount)}</span></li>)}
+            </ul>
+            {b.points > 0 && <p className="text-xs font-semibold text-amber-600">+{b.points} loyalty points</p>}
+          </li>
+        ))}
+      </ul>
+      {data && <Pager page={page} total={data.total} onPage={setPage} />}
+    </div>
+  );
+}
+
+function GoodsSales({ tick }: { tick: number }) {
   const { page, setPage, data, error } = usePaged<Sale>(listSales, tick);
   return (
     <div className="space-y-3">

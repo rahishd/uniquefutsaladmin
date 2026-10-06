@@ -39,6 +39,10 @@ export type WalkInInput = {
 };
 
 export const bookManually = (b: WalkInInput) => api("/admin/bookings/walk-in", { method: "POST", body: JSON.stringify(b) });
+export type BulkPlan = { plan: { date: string; free: boolean; price: number }[]; requested: number; free: number; taken: number; pricePerGame: number; totalAmount: number };
+export type BulkInput = Omit<WalkInInput, "date"> & { dates: string[]; mode: "free" | "all"; dryRun?: boolean };
+export type BulkResult = BulkPlan & { created?: { id: string; code: string; date: string }[]; skipped?: string[] };
+export const bulkBook = (b: BulkInput) => api<BulkResult>("/admin/bookings/walk-in/bulk", { method: "POST", body: JSON.stringify(b) });
 export const rejectBooking = (id: string) => api(`/admin/bookings/${encodeURIComponent(id)}/cancel`, { method: "POST", body: "{}" });
 export const findCustomer = (phone: string) =>
   api<{ items: { phoneNumber: string; name: string | null }[] }>(`/admin/customers?q=${encodeURIComponent(phone)}&limit=1`);

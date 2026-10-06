@@ -135,6 +135,20 @@ Uses the venue's existing `Product`, `Category` and `InventoryLog` tables (the c
 | `POST /inventory/sales` | inventory.sell | `{payment: cash\|online, phone?, items[{productId, quantity}]}`; price from the product, never the request; all-or-nothing; a registered phone earns Rs. 100 = 1 point (once); walk-ins earn none |
 | `GET /inventory/sales?page` | inventory.view | who bought, what, who sold |
 
+### Final bill (goods and games together)
+
+Staff enter a registered customer's number in Sell goods. The bill lists their games from the last 7 days (unpaid ones ticked) and the goods. It is saved in the customer's own table `Checkout` (customer migration `20261013000001_checkouts`, local mirror `sql/010_checkout_mirror.sql`) and appears in the customer's payment history in the app (`GET /me/payments`, `kind: "bill"`).
+
+| Route | Permission | Notes |
+|---|---|---|
+| `GET /inventory/customer-bill?phone=` | inventory.sell | `{customer, games[{id, code, date, startTime, endTime, total, paid, status, upcoming, pointsIfCompleted}]}`: the last 7 days up to today, cancelled and pending-hold bookings left out |
+| `POST /inventory/checkout` | inventory.sell (+ payments.collect when games are included) | `{phone, payment: cash or online, items[], bookingIds[]}`: marks each game paid (only once; 409 if already paid), takes the stock, writes one bill `CB-XXXXXX`, all in one transaction. Points: goods Rs. 100 = 1 now; a game already played is completed and earns price / 100 now; a game still to be played earns its points when completed. The customer is notified |
+| `GET /inventory/bills?page` | inventory.view | bills newest first with lines and points |
+
+## Bulk booking
+
+`POST /bookings/walk-in/bulk` (bookings.create): `{dates[1-31], startTime, duration 1-4, customerName, customerPhone?, paymentMethod, paid, priceOverride? (per game), notes?, mode: free or all, dryRun}`. The same hour(s) on every date. `dryRun: true` returns each date as free or taken (a blocked hour counts as taken) with the price and the total, and changes nothing. `mode: "free"` books the free dates and skips the taken ones; `"all"` books everything or nothing (409 listing the taken dates). Dates must be within 60 days of today. Each booking has its own code; the notes carry `BULK <first code>` so a batch can be found. One audit entry for the batch.
+
 ## Customers page
 | Method and path | Permission | Notes |
 |---|---|---|

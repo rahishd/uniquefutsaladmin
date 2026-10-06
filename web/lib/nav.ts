@@ -23,9 +23,9 @@ export const modules: Module[] = [
     slug: "slots", title: "Slots", group: "Operations", icon: "clock",
     summary: "Day timeline of every hour: who is playing, open hours, and manual booking.",
     clientFeatures: ["Free hours listed per date", "Pay at venue or online", "Guest vs registered customers", "Free cancellation until start"],
-    adminTasks: ["See a whole day at once (booked, completed, open, blocked)", "Tap + to book a customer by hand (walk-in or phone)", "Log a game that already happened", "Reject (cancel) a booking"],
+    adminTasks: ["See a whole day at once (booked, completed, open, blocked)", "Tap + to book a customer by hand (walk-in or phone)", "Bulk booking: the same hour on many dates (weekly, daily or picked dates), checked before it is booked", "Log a game that already happened", "Reject (cancel) a booking"],
     endpoints: [
-      e("GET", "/admin/courts/slots", "all hours of a date with who booked them"), e("POST", "/admin/bookings/walk-in", "manual booking"),
+      e("GET", "/admin/courts/slots", "all hours of a date with who booked them"), e("POST", "/admin/bookings/walk-in", "manual booking"), e("POST", "/admin/bookings/walk-in/bulk", "bulk booking: the same hour on many dates, with a preview"),
       e("POST", "/admin/bookings/:id/cancel", "reject a booking"), e("GET", "/admin/customers", "find a registered customer"),
     ],
   },
@@ -256,7 +256,7 @@ export const modules: Module[] = [
       e("GET", "/admin/inventory/overview", "counts, stock value, sales today and this week"), e("GET", "/admin/inventory/categories", "categories"),
       e("POST", "/admin/inventory/categories", "add (also PATCH, DELETE)"), e("GET", "/admin/inventory/products", "search, category, low or out of stock"),
       e("POST", "/admin/inventory/products", "add with opening stock (also PATCH, DELETE)"), e("POST", "/admin/inventory/products/:id/stock", "add, remove or count"),
-      e("GET", "/admin/inventory/logs", "stock log"), e("POST", "/admin/inventory/sales", "counter sale, takes stock, gives points"), e("GET", "/admin/inventory/sales", "sales list"),
+      e("GET", "/admin/inventory/logs", "stock log"), e("GET", "/admin/inventory/customer-bill", "a customer's games and what they owe"), e("POST", "/admin/inventory/checkout", "final bill: goods and games, points, saved for the customer"), e("GET", "/admin/inventory/bills", "customer bills"), e("POST", "/admin/inventory/sales", "counter sale, takes stock, gives points"), e("GET", "/admin/inventory/sales", "sales list"),
     ],
   },
   {
