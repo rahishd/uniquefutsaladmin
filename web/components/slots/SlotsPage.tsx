@@ -163,7 +163,17 @@ export default function SlotsPage() {
                     </div>
                   )}
 
-                  {h.state === "free" && (
+                  {h.state === "free" && h.member && (
+                    <div className="flex items-center gap-3 rounded-2xl border border-violet-500/40 bg-violet-500/10 p-3 sm:p-4">
+                      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-surface text-violet-600"><Lock size={18} /></span>
+                      <span className="min-w-0">
+                        <span className="block text-[10px] font-bold tracking-wider text-violet-700">MEMBER HOLD{h.member.memberCode ? ` · ${h.member.memberCode}` : ""}</span>
+                        <span className="block truncate text-sm font-bold">{h.member.name ?? h.member.userId}</span>
+                      </span>
+                    </div>
+                  )}
+
+                  {h.state === "free" && !h.member && (
                     <button onClick={() => guard("bookings.create") && setBook(h.hour)} aria-label={`${past ? "Log a past booking at" : "Book"} ${hourLabel(h.hour)}`}
                       className={`flex w-full items-center gap-3 rounded-2xl border-2 border-dashed p-3 text-left hover:border-brand hover:bg-brand/5 sm:p-4 ${past ? "border-line opacity-60" : "border-line"}`}>
                       <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-surface-2 text-muted">{past ? <Clock size={18} /> : <Plus size={20} />}</span>

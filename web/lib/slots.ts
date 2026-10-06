@@ -24,6 +24,7 @@ export type Hour = {
   state: "free" | "booked" | "blocked";
   block: { id: string; reason: string } | null;
   booking: SlotBooking | null;
+  member?: { userId: string; name: string | null; memberCode: string | null } | null; // a membership holds this hour
 };
 
 export const getDay = (date: string) => api<{ date: string; hours: Hour[] }>(`/admin/courts/slots?date=${date}`);

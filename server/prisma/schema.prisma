@@ -337,6 +337,7 @@ model MembershipSubscription {
   promoCode         String?
   notes             String?
   excludeDays       String[]
+  memberCode        String?        @unique
   plan              MembershipPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
   user              User           @relation(fields: [userId], references: [phoneNumber])
 }
