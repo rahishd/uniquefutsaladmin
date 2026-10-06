@@ -915,6 +915,8 @@ model GoodsDue {
   paidAt       DateTime?
   paidBy       String?
   checkoutCode String?
+  cashAmount   Int       @default(0)
+  onlineAmount Int       @default(0)
 
   @@index([userId, status])
 }

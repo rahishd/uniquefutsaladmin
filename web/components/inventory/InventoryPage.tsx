@@ -3,18 +3,19 @@
 import { useEffect, useState } from "react";
 import { Boxes, Minus, Package, Pencil, Plus, Search, Tags, Trash2, X } from "lucide-react";
 import { Badge } from "../bookings/Badge";
+import Report from "./Report";
 import Sell from "./Sell";
 import { Logs, Sales } from "./History";
 import { ApiError } from "@/lib/api";
 import { guard } from "@/lib/access";
 import { Category, Overview, Product, STATE, addCategory, addProduct, changeStock, deleteCategory, deleteProduct, editProduct, listCategories, listProducts, overview as fetchOverview, renameCategory, rs } from "@/lib/inventory";
 
-type Tab = "products" | "sell" | "sales" | "log";
+type Tab = "report" | "products" | "sell" | "sales" | "log";
 const field = "rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
 const msg = (e: unknown) => (e instanceof ApiError || e instanceof Error ? e.message : "Something went wrong");
 
 export default function InventoryPage() {
-  const [tab, setTab] = useState<Tab>("products");
+  const [tab, setTab] = useState<Tab>("report");
   const [ov, setOv] = useState<Overview | null>(null);
   const [tick, setTick] = useState(0);
   useEffect(() => { fetchOverview().then(setOv).catch(() => {}); }, [tick]);
@@ -39,10 +40,11 @@ export default function InventoryPage() {
         </div>
       )}
       <div className="flex gap-1 overflow-x-auto rounded-2xl bg-surface p-1 shadow-sm" role="tablist">
-        {([["products", "Products"], ["sell", "Sell goods"], ["sales", "Sales"], ["log", "Stock log"]] as const).map(([id, label]) => (
+        {([["report", "Report"], ["products", "Products"], ["sell", "Sell goods"], ["sales", "Sales"], ["log", "Stock log"]] as const).map(([id, label]) => (
           <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={`flex-1 whitespace-nowrap rounded-xl px-3 py-2.5 text-sm font-semibold ${tab === id ? "bg-brand text-white" : "text-muted hover:bg-surface-2"}`}>{label}</button>
         ))}
       </div>
+      {tab === "report" && <Report />}
       {tab === "products" && <Products tick={tick} onChanged={changed} />}
       {tab === "sell" && <Sell tick={tick} onChanged={changed} />}
       {tab === "sales" && <Sales tick={tick} />}
