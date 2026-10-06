@@ -6,6 +6,7 @@ import { MessageCircle, Phone, ShieldCheck, ShieldOff, X } from "lucide-react";
 import { Badge } from "../bookings/Badge";
 import CancellationsSection from "./CancellationsSection";
 import VipSection from "./VipSection";
+import VipTag from "./VipTag";
 import { ApiError } from "@/lib/api";
 import { canDo } from "@/lib/auth";
 import { prettyDate, rs, STATUS as BOOKING_STATUS } from "@/lib/bookings";
@@ -83,6 +84,7 @@ export default function CustomerSheet({ customer, onClose, onChanged }: { custom
             <h2 className="truncate text-xl font-bold">{name}</h2>
             <p className="text-sm text-muted">{customer.phoneNumber}{p?.user.email ? ` · ${p.user.email}` : ""}</p>
             <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {(p?.vip ?? customer.vip) && <VipTag />}
               <Badge tone={isCaptain ? "bg-amber-400/20 text-amber-700" : "bg-surface-2 text-muted"}>{isCaptain ? "Captain" : "Regular player"}</Badge>
               {p && !p.user.isActive && <Badge tone="bg-red-500/15 text-red-600">Suspended</Badge>}
               {p && <Badge tone="bg-surface-2 text-muted">Joined {prettyDate(p.user.createdAt.slice(0, 10))}</Badge>}
@@ -178,7 +180,7 @@ export default function CustomerSheet({ customer, onClose, onChanged }: { custom
 
             <CancellationsSection p={p} canWrite={canWrite} busy={busy === "active"} onToggleActive={toggleActive} />
 
-            <VipSection p={p} canWrite={canWrite} onChanged={async () => setP(await getProfile(p.user.phoneNumber))} />
+            <VipSection p={p} canManage={canDo("customers.write")} />
 
             <Section title="Complaints">
               <p className="text-sm">{p.complaints.total} sent{p.complaints.open > 0 ? <> · <strong className="text-amber-600">{p.complaints.open} still open</strong></> : ""}</p>

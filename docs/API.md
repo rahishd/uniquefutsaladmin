@@ -92,4 +92,4 @@ Front desk, manager and owner can read and answer complaints; accountants cannot
 | `GET /vip/generate-code` | customers.read | a fresh code like `VIPK7M3Q` (no 0/O/1/I) that no customer has and no normal promo code uses |
 | `POST /vip` | customers.write | `{phone, code?, type: percent|flat, value, note?}`; leave `code` out to have one made. 404 unknown customer, 409 if the customer already has a VIP code or the code equals a normal promo code. Audited (`vip-give`) |
 
-Change, pause and remove use `PUT` and `DELETE /customers/:phone/vip`. The Customers list marks who has a VIP code (`vip: {code, active}`).
+Change, pause and remove use `PUT` and `DELETE /customers/:phone/vip`, called only from the VIP Privilege page. The Customers page is read-only for VIP: it highlights VIP customers (`vip: {code, active}` on each list item) with a gold "VIP" tag and shows the code in the customer sheet.
