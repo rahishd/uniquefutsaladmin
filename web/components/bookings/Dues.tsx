@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { CheckCircle2, Plus, Check } from "lucide-react";
+import WhatsAppInvoice from "../WhatsAppInvoice";
 import PaySplit, { INITIAL_PAY, PayState, paymentsFor } from "../PaySplit";
 import { ApiError } from "@/lib/api";
 import { guard } from "@/lib/access";
@@ -19,7 +20,7 @@ export default function Dues({ bookingId, onPaid }: { bookingId: string; onPaid:
   const [goodsOn, setGoodsOn] = useState<Record<string, boolean>>({});
   const [pay, setPay] = useState<PayState>(INITIAL_PAY);
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState<{ total: number; count: number; billCode: string | null; points: number } | null>(null);
+  const [done, setDone] = useState<{ total: number; count: number; billCode: string | null; points: number; lines: { label: string; quantity: number; amount: number }[]; paidBy: string } | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -41,6 +42,7 @@ export default function Dues({ bookingId, onPaid }: { bookingId: string; onPaid:
         <CheckCircle2 size={32} className="text-brand" />
         <p className="font-bold">Collected {rs(done.total)} for {done.count} due{done.count === 1 ? "" : "s"}</p>
         {done.billCode && <p className="text-xs text-muted">Bill {done.billCode} saved on the customer&apos;s account{done.points ? ` · ${done.points} loyalty points added` : ""}.</p>}
+        <WhatsAppInvoice phone={info.customer.phone} code={done.billCode} name={info.customer.name} lines={done.lines} total={done.total} paidBy={done.paidBy} points={done.points} />
       </section>
     );
   }
@@ -60,7 +62,7 @@ export default function Dues({ bookingId, onPaid }: { bookingId: string; onPaid:
     setBusy(true); setError("");
     try {
       const r = await collectDues({ anchorId: bookingId, bookingIds: chosen.map((x) => x.id), goodsDueIds: chosenGoods.map((g) => g.id), ...(ready.payments ? { payments: ready.payments } : { method: ready.single === "fonepay" ? "fonepay" : "venue" }), fonepayQrId: ready.fonepayQrId });
-      setDone(r); onPaid();
+      setDone({ ...r, paidBy: ready.payments ? `Cash Rs. ${ready.payments[0].amount} + Fonepay Rs. ${ready.payments[1].amount}` : ready.single === "fonepay" ? "Fonepay" : "Cash" }); onPaid();
     } catch (e) { setError(e instanceof ApiError ? e.message : "Could not collect the payment"); } finally { setBusy(false); }
   }
 

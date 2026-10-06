@@ -1,5 +1,6 @@
 "use client";
 
+import WhatsAppInvoice from "../WhatsAppInvoice";
 import { useEffect, useState } from "react";
 import { CheckCircle2, Minus, Plus, Search, ShoppingCart } from "lucide-react";
 import PaySplit, { INITIAL_PAY, PayState, paymentsFor } from "../PaySplit";
@@ -114,6 +115,7 @@ export default function Sell({ tick, onChanged }: { tick: number; onChanged: () 
             <p className="text-sm">Loyalty points added: <strong>{Math.round((done.pointsGoods + done.pointsGames) * 10) / 10}</strong>{done.pointsGoods || done.pointsGames ? ` (goods ${done.pointsGoods}, games ${done.pointsGames})` : ""}</p>
             {done.gamesWaitingForPoints > 0 && <p className="text-xs text-muted">{done.gamesWaitingForPoints} game{done.gamesWaitingForPoints === 1 ? "" : "s"} not played yet: the points are added when the game is completed.</p>}
             <p className="text-xs text-muted">This bill is now in the customer&apos;s payment history in the app.</p>
+            <WhatsAppInvoice phone={phone} code={(done as BillResult).code} name={done.customerName} lines={done.lines} total={done.total} points={Math.round((done.pointsGoods + done.pointsGames) * 10) / 10} />
           </>
         )}
         <button onClick={() => setDone(null)} className="mt-2 rounded-full bg-brand px-8 py-3 text-sm font-semibold text-white">New sale</button>
