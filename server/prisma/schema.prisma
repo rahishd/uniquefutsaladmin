@@ -674,6 +674,26 @@ model PlayerGameStat {
   @@index([userId])
 }
 
+// Customer complaints (customer backend migration 20261007000001_complaints). Mirrored here; staff read and reply.
+model Complaint {
+  id          String    @id @default(cuid())
+  code        String    @unique
+  userId      String
+  category    String
+  message     String
+  bookingCode String?
+  photos      String[]  @default([])
+  status      String    @default("open") // open | in_review | resolved | closed
+  staffReply  String?
+  repliedBy   String?
+  resolvedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([status, createdAt])
+}
+
 // =====================================================================
 // ADMIN-OWNED TABLES (created by sql/*.sql in production; `npm run db:push` builds them locally).
 // Everything above this line mirrors the customer backend's schema: keep it in sync, never edit it here.

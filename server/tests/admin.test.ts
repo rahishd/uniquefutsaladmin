@@ -485,3 +485,70 @@ describe("membership plans", () => {
     assert.equal((await api.get("/audit?entity=membership-plan", mgr.auth)).body.data.total, 1);
   });
 });
+
+describe("complaints (staff side)", () => {
+  const mk = (code: string, extra: object = {}) => prisma.complaint.create({ data: { code, userId: "9860000001", category: "facilities", message: "The floodlight above the left goal keeps flickering.", ...extra } });
+
+  it("lists, filters, searches and counts complaints with the customer's name", async () => {
+    await customer("9860000001", "Rita Shrestha");
+    const fd = await staff("frontdesk");
+    await mk("CP-AAAAA1");
+    await mk("CP-AAAAA2", { category: "staff", message: "The desk staff were rude to us.", status: "in_review" });
+    await mk("CP-AAAAA3", { status: "resolved", resolvedAt: new Date() });
+    const all = (await api.get("/complaints", fd.auth)).body.data;
+    assert.equal(all.total, 3);
+    assert.equal(all.items[0].customerName, "Rita Shrestha");
+    assert.equal(all.items[0].categoryLabel === "Court or facilities" || all.items[0].categoryLabel === "Staff behaviour", true);
+    const by = (qs: string) => api.get(`/complaints?${qs}`, fd.auth).then((r) => r.body.data);
+    assert.equal((await by("status=open")).total, 1);
+    assert.equal((await by("category=staff")).total, 1);
+    assert.equal((await by("q=rude")).total, 1);
+    assert.equal((await by("q=rita")).total, 3, "search by the customer's name");
+    assert.equal((await by("q=9860000001")).total, 3, "search by phone");
+    assert.equal((await by("q=cp-aaaaa3")).items[0].code, "CP-AAAAA3");
+    assert.deepEqual((await api.get("/complaints/counts", fd.auth)).body.data, { all: 3, open: 1, in_review: 1, resolved: 1, closed: 0 });
+    const one = (await api.get("/complaints/CP-AAAAA2", fd.auth)).body.data;
+    assert.equal(one.customerComplaints, 3);
+    assert.equal((await api.get("/complaints/nope", fd.auth)).status, 404);
+  });
+
+  it("a reply or status change is saved, audited and tells the customer; no change tells nobody", async () => {
+    await customer("9860000001", "Rita Shrestha");
+    const fd = await staff("frontdesk");
+    const c = await mk("CP-BBBBB1");
+    const r = await api.patch(`/complaints/${c.id}`, fd.auth, { status: "resolved", reply: "We replaced the bulb. Thank you." });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.data.status, "resolved");
+    assert.ok(r.body.data.resolvedAt);
+    const row = await prisma.complaint.findUniqueOrThrow({ where: { id: c.id } });
+    assert.equal(row.staffReply, "We replaced the bulb. Thank you.");
+    assert.equal(row.repliedBy, fd.id);
+    const notes = await prisma.notification.findMany({ where: { userId: "9860000001", type: "complaint" } });
+    assert.equal(notes.length, 1);
+    assert.match(notes[0].title, /CP-BBBBB1/);
+    assert.equal(notes[0].href, "/complaints");
+    assert.equal(await prisma.adminAuditLog.count({ where: { entity: "complaint", entityId: c.id } }), 1);
+
+    // saving the same thing again changes nothing and sends nothing
+    await api.patch(`/complaints/${c.id}`, fd.auth, { status: "resolved", reply: "We replaced the bulb. Thank you." });
+    assert.equal(await prisma.notification.count({ where: { userId: "9860000001", type: "complaint" } }), 1);
+
+    // reopening clears the resolved time
+    const re = await api.patch(`/complaints/${c.id}`, fd.auth, { status: "in_review" });
+    assert.equal(re.body.data.status, "in_review");
+    assert.equal(re.body.data.resolvedAt, null);
+  });
+
+  it("checks input and permissions", async () => {
+    await customer("9860000001", "Rita Shrestha");
+    const fd = await staff("frontdesk");
+    const acc = await staff("accountant");
+    const c = await mk("CP-CCCCC1");
+    assert.equal((await api.patch(`/complaints/${c.id}`, fd.auth, { status: "bogus" })).status, 400);
+    assert.equal((await api.patch(`/complaints/${c.id}`, fd.auth, {})).status, 400);
+    assert.equal((await api.patch(`/complaints/${c.id}`, fd.auth, { reply: "x".repeat(1001) })).status, 400);
+    assert.equal((await api.patch("/complaints/missing", fd.auth, { status: "closed" })).status, 404);
+    assert.equal((await api.get("/complaints", acc.auth)).status, 403, "accountants do not handle complaints");
+    assert.equal((await api.patch(`/complaints/${c.id}`, acc.auth, { status: "closed" })).status, 403);
+  });
+});

@@ -8,6 +8,7 @@ export const PERMISSIONS = [
   "teams.read", "teams.write",
   "gamezone.read", "gamezone.write",
   "membership.read", "membership.write",
+  "complaints.read", "complaints.write",
   "notifications.write",
   "reports.read", "audit.read",
   "settings.write", "staff.manage",
@@ -22,7 +23,7 @@ const all = [...PERMISSIONS] as Permission[];
 export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   owner: all,
   manager: all.filter((p) => p !== "staff.manage"),
-  frontdesk: ["bookings.read", "bookings.write", "payments.read", "payments.write", "customers.read", "loyalty.read", "loyalty.write", "teams.read", "teams.write", "gamezone.read", "gamezone.write", "membership.read"],
+  frontdesk: ["bookings.read", "bookings.write", "payments.read", "payments.write", "customers.read", "loyalty.read", "loyalty.write", "teams.read", "teams.write", "gamezone.read", "gamezone.write", "membership.read", "complaints.read", "complaints.write"],
   accountant: ["bookings.read", "payments.read", "payments.write", "customers.read", "loyalty.read", "gamezone.read", "membership.read", "reports.read", "audit.read"],
 };
 

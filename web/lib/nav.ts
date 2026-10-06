@@ -190,6 +190,16 @@ export const modules: Module[] = [
     ],
   },
   {
+    slug: "complaints", title: "Complaints", group: "Communication", icon: "alert",
+    summary: "What customers report from the app, with photos, and your replies.",
+    clientFeatures: ["Popular > Complaints", "Category, message, optional booking code and up to 3 photos", "Status and the venue's reply shown to the customer", "5 complaints per customer per day"],
+    adminTasks: ["See every complaint by status, category, name, phone or code", "View the photos", "Reply and change the status (the customer is notified)", "Call the customer"],
+    endpoints: [
+      e("GET", "/admin/complaints", "list, filters, search"), e("GET", "/admin/complaints/counts", "counts per status"),
+      e("GET", "/admin/complaints/:id", "one complaint"), e("PATCH", "/admin/complaints/:id", "status and reply, notifies the customer"),
+    ],
+  },
+  {
     slug: "content", title: "Site Content", group: "Communication", icon: "image",
     summary: "Ads, gallery, contact info and help content.",
     clientFeatures: ["Home banner and ads", "Gallery", "Contact, map, WhatsApp number", "Help topics"],
