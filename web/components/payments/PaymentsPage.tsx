@@ -62,7 +62,7 @@ export default function PaymentsPage() {
   const input = "rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
+    <div className="w-full space-y-4">
       <div>
         <h1 className="text-2xl font-bold">Payments</h1>
         <p className="text-sm text-muted">Who has paid, who still owes, and how: cash at the venue or online.</p>
@@ -124,7 +124,7 @@ export default function PaymentsPage() {
       {!data && !error && <p className="py-10 text-center text-sm text-muted">Loading payments…</p>}
       {data && data.items.length === 0 && <p className="rounded-2xl bg-surface py-14 text-center text-muted shadow-sm">No payments match these filters.</p>}
 
-      <ul className="space-y-2">
+      <ul className="grid items-start gap-2 xl:grid-cols-2">
         {data?.items.map((r) => {
           const st = TONE[r.status];
           return (

@@ -68,7 +68,7 @@ export default function VipPage() {
 
   const t = data?.totals;
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
+    <div className="w-full space-y-4">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold"><Crown className="text-amber-500" /> VIP Privilege</h1>
@@ -105,7 +105,7 @@ export default function VipPage() {
         </div>
       )}
 
-      <ul className="space-y-3">
+      <ul className="grid items-start gap-3 xl:grid-cols-2">
         {data?.items.map((v) => (
           <li key={v.phone} className={`space-y-3 rounded-2xl bg-surface p-4 shadow-sm ${v.active ? "" : "opacity-75"}`}>
             <div className="flex items-start gap-3">

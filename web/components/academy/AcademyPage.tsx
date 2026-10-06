@@ -25,7 +25,7 @@ export default function AcademyPage() {
 
   const TABS: { id: Tab; label: string }[] = [{ id: "classes", label: "Classes" }, { id: "children", label: "Enrolled children" }, { id: "terms", label: "Terms & Conditions" }];
   return (
-    <div className="mx-auto max-w-4xl space-y-4">
+    <div className="w-full space-y-4">
       <div>
         <h1 className="text-2xl font-bold">Children&apos;s Academy</h1>
         <p className="text-sm text-muted">Ages 10 to 14. Add class times and choose when guardians can see them, then see who is enrolled.</p>
@@ -95,7 +95,7 @@ function Classes({ onChanged, onOpen }: { onChanged: () => void; onOpen: (id: st
           <p>{scope === "upcoming" ? "No upcoming classes. Add one so guardians can enrol." : "No past classes."}</p>
         </div>
       )}
-      <ul className="space-y-2">
+      <ul className="grid items-start gap-2 xl:grid-cols-2">
         {rows?.map((c) => (
           <li key={c.id} className={`space-y-3 rounded-2xl bg-surface p-4 shadow-sm ${c.status === "cancelled" ? "opacity-60" : ""}`}>
             <div className="flex flex-wrap items-start justify-between gap-2">
@@ -257,7 +257,7 @@ function Children({ sessionId, onClearClass, onChanged }: { sessionId: string; o
       {data?.items.length === 0 && (
         <div className="grid place-items-center gap-2 rounded-2xl bg-surface py-12 text-center text-muted shadow-sm"><GraduationCap size={32} strokeWidth={1.5} /><p>No enrolled children match.</p></div>
       )}
-      <ul className="space-y-2">
+      <ul className="grid items-start gap-2 xl:grid-cols-2">
         {data?.items.map((e) => <ChildCard key={e.id} e={e} onAttend={(s) => act(() => markAttendance(e.id, s), "academy.enrollments")} onCancel={() => { if (window.confirm(`Cancel ${e.childName}'s class? The guardian is told.`)) act(() => cancelEnrollment(e.id), "academy.enrollments"); }} />)}
       </ul>
       {data && data.total > PAGE_SIZE && (

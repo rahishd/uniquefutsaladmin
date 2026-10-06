@@ -95,7 +95,7 @@ export default function ArrivalsPage() {
   const render = (list: ArrivalItem[]) => list.map((i) => <Card key={`${i.kind}-${i.id}`} i={i} now={now} at={loaded!.at} onCollect={() => setCollecting(i)} />);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
+    <div className="w-full space-y-5">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Arrivals</h1>

@@ -21,7 +21,7 @@ export default function ReferPage() {
   const changed = () => setTick((t) => t + 1);
 
   return (
-    <div className="mx-auto max-w-4xl space-y-4">
+    <div className="w-full space-y-4">
       <div>
         <h1 className="text-2xl font-bold">Refer &amp; Earn</h1>
         <p className="text-sm text-muted">A customer books a game for another team. You check it, and both get loyalty points.</p>
@@ -87,7 +87,7 @@ function Referrals({ tick, onChanged }: { tick: number; onChanged: () => void })
       {data?.items.length === 0 && (
         <div className="grid place-items-center gap-2 rounded-2xl bg-surface py-12 text-center text-muted shadow-sm"><HeartHandshake size={32} strokeWidth={1.5} /><p>{status === "pending" && !q ? "Nothing is waiting for you." : "No referrals match."}</p></div>
       )}
-      <ul className="space-y-2">
+      <ul className="grid items-start gap-2 xl:grid-cols-2">
         {data?.items.map((r) => {
           const st = STATUS[r.status];
           const cancelled = r.booking && ["cancelled", "expired", "rejected"].includes(r.booking.status);
