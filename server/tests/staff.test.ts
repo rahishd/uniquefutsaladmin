@@ -276,6 +276,30 @@ describe("owner, admin and staff accounts", () => {
     assert.equal((await me(change.body.data.token)).status, 200);
   });
 
+  it("a new login email signs the person out too; editing your own login keeps this device signed in", async () => {
+    const owner = await staff("owner");
+    const login = async (email: string, password: string) => (await request(app).post("/api/admin/auth/login").send({ email, password })).body.data.token as string;
+    const me = (t: string) => request(app).get("/api/admin/auth/me").set({ Authorization: `Bearer ${t}` });
+    const made = (await api.post("/staff", owner.auth, { email: "mail@test.np", name: "Mail", accountType: "staff", password: "long-enough-pass", permissions: ["bookings.view"] })).body.data;
+
+    const phone = await login("mail@test.np", "long-enough-pass");
+    // the same email written in other letters is not a change: nobody is signed out
+    await api.patch(`/staff/${made.id}`, owner.auth, { email: "MAIL@test.np" });
+    assert.equal((await me(phone)).status, 200);
+    await api.patch(`/staff/${made.id}`, owner.auth, { email: "mail.new@test.np" });
+    assert.equal((await me(phone)).status, 401);
+    assert.equal((await me(await login("mail.new@test.np", "long-enough-pass"))).status, 200);
+
+    // the owner edits their own password and login: other devices go, this device gets a new token and stays in
+    const ownerPhone = await login("owner@test.np", PASSWORD);
+    const own = await api.patch(`/staff/${owner.id}`, owner.auth, { email: "boss@test.np", password: "owner-new-password" });
+    assert.equal(own.status, 200);
+    assert.equal((await me(ownerPhone)).status, 401);
+    assert.equal((await me(owner.token)).status, 401);
+    assert.equal((await me(own.body.data.token)).status, 200);
+    assert.equal(own.body.data.email, "boss@test.np");
+  });
+
   it("records every access change in the audit log, without passwords", async () => {
     const owner = await staff("owner");
     const created = await api.post("/staff", owner.auth, { email: "aud@test.np", name: "Audited", accountType: "staff", permissions: ["bookings.view"], password: "secret-password-77" });

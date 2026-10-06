@@ -1,4 +1,5 @@
-import { api } from "./api";
+import { api, setToken } from "./api";
+import { currentAdmin } from "./auth";
 
 export type PermissionItem = { key: string; label: string };
 export type Section = { id: string; label: string; permissions: PermissionItem[] };
@@ -23,8 +24,14 @@ export const listStaff = () => api<Account[]>("/admin/staff");
 export const getCatalog = () => api<Catalog>("/admin/staff/catalog");
 export const createStaff = (b: { email: string; name: string; accountType: "admin" | "staff"; password: string; permissions: string[] }) =>
   api<Account>("/admin/staff", { method: "POST", body: JSON.stringify(b) });
-export const updateStaff = (id: string, b: { name?: string; email?: string; accountType?: "admin" | "staff"; permissions?: string[]; isActive?: boolean; password?: string }) =>
-  api<Account>(`/admin/staff/${id}`, { method: "PATCH", body: JSON.stringify(b) });
+export const updateStaff = async (id: string, b: { name?: string; email?: string; accountType?: "admin" | "staff"; permissions?: string[]; isActive?: boolean; password?: string }) => {
+  const r = await api<Account & { token?: string }>(`/admin/staff/${id}`, { method: "PATCH", body: JSON.stringify(b) });
+  // editing your own login signs your other devices out; the server gives this one a new token
+  if (r.token && currentAdmin()?.id === id) setToken(r.token);
+  const { token: _token, ...account } = r;
+  void _token;
+  return account as Account;
+};
 
 export const deleteStaff = (id: string) => api<null>(`/admin/staff/${id}`, { method: "DELETE" });
 
