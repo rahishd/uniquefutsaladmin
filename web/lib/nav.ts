@@ -162,9 +162,10 @@ export const modules: Module[] = [
     slug: "teams", title: "Teams & Challenges", group: "Community", icon: "shield",
     summary: "Captain mode: teams (max 12), challenges, results and ratings.",
     clientFeatures: ["Create team, roster by phone", "Challenge with loser pays 70 / 60 / 100%", "Winning captain uploads score, other approves", "Team rating, ranking, form", "\"Did you win?\" prompt"],
-    adminTasks: ["Teams and rosters", "Challenges and results", "Mark challenge game paid at venue (prompts captains)", "Settlement list: who owes what"],
+    adminTasks: ["Teams with captain, roster size, record and form; open a team for its players and challenges", "Challenges by status with both teams, court price, loser-pays rule, venue payment and score", "Results to review: approve (or correct) or void a disputed score", "Venue payments: who owes what, mark paid (prompts captains)"],
     endpoints: [
-      e("GET", "/admin/teams", "all teams"),
+      e("GET", "/admin/teams", "all teams with captain, roster size, record, form (search with q)"), e("GET", "/admin/teams/overview", "counts for the top of the page"),
+      e("GET", "/admin/teams/:id", "one team: players and challenges"), e("GET", "/admin/teams/challenges", "all challenges, status filter and search"),
       e("GET", "/admin/teams/settlements", "who owes what"),
       e("POST", "/admin/teams/challenges/:id/venue-paid", "mark paid, prompts captains"),
     ],
