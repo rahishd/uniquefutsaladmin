@@ -31,6 +31,10 @@ inventoryReportRouter.get("/report", requirePermission("inventory.view"), handle
   if (from > to) throw new AppError(400, "The From date must not be after the To date");
   if (to > addDaysKey(today, 1) || from < addDaysKey(today, -366)) throw new AppError(400, "Pick dates within the last year");
   if (new Date(`${to}T00:00:00Z`).getTime() - new Date(`${from}T00:00:00Z`).getTime() > 92 * 86_400_000) throw new AppError(400, "Pick at most 93 days at a time");
+  send(res, await buildReport(from, to));
+}));
+
+export async function buildReport(from: string, to: string) {
   const start = at(from);
   const end = at(addDaysKey(to, 1));
 
@@ -109,7 +113,7 @@ inventoryReportRouter.get("/report", requirePermission("inventory.view"), handle
   }));
 
   const totals = { cash: gameMoney.cash + goodsMoney.cash + gzMoney.cash, fonepay: gameMoney.fonepay + goodsMoney.fonepay + gzMoney.fonepay };
-  send(res, {
+  return {
     from, to,
     totals: { ...totals, total: totals.cash + totals.fonepay, bySource: { games: gameMoney, goods: goodsMoney, gamezone: gzMoney } },
     games: { count: games.length, paidCount: games.filter((g) => g.paid).length, amount: games.reduce((t, g) => t + g.rate, 0), items: games },
@@ -117,5 +121,5 @@ inventoryReportRouter.get("/report", requirePermission("inventory.view"), handle
     gamezone: { count: gamezone.length, amount: gamezone.reduce((t, g) => t + g.total, 0), items: gamezone },
     memberships: { count: memberships.length, amount: memberships.reduce((t, m) => t + m.amount, 0), items: memberships },
     itemsSold: [...itemTotals.values()].sort((a, b) => b.amount - a.amount),
-  });
-}));
+  };
+}

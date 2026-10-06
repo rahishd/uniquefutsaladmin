@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { Bell, CalendarDays, LayoutGrid, LayoutDashboard, LogOut, Plus, Search, User, X } from "lucide-react";
+import { BarChart3, Bell, CalendarDays, LayoutGrid, LayoutDashboard, LogOut, Plus, Search, User, X } from "lucide-react";
 import { icons } from "./icons";
 import { groups, modules } from "@/lib/nav";
 import DeniedDialog from "./DeniedDialog";
@@ -63,6 +63,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         </div>
         <nav className="flex-1 space-y-5 overflow-y-auto">
           {link("/", "Dashboard", LayoutDashboard)}
+          {link("/overview", "Overview", BarChart3)}
           {groups.map((g) => (
             <div key={g}>
               <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wide text-muted">{g}</p>

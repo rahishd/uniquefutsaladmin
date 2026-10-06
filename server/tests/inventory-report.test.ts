@@ -84,4 +84,19 @@ describe("Inventory report", () => {
     assert.equal((await api.get(`/inventory/report?from=${today}&to=${old}`, mgr.auth)).status, 400);
     assert.equal((await api.get(`/inventory/report?from=${addDaysKey(today, -200)}&to=${today}`, mgr.auth)).status, 400);
   });
+
+  it("feeds the Overview page: today and yesterday money, a week, what needs attention", async () => {
+    const mgr = await staff("admin");
+    await game(null, { paymentStatus: "completed", cashAmount: 1500 });
+    await game(null, { startTime: "21:00", endTime: "22:00" }); // unpaid
+    await game(null, { date: addDaysKey(today, -1), paymentStatus: "completed", paymentMethod: "fonepay", onlineAmount: 900 });
+    const r = await api.get("/overview", mgr.auth);
+    assert.equal(r.status, 200);
+    assert.equal(r.body.data.today.cash, 1500);
+    assert.equal(r.body.data.yesterday.fonepay, 900);
+    assert.equal(r.body.data.week.length, 7);
+    assert.equal(r.body.data.week[6].date, today);
+    assert.equal(r.body.data.attention.unpaidGamesToday, 1);
+    assert.equal(r.body.data.games.count, 2);
+  });
 });
