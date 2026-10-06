@@ -899,3 +899,21 @@ model SlotBlock {
 
   @@unique([date, hour])
 }
+
+// Goods given on credit: stock leaves now, the money is collected later together with the games (admin-owned table).
+model GoodsDue {
+  id           String    @id @default(cuid())
+  userId       String // the customer's account (phone)
+  saleId       String    @unique // the GoodsSale row made when the goods were given
+  amount       Int
+  items        String // "5 x Gloves, 20 x Energy drink"
+  lines        String // JSON lines as on a bill
+  status       String    @default("due") // due | paid
+  createdBy    String
+  createdAt    DateTime  @default(now())
+  paidAt       DateTime?
+  paidBy       String?
+  checkoutCode String?
+
+  @@index([userId, status])
+}

@@ -8,10 +8,10 @@ export type Product = {
 export type Category = { id: string; name: string; products: number };
 export type Overview = {
   products: number; outOfStock: number; lowStock: number; stockCostValue: number; stockRetailValue: number;
-  salesToday: { amount: number; count: number }; salesWeek: { amount: number; count: number };
+  salesToday: { amount: number; count: number }; salesWeek: { amount: number; count: number }; goodsDue: { amount: number; count: number };
 };
 export type Log = { id: string; product: string; unit: string; change: number; price: number | null; reason: string | null; createdAt: string };
-export type Sale = { id: string; amount: number; items: string | null; soldAt: string; customerPhone: string | null; customerName: string | null; soldBy: string | null };
+export type Sale = { credit?: "due" | "paid" | null; id: string; amount: number; items: string | null; soldAt: string; customerPhone: string | null; customerName: string | null; soldBy: string | null };
 export type Paged<T> = { items: T[]; total: number; page: number; limit: number };
 export type ProductInput = { name: string; description?: string | null; price: number; costPrice?: number | null; unit: string; lowStockThreshold: number; categoryId: string };
 
@@ -45,16 +45,19 @@ export const changeStock = (id: string, b: { type: "add" | "remove" | "set"; qua
 
 export type BillLine = { type: "game" | "goods"; label: string; quantity: number; amount: number };
 export type CustomerGame = { id: string; code: string; date: string; startTime: string; endTime: string; total: number; status: string; paid: boolean; paymentMethod: string; pointsIfCompleted: number; upcoming: boolean };
-export type CustomerBill = { customer: { phone: string; name: string | null } | null; games: CustomerGame[] };
-export type BillResult = { id: string; code: string; total: number; goodsTotal: number; gameTotal: number; lines: BillLine[]; customerName: string | null; pointsGoods: number; pointsGames: number; gamesWaitingForPoints: number };
+export type GoodsDueItem = { id: string; items: string; amount: number; createdAt: string };
+export type CustomerBill = { customer: { phone: string; name: string | null } | null; games: CustomerGame[]; goodsDues: GoodsDueItem[] };
+export type PayArgs = { payment?: "cash" | "online" | "due"; payments?: { method: "cash" | "esewa" | "fonepay"; amount: number }[] };
+export type BillResult = { id: string; code: string; due?: false; total: number; goodsTotal: number; gameTotal: number; lines: BillLine[]; customerName: string | null; pointsGoods: number; pointsGames: number; gamesWaitingForPoints: number };
 export type Bill = { id: string; code: string; customerPhone: string; customerName: string | null; total: number; goodsTotal: number; gameTotal: number; paymentMethod: string; lines: BillLine[]; points: number; createdAt: string };
 
 export const customerBill = (phone: string) => api<CustomerBill>(`/admin/inventory/customer-bill?phone=${phone}`);
-export const checkout = (b: { phone: string; payment: "cash" | "online"; items: { productId: string; quantity: number }[]; bookingIds: string[] }) =>
-  api<BillResult>("/admin/inventory/checkout", { method: "POST", body: JSON.stringify(b) });
+export type CreditResult = { due: true; dueId: string; total: number; lines: BillLine[]; customerName: string | null };
+export const checkout = (b: PayArgs & { phone: string; items: { productId: string; quantity: number }[]; bookingIds: string[]; goodsDueIds: string[] }) =>
+  api<BillResult | CreditResult>("/admin/inventory/checkout", { method: "POST", body: JSON.stringify(b) });
 export const listBills = (page: number) => api<Paged<Bill>>(`/admin/inventory/bills?page=${page}&limit=${PAGE_SIZE}`);
 
 export const listLogs = (page: number) => api<Paged<Log>>(`/admin/inventory/logs?page=${page}&limit=${PAGE_SIZE}`);
 export const listSales = (page: number) => api<Paged<Sale>>(`/admin/inventory/sales?page=${page}&limit=${PAGE_SIZE}`);
-export const sell = (b: { payment: "cash" | "online"; phone?: string; items: { productId: string; quantity: number }[] }) =>
+export const sell = (b: PayArgs & { phone?: string; items: { productId: string; quantity: number }[] }) =>
   api<{ id: string; amount: number; items: string; points: number; customerName: string | null }>("/admin/inventory/sales", { method: "POST", body: JSON.stringify(b) });

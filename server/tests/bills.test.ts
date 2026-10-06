@@ -237,3 +237,86 @@ describe("Dues: everything one customer still owes", () => {
     assert.equal((await prisma.booking.findUnique({ where: { id: g.id } }))!.onlineAmount, 700);
   });
 });
+
+describe("Split payment and goods on credit", () => {
+  const mkGame = (code: string, date: string, over: Record<string, unknown> = {}) =>
+    prisma.booking.create({ data: { userId: P, date, startTime: "18:00", endTime: "19:00", duration: 1, customerName: "Bill Payer", customerPhone: P, basePrice: 1000, subtotal: 1000, totalPrice: 1000, paymentMethod: "venue", status: "completed", paymentStatus: "pending", code, ...over } });
+
+  it("pays one bill with cash and eSewa together, and the booking records how much was each", async () => {
+    const { mgr, water } = await shop();
+    const g = await mkGame("UF-SPL001", today);
+    const r = await api.post("/inventory/checkout", mgr.auth, { phone: P, bookingIds: [g.id], items: [{ productId: water.id, quantity: 20 }], payments: [{ method: "cash", amount: 1200 }, { method: "esewa", amount: 300 }] });
+    assert.equal(r.status, 201);
+    assert.equal(r.body.data.total, 1500);
+    const b = await prisma.booking.findUnique({ where: { id: g.id } });
+    assert.deepEqual([b!.cashAmount, b!.onlineAmount, b!.paymentMethod], [1000, 0, "venue"], "the game was fully covered by cash");
+    const log = await prisma.inventoryLog.findFirst({ where: { reason: { startsWith: "Goods Sale" } } });
+    assert.deepEqual([log!.cashAmount, log!.onlineAmount], [200, 300], "the goods took the rest of the cash and the eSewa part");
+    const bill = await prisma.checkout.findFirst({ where: { userId: P } });
+    assert.equal(bill!.paymentMethod, "split");
+  });
+
+  it("refuses payments that do not add up to the total, and nothing changes", async () => {
+    const { mgr, water } = await shop();
+    const g = await mkGame("UF-SPL002", today);
+    const bad = await api.post("/inventory/checkout", mgr.auth, { phone: P, bookingIds: [g.id], items: [{ productId: water.id, quantity: 4 }], payments: [{ method: "cash", amount: 500 }, { method: "fonepay", amount: 500 }] });
+    assert.equal(bad.status, 400);
+    assert.match(bad.body.message, /add up to Rs. 1000, but the total is Rs. 1100/);
+    assert.equal((await prisma.booking.findUnique({ where: { id: g.id } }))!.paymentStatus, "pending");
+    assert.equal((await prisma.product.findUnique({ where: { id: water.id } }))!.inventory, 100);
+    assert.equal((await api.post("/inventory/checkout", mgr.auth, { phone: P, bookingIds: [g.id] })).status, 400, "no payment chosen");
+  });
+
+  it("goods on credit: stock goes now, no points yet, shown in the customer's dues, not counted as sales", async () => {
+    const { mgr, water } = await shop();
+    const r = await api.post("/inventory/checkout", mgr.auth, { phone: P, payment: "due", items: [{ productId: water.id, quantity: 40 }] });
+    assert.equal(r.status, 201);
+    assert.equal(r.body.data.due, true);
+    assert.equal(r.body.data.total, 1000);
+    assert.equal((await prisma.product.findUnique({ where: { id: water.id } }))!.inventory, 60);
+    assert.equal(await pts(), 0);
+    assert.equal(await prisma.checkout.count(), 0, "no bill until it is paid");
+    const ov = (await api.get("/inventory/overview", mgr.auth)).body.data;
+    assert.deepEqual([ov.goodsDue.amount, ov.goodsDue.count, ov.salesToday.amount], [1000, 1, 0]);
+    const g = await mkGame("UF-CRD001", today);
+    const dues = (await api.get(`/bookings/${g.id}/dues`, mgr.auth)).body.data;
+    assert.deepEqual([dues.goods.length, dues.goodsTotal], [1, 1000]);
+    assert.match(dues.goods[0].items, /40 x Mineral water/);
+    assert.equal((await api.post("/inventory/checkout", mgr.auth, { phone: P, payment: "due", items: [] })).status, 400);
+    assert.equal((await api.post("/inventory/checkout", mgr.auth, { phone: P, payment: "due", items: [{ productId: water.id, quantity: 1 }], bookingIds: [g.id] })).status, 400, "pay later is for goods only");
+    assert.equal((await api.post("/inventory/checkout", mgr.auth, { phone: "9899999999", payment: "due", items: [{ productId: water.id, quantity: 1 }] })).status, 404, "credit needs an account");
+  });
+
+  it("the game and the goods on credit are collected together in a split payment, with the points", async () => {
+    const { mgr, water } = await shop();
+    await api.post("/inventory/checkout", mgr.auth, { phone: P, payment: "due", items: [{ productId: water.id, quantity: 40 }] });
+    const g = await mkGame("UF-CRD002", today, { totalPrice: 1250 });
+    const up = await mkGame("UF-CRD003", addDaysKey(today, 3), { status: "confirmed", totalPrice: 1350 });
+    const dues = (await api.get(`/bookings/${g.id}/dues`, mgr.auth)).body.data;
+    const r = await api.post("/bookings/collect-dues", mgr.auth, { anchorId: g.id, bookingIds: [g.id, up.id], goodsDueIds: dues.goods.map((x: { id: string }) => x.id), payments: [{ method: "cash", amount: 2000 }, { method: "fonepay", amount: 1600 }] });
+    assert.equal(r.status, 200);
+    assert.deepEqual([r.body.data.count, r.body.data.total], [3, 3600]);
+    assert.equal(await pts(), 22.5, "goods 10 + the played game 12.5; the upcoming game earns when played");
+    const bill = await prisma.checkout.findFirst({ where: { userId: P } });
+    assert.deepEqual([bill!.total, bill!.goodsTotal, bill!.gameTotal, bill!.paymentMethod], [3600, 1000, 2600, "split"]);
+    assert.equal((await prisma.goodsDue.findFirst({ where: { userId: P } }))!.status, "paid");
+    const up2 = await prisma.booking.findUnique({ where: { id: up.id } });
+    assert.equal(up2!.cashAmount + up2!.onlineAmount, 1350, "the upcoming game was fully covered by the split");
+    const ov = (await api.get("/inventory/overview", mgr.auth)).body.data;
+    assert.equal(ov.goodsDue.amount, 0);
+    assert.equal((await api.post("/bookings/collect-dues", mgr.auth, { anchorId: g.id, bookingIds: [], goodsDueIds: dues.goods.map((x: { id: string }) => x.id), method: "venue" })).status, 409, "never paid twice");
+  });
+
+  it("goods dues of another customer cannot be taken, and collecting needs the right permissions", async () => {
+    const { mgr, water } = await shop();
+    await customer("9870004444", "Other");
+    await api.post("/inventory/checkout", mgr.auth, { phone: "9870004444", payment: "due", items: [{ productId: water.id, quantity: 2 }] });
+    const theirs = await prisma.goodsDue.findFirst({ where: { userId: "9870004444" } });
+    const g = await mkGame("UF-CRD004", today);
+    assert.equal((await api.post("/bookings/collect-dues", mgr.auth, { anchorId: g.id, bookingIds: [g.id], goodsDueIds: [theirs!.id], method: "venue" })).status, 400);
+    const sellOnly = await staffWith(["inventory.sell"], "so@test.np");
+    assert.equal((await api.post("/inventory/checkout", sellOnly.auth, { phone: P, payment: "due", items: [{ productId: water.id, quantity: 1 }] })).status, 201, "giving goods on credit needs only the sell tick");
+    const due = await prisma.goodsDue.findFirst({ where: { userId: P } });
+    assert.equal((await api.post("/inventory/checkout", sellOnly.auth, { phone: P, payment: "cash", goodsDueIds: [due!.id] })).status, 403);
+  });
+});

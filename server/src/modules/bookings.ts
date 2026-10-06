@@ -8,7 +8,7 @@ import { awardForCompletedBooking, notify } from "../lib/customer-effects";
 import { addDaysKey, currentHour, todayKey } from "../lib/dates";
 import { AppError, dateStr, handler, page, param, parse, send, timeStr } from "../lib/http";
 import { requirePermission } from "../middleware/auth";
-import { billCode, gameLabel } from "./inventory";
+import { DEAD, gameLabel, paysSchema, settle } from "../lib/settle";
 import { getHourPrice } from "./settings-store";
 
 export const bookingsRouter = Router();
@@ -81,7 +81,6 @@ bookingsRouter.get("/counts", requirePermission("bookings.view"), handler(async 
 }));
 
 // ---- dues: what one customer still owes ----
-const DEAD = ["cancelled", "expired", "rejected"];
 type Owner = { userId: string | null; customerPhone: string | null };
 const ownerKey = (b: Owner) => b.userId ?? (b.customerPhone && /^9\d{9}$/.test(b.customerPhone) ? b.customerPhone : null);
 const sameOwner = (a: Owner, b: Owner) => !!ownerKey(a) && ownerKey(a) === ownerKey(b);
@@ -102,7 +101,11 @@ bookingsRouter.get("/:id/dues", requirePermission("bookings.view"), handler(asyn
   const unpaid = others.filter(owes);
   const past = unpaid.filter((x) => x.date < today), todays = unpaid.filter((x) => x.date === today), upcoming = unpaid.filter((x) => x.date > today);
   const user = b.userId ? await prisma.user.findUnique({ where: { phoneNumber: b.userId }, select: { name: true } }) : null;
+  // goods given on credit are dues too; they sit on the customer's account (phone)
+  const goods = key ? await prisma.goodsDue.findMany({ where: { userId: key, status: "due" }, orderBy: { createdAt: "asc" } }) : [];
   send(res, {
+    goods: goods.map((g) => ({ id: g.id, items: g.items, amount: g.amount, createdAt: g.createdAt })),
+    goodsTotal: goods.reduce((sum, g) => sum + g.amount, 0),
     customer: { name: user?.name ?? b.customerName, phone: key, registered: !!b.userId, known: !!key },
     current: { ...dueView(b), owed: owes(b) },
     past: past.map(dueView), today: todays.map(dueView), upcoming: upcoming.map(dueView),
@@ -110,54 +113,31 @@ bookingsRouter.get("/:id/dues", requirePermission("bookings.view"), handler(asyn
   });
 }));
 
-// Collect several of one customer's unpaid bookings in one payment. A registered customer gets one bill (CB-...) in their payment history.
+// Collect several of one customer's dues in one payment: unpaid bookings and goods on credit, paid in one method or split across several.
+// A registered customer gets one bill (CB-...) in their payment history; games already played earn their points, upcoming ones when completed, goods when paid.
 bookingsRouter.post("/collect-dues", requirePermission("payments.collect"), handler(async (req, res) => {
-  const b = parse(z.object({ anchorId: z.string().min(1), bookingIds: z.array(z.string().min(1)).min(1).max(40), method: z.enum(["venue", "esewa", "fonepay"]).default("venue") }), req.body);
+  const b = parse(z.object({
+    anchorId: z.string().min(1), bookingIds: z.array(z.string().min(1)).max(40).default([]), goodsDueIds: z.array(z.string().min(1)).max(40).default([]),
+    method: z.enum(["venue", "esewa", "fonepay"]).optional(), payments: paysSchema.optional(),
+  }), req.body);
+  if (b.bookingIds.length === 0 && b.goodsDueIds.length === 0) throw new AppError(400, "Choose at least one due to collect");
   const anchor = await load(b.anchorId);
-  const ids = [...new Set(b.bookingIds)];
-  const rows = await prisma.booking.findMany({ where: { id: { in: ids } }, orderBy: [{ date: "asc" }, { startTime: "asc" }] });
-  if (rows.length !== ids.length) throw new AppError(404, "One of the bookings was not found");
+  const key = ownerKey(anchor);
+  const rows = await prisma.booking.findMany({ where: { id: { in: [...new Set(b.bookingIds)] } } });
+  if (rows.length !== new Set(b.bookingIds).size) throw new AppError(404, "One of the bookings was not found");
   for (const r of rows) {
     if (r.id !== anchor.id && !sameOwner(anchor, r)) throw new AppError(400, "These bookings do not all belong to the same customer");
     if (DEAD.includes(r.status)) throw new AppError(409, `${gameLabel(r)} is ${r.status}`);
   }
-  const staffId = req.staff!.id;
-  const code = anchor.userId ? await billCode() : null;
-  const out = await prisma.$transaction(async (tx) => {
-    let total = 0;
-    const lines: { type: "game"; label: string; quantity: number; amount: number }[] = [];
-    for (const r of rows) {
-      const amount = Math.round(r.totalPrice);
-      // only one request can move a booking to paid, so nothing is collected twice
-      const claimed = await tx.booking.updateMany({
-        where: { id: r.id, paymentStatus: { not: "completed" } },
-        data: { paymentStatus: "completed", status: r.status === "pending" ? "confirmed" : r.status, holdExpiresAt: null, paymentMethod: b.method, amountPaidNow: r.totalPrice, remainingAmount: 0, cashAmount: b.method === "venue" ? r.totalPrice : r.cashAmount, onlineAmount: b.method === "venue" ? r.onlineAmount : r.totalPrice },
-      });
-      if (claimed.count === 0) throw new AppError(409, `${gameLabel(r)} is already paid`);
-      if (r.paymentOrderCode) {
-        await tx.paymentOrder.updateMany({ where: { orderCode: r.paymentOrderCode, status: { in: ["pending", "expired"] } }, data: { status: "paid", paidAt: new Date(), paidBy: staffId } });
-        await tx.paymentEvent.create({ data: { orderCode: r.paymentOrderCode, source: "staff", payload: JSON.stringify({ event: "MARKED_PAID", by: staffId, method: b.method, dues: true }) } });
-      }
-      total += amount;
-      lines.push({ type: "game", label: gameLabel(r), quantity: 1, amount });
-    }
-    const bill = code && anchor.userId
-      ? await tx.checkout.create({ data: { code, userId: anchor.userId, paymentMethod: b.method === "venue" ? "cash" : "online", goodsTotal: 0, gameTotal: total, total, lines: JSON.stringify(lines), bookingIds: rows.map((r) => r.id), createdBy: staffId } })
-      : null;
-    return { total, bill };
+  const goodsDues = await prisma.goodsDue.findMany({ where: { id: { in: [...new Set(b.goodsDueIds)] } } });
+  if (goodsDues.length !== new Set(b.goodsDueIds).size || goodsDues.some((g) => g.userId !== key)) throw new AppError(400, "These dues do not all belong to the same customer");
+  const account = key ? await prisma.user.findUnique({ where: { phoneNumber: key }, select: { phoneNumber: true } }) : null;
+  const r = await settle({
+    staffId: req.staff!.id, userId: anchor.userId ?? account?.phoneNumber ?? null, bookings: rows, goodsDues, items: new Map(),
+    pay: { payments: b.payments, single: b.payments ? undefined : b.method === "esewa" || b.method === "fonepay" ? b.method : ("cash" as const) },
   });
-  let points = 0;
-  for (const r of rows) {
-    const fresh = await load(r.id);
-    if (fresh.status === "completed" && (await awardForCompletedBooking(fresh))) points += Math.floor(Math.max(0, fresh.totalPrice) / 10) / 10;
-  }
-  points = Math.round(points * 10) / 10;
-  if (out.bill) {
-    await prisma.checkout.update({ where: { id: out.bill.id }, data: { pointsGames: points } });
-    await notify(prisma, { userId: anchor.userId!, type: "payment", title: `Bill ${code}: Rs. ${out.total}`, message: `Paid ${b.method === "venue" ? "in cash" : "online"} at the venue for ${rows.length} game${rows.length === 1 ? "" : "s"}.${points ? ` You earned ${points} loyalty points.` : ""}`, href: "/profile", dedupeKey: `bill-${code}` });
-  }
-  await audit(req, "collect-dues", "booking", anchor.id, { bookings: rows.map((r) => r.code ?? r.id), total: out.total, method: b.method, bill: code });
-  send(res, { count: rows.length, total: out.total, billCode: code, points }, `Collected Rs. ${out.total} for ${rows.length} booking${rows.length === 1 ? "" : "s"}`);
+  await audit(req, "collect-dues", "booking", anchor.id, { bookings: rows.map((x) => x.code ?? x.id), goodsDues: goodsDues.map((g) => g.items), total: r.total, payments: r.payments, bill: r.code });
+  send(res, { count: r.count, total: r.total, billCode: r.code, points: Math.round((r.pointsGoods + r.pointsGames) * 10) / 10, payments: r.payments }, `Collected Rs. ${r.total} for ${r.count} due${r.count === 1 ? "" : "s"}`);
 }));
 
 bookingsRouter.get("/:id", requirePermission("bookings.view"), handler(async (req, res) => {

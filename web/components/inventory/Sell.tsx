@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { CheckCircle2, Minus, Plus, Search, ShoppingCart } from "lucide-react";
+import PaySplit, { INITIAL_PAY, PayState, paymentsFor } from "../PaySplit";
 import { ApiError } from "@/lib/api";
 import { guard } from "@/lib/access";
-import { BillResult, CustomerBill, Product, checkout, customerBill, listProducts, rs, sell } from "@/lib/inventory";
+import { BillResult, CreditResult, CustomerBill, Product, checkout, customerBill, listProducts, rs, sell } from "@/lib/inventory";
 
 const field = "rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
 const msg = (e: unknown) => (e instanceof ApiError || e instanceof Error ? e.message : "Something went wrong");
@@ -17,13 +18,14 @@ export default function Sell({ tick, onChanged }: { tick: number; onChanged: () 
   const [products, setProducts] = useState<Product[] | null>(null);
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<Record<string, number>>({});
-  const [pay, setPay] = useState<"cash" | "online">("cash");
+  const [pay, setPay] = useState<PayState>(INITIAL_PAY);
+  const [dueOn, setDueOn] = useState<Record<string, boolean>>({}); // goods on credit chosen for this bill
   const [phone, setPhone] = useState("");
   const [bill, setBill] = useState<{ phone: string; data: CustomerBill } | null>(null);
   const [games, setGames] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [done, setDone] = useState<BillResult | { simple: true; amount: number; items: string } | null>(null);
+  const [done, setDone] = useState<BillResult | CreditResult | { simple: true; amount: number; items: string } | null>(null);
   const [local, setLocal] = useState(0);
 
   useEffect(() => {
@@ -41,6 +43,7 @@ export default function Sell({ tick, onChanged }: { tick: number; onChanged: () 
       if (!live) return;
       setBill({ phone, data: d });
       setGames(Object.fromEntries(d.games.filter((g) => !g.paid).map((g) => [g.id, true]))); // what they still owe is ticked
+      setDueOn(Object.fromEntries(d.goodsDues.map((g) => [g.id, true])));
     }).catch(() => { if (live) setBill(null); });
     return () => { live = false; };
   }, [phone, phoneOk, local]);
@@ -52,25 +55,34 @@ export default function Sell({ tick, onChanged }: { tick: number; onChanged: () 
   const goodsTotal = lines.reduce((s, l) => s + Math.round(l.p.price * l.qty), 0);
   const chosenGames = (customer?.games ?? []).filter((g) => games[g.id] && !g.paid);
   const gameTotal = chosenGames.reduce((s, g) => s + g.total, 0);
-  const total = goodsTotal + gameTotal;
-  const goodsPts = known ? Math.floor(goodsTotal / 100) : 0;
+  const chosenDues = (customer?.goodsDues ?? []).filter((d) => dueOn[d.id]);
+  const dueTotal = chosenDues.reduce((s, d) => s + d.amount, 0);
+  const total = goodsTotal + gameTotal + dueTotal;
+  const ready = paymentsFor(total, pay);
+  const canCredit = !!known && lines.length > 0 && chosenGames.length === 0 && chosenDues.length === 0; // goods only can go on the account
+  const goodsPts = known ? Math.floor((goodsTotal + dueTotal) / 100) : 0;
   const gamePts = Math.round(chosenGames.filter((g) => !g.upcoming).reduce((s, g) => s + g.pointsIfCompleted, 0) * 10) / 10;
   const waiting = chosenGames.filter((g) => g.upcoming).length;
   const shown = (products ?? []).filter((p) => !search.trim() || p.name.toLowerCase().includes(search.trim().toLowerCase()));
   const setQty = (p: Product, qty: number) => setCart((c) => ({ ...c, [p.id]: Math.max(0, Math.min(Number.isFinite(qty) ? qty : 0, p.stock)) }));
 
-  async function complete() {
+  function reset() { setCart({}); setPhone(""); setBill(null); setPay(INITIAL_PAY); setLocal((n) => n + 1); onChanged(); }
+
+  async function complete(onAccount = false) {
     if (!guard("inventory.sell")) return;
-    if (chosenGames.length && !guard("payments.collect")) return;
+    if (!onAccount && (chosenGames.length || chosenDues.length) && !guard("payments.collect")) return;
+    if (!onAccount && ready.problem) return setError(ready.problem);
     setBusy(true); setError("");
     const items = lines.map((l) => ({ productId: l.p.id, quantity: l.qty }));
+    const how = ready.payments ? { payments: ready.payments } : { payment: ready.single === "cash" ? ("cash" as const) : ("online" as const) };
     try {
-      if (phone && known) setDone(await checkout({ phone, payment: pay, items, bookingIds: chosenGames.map((g) => g.id) }));
+      if (onAccount && phone) setDone(await checkout({ phone, payment: "due", items, bookingIds: [], goodsDueIds: [] }));
+      else if (phone && known) setDone(await checkout({ phone, ...how, items, bookingIds: chosenGames.map((g) => g.id), goodsDueIds: chosenDues.map((d) => d.id) }));
       else {
-        const r = await sell({ payment: pay, items });
+        const r = await sell({ ...how, items });
         setDone({ simple: true, amount: r.amount, items: r.items });
       }
-      setCart({}); setPhone(""); setBill(null); setLocal((n) => n + 1); onChanged();
+      reset();
     } catch (e) { setError(msg(e)); setLocal((n) => n + 1); } finally { setBusy(false); }
   }
 
@@ -78,14 +90,22 @@ export default function Sell({ tick, onChanged }: { tick: number; onChanged: () 
     return (
       <div className="mx-auto grid max-w-md place-items-center gap-3 rounded-2xl bg-surface p-8 text-center shadow-sm">
         <CheckCircle2 size={44} className="text-brand" />
-        {"simple" in done ? (
+        {"due" in done && done.due ? (
+          <>
+            <h2 className="text-xl font-bold">Put on {done.customerName ?? "the customer"}&apos;s account: {rs(done.total)}</h2>
+            <ul className="w-full space-y-1 border-y border-line py-3 text-left text-sm">
+              {done.lines.map((l, i) => <li key={i} className="flex justify-between gap-3"><span>{l.quantity > 1 ? `${l.quantity} x ` : ""}{l.label}</span><span className="font-semibold">{rs(l.amount)}</span></li>)}
+            </ul>
+            <p className="text-xs text-muted">The stock is taken. It shows as an inventory due the next time you open one of this customer&apos;s unpaid bookings or make a bill. Loyalty points are added when it is paid.</p>
+          </>
+        ) : "simple" in done ? (
           <>
             <h2 className="text-xl font-bold">Sale recorded: {rs(done.amount)}</h2>
             <p className="max-w-sm text-sm text-muted">{done.items}</p>
           </>
         ) : (
           <>
-            <h2 className="text-xl font-bold">Bill {done.code}: {rs(done.total)}</h2>
+            <h2 className="text-xl font-bold">Bill {(done as BillResult).code}: {rs((done as BillResult).total)}</h2>
             <p className="text-sm text-muted">{done.customerName}</p>
             <ul className="w-full space-y-1 border-y border-line py-3 text-left text-sm">
               {done.lines.map((l, i) => <li key={i} className="flex justify-between gap-3"><span>{l.type === "goods" && l.quantity > 1 ? `${l.quantity} x ` : ""}{l.label}</span><span className="font-semibold">{rs(l.amount)}</span></li>)}
@@ -156,6 +176,23 @@ export default function Sell({ tick, onChanged }: { tick: number; onChanged: () 
           </div>
         )}
 
+        {known && customer && customer.goodsDues.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-sm font-semibold">Inventory dues (goods on credit)</p>
+            <ul className="space-y-1.5">
+              {customer.goodsDues.map((d) => (
+                <li key={d.id}>
+                  <label className="flex items-center gap-2 rounded-xl border border-line p-2 text-sm">
+                    <input type="checkbox" checked={!!dueOn[d.id]} onChange={(e) => setDueOn((x) => ({ ...x, [d.id]: e.target.checked }))} className="h-4 w-4 accent-[var(--brand)]" />
+                    <span className="min-w-0 flex-1 truncate">{d.items}</span>
+                    <span className="font-semibold">{rs(d.amount)}</span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <div className="space-y-2 border-t border-line pt-3">
           <p className="text-sm font-semibold">Goods</p>
           {lines.length === 0 && <p className="text-sm text-muted">Tap a product to add it.</p>}
@@ -177,20 +214,22 @@ export default function Sell({ tick, onChanged }: { tick: number; onChanged: () 
 
         <div className="space-y-1 border-t border-line pt-3 text-sm">
           {known && <div className="flex justify-between"><span className="text-muted">Games</span><span>{rs(gameTotal)}</span></div>}
-          {known && <div className="flex justify-between"><span className="text-muted">Goods</span><span>{rs(goodsTotal)}</span></div>}
+          {known && dueTotal > 0 && <div className="flex justify-between"><span className="text-muted">Goods on credit</span><span>{rs(dueTotal)}</span></div>}
+          {known && <div className="flex justify-between"><span className="text-muted">New goods</span><span>{rs(goodsTotal)}</span></div>}
           <div className="flex items-center justify-between"><span className="font-semibold">Total</span><span className="text-xl font-bold">{rs(total)}</span></div>
           {known && (goodsPts > 0 || gamePts > 0 || waiting > 0) && (
             <p className="text-xs text-amber-600">Earns {Math.round((goodsPts + gamePts) * 10) / 10} loyalty points now{waiting > 0 ? ` (+ points for ${waiting} game${waiting === 1 ? "" : "s"} when played)` : ""}.</p>
           )}
         </div>
 
-        <div className="grid grid-cols-2 gap-1 rounded-xl bg-surface-2 p-1">
-          {([["cash", "Cash"], ["online", "Online / QR"]] as const).map(([v, l]) => <button key={v} type="button" aria-pressed={pay === v} onClick={() => setPay(v)} className={`rounded-lg py-2 text-sm font-semibold ${pay === v ? "bg-brand text-white" : "text-muted"}`}>{l}</button>)}
-        </div>
+        <PaySplit total={total} value={pay} onChange={(v) => { setPay(v); setError(""); }} />
         {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600" role="alert">{error}</p>}
-        <button onClick={complete} disabled={busy || total === 0 || (!!phone && (!phoneOk || !known))} className="w-full rounded-full bg-brand py-3 text-sm font-semibold text-white disabled:opacity-50">
+        <button onClick={() => complete(false)} disabled={busy || total === 0 || !!ready.problem || (!!phone && (!phoneOk || !known))} className="w-full rounded-full bg-brand py-3 text-sm font-semibold text-white disabled:opacity-50">
           {busy ? "Saving…" : known ? `Complete bill ${total ? rs(total) : ""}` : `Complete sale ${total ? rs(total) : ""}`}
         </button>
+        {canCredit && (
+          <button onClick={() => complete(true)} disabled={busy} className="w-full rounded-full border border-line py-2.5 text-sm font-semibold disabled:opacity-50">Put on account, pay later ({rs(goodsTotal)})</button>
+        )}
       </aside>
     </div>
   );
