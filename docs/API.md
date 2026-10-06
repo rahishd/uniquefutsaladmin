@@ -87,6 +87,21 @@ Ages 10 to 14. Staff publish class times; the customer app (`/academy` on the cu
 | `GET /academy/terms` | academy.view | current text, version and earlier versions |
 | `PUT /academy/terms` | academy.terms | `{text}`; every change raises the version, guardians must accept the newest |
 
+## Refer & Earn (staff side)
+
+A customer books a game for another team and files it in the app (customer backend `/refer`). Staff check it here; approving writes loyalty points (kind `referral`, valid 12 months) for BOTH people. Same table `Referral` (local mirror `sql/008_refer_mirror.sql`); rules in `Settings` key `referEarn`.
+
+| Route | Permission | Notes |
+|---|---|---|
+| `GET /refer/overview` | refer.view | pending, approved, rejected, points given, rules |
+| `GET /refer?status&q&page&limit` | refer.view | search by name, phone, team, booking or referral code; each item has both people and the booking state |
+| `GET /refer/counts` | refer.view | counts per status |
+| `PATCH /refer/:id` | refer.review | `{referrerPoints?, friendPoints?}` (0 to 200) while pending |
+| `POST /refer/:id/approve` | refer.review | optional points override; refused (409) if the booking was cancelled; claims it first so points are never given twice; notifies both |
+| `POST /refer/:id/reject` | refer.review | `{reason}` (3+ chars), notifies the customer |
+| `POST /refer/:id/adjust` | refer.adjust | `{referrerPoints, friendPoints, reason}` totals for an approved referral; the difference is added or taken from each person |
+| `GET /refer/settings`, `PUT /refer/settings` | refer.view, refer.settings | `{enabled, referrerPoints, friendPoints}` |
+
 ## Customers page
 | Method and path | Permission | Notes |
 |---|---|---|
@@ -122,7 +137,7 @@ Only the owner can use these endpoints (`staff.manage` is never given to admins 
 | `PATCH /staff/:id` | `{name?, accountType?, permissions?, isActive?, password?}`. Turning an older role into staff keeps what it could do. Admins cannot be given a list (change them to Staff first) |
 
 ### The small permissions
-One per action. Dashboard: `dashboard.view`. Bookings: `bookings.view`, `.create`, `.cancel`, `.complete`, `.noshow`, `.stats`. Slots and arrivals: `slots.view`, `arrivals.view`. Payments: `payments.view`, `.collect` (also marks a booking or order paid), `.refund`. Courts: `courts.view`, `.price`, `.block`. Promo codes: `promos.view`, `.create`, `.edit`, `.delete`. Customers: `customers.view`, `.edit`, `.suspend`. VIP: `vip.view`, `vip.manage`. Loyalty: `loyalty.view`, `.goods`, `.adjust`, `.void`. Membership: `membership.view`, `.create`, `.edit`. Teams: `teams.view`, `.resolve`, `.venuepaid`. Gamezone: `gamezone.view`, `.collect`, `.manage` (complete or cancel a session), `.catalog` (rates, consoles, games). Complaints: `complaints.view`, `.reply`. Children's Academy: `academy.view`, `.sessions`, `.enrollments`, `.terms`. Notices: `notifications.send`. Reports and audit: `reports.view`, `audit.view`.
+One per action. Dashboard: `dashboard.view`. Bookings: `bookings.view`, `.create`, `.cancel`, `.complete`, `.noshow`, `.stats`. Slots and arrivals: `slots.view`, `arrivals.view`. Payments: `payments.view`, `.collect` (also marks a booking or order paid), `.refund`. Courts: `courts.view`, `.price`, `.block`. Promo codes: `promos.view`, `.create`, `.edit`, `.delete`. Customers: `customers.view`, `.edit`, `.suspend`. VIP: `vip.view`, `vip.manage`. Loyalty: `loyalty.view`, `.goods`, `.adjust`, `.void`. Membership: `membership.view`, `.create`, `.edit`. Teams: `teams.view`, `.resolve`, `.venuepaid`. Gamezone: `gamezone.view`, `.collect`, `.manage` (complete or cancel a session), `.catalog` (rates, consoles, games). Complaints: `complaints.view`, `.reply`. Refer & Earn: `refer.view`, `.review`, `.adjust`, `.settings`. Children's Academy: `academy.view`, `.sessions`, `.enrollments`, `.terms`. Notices: `notifications.send`. Reports and audit: `reports.view`, `audit.view`.
 
 Older accounts keep working: the older roles and the older coarse names (`bookings.read`, `payments.write`, ...) are expanded into the small permissions when read.
 
