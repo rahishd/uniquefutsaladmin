@@ -50,16 +50,17 @@ export default function AccountSheet({ edit, onClose, onSaved }: { edit: Account
     setError("");
     if (!guard("staff.manage")) return;
     if (name.trim().length < 2) return setError("Enter the person's name.");
-    if (!edit && !/^\S+@\S+\.\S+$/.test(email.trim())) return setError("Enter a valid email. It is what they sign in with.");
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setError("Enter a valid login email. It is what they sign in with.");
     if (!edit && password.length < 10) return setError("The password needs at least 10 characters. Press Generate to make one.");
     if (edit && password && password.length < 10) return setError("A new password needs at least 10 characters.");
     const permissions = [...checked];
     setBusy(true);
     try {
       if (edit) {
-        await updateStaff(edit.id, { name: name.trim(), accountType: type, ...(type === "staff" ? { permissions } : {}), ...(password ? { password } : {}) });
+        const emailChanged = email.trim().toLowerCase() !== edit.email;
+        await updateStaff(edit.id, { name: name.trim(), ...(emailChanged ? { email: email.trim() } : {}), accountType: type, ...(type === "staff" ? { permissions } : {}), ...(password ? { password } : {}) });
         onSaved();
-        if (password) setSaved({ email: edit.email, password });
+        if (password || emailChanged) setSaved({ email: email.trim().toLowerCase(), password });
         else onClose();
       } else {
         await createStaff({ email: email.trim(), name: name.trim(), accountType: type, password, permissions: type === "staff" ? permissions : [] });
@@ -85,10 +86,10 @@ export default function AccountSheet({ edit, onClose, onSaved }: { edit: Account
 
         {saved ? (
           <div className="space-y-3 p-5 text-center">
-            <p className="text-sm text-muted">Give these sign-in details to the person. The password is shown only now.</p>
+            <p className="text-sm text-muted">Give these sign-in details to the person. A new password is shown only now. The old email and password stop working from now on.</p>
             <div className="space-y-1 rounded-2xl bg-brand/10 p-4 text-left">
               <p className="text-xs text-muted">Email</p><p className="font-mono font-semibold">{saved.email}</p>
-              <p className="pt-2 text-xs text-muted">Password</p><p className="font-mono font-semibold">{saved.password}</p>
+              <p className="pt-2 text-xs text-muted">Password</p><p className="font-mono font-semibold">{saved.password || "Unchanged"}</p>
             </div>
             <button onClick={onClose} className="w-full rounded-xl bg-brand py-3 font-semibold text-white">Done</button>
           </div>
@@ -114,8 +115,8 @@ export default function AccountSheet({ edit, onClose, onSaved }: { edit: Account
                 <label className="block text-sm font-medium">Name
                   <input value={name} maxLength={60} onChange={(e) => setName(e.target.value)} className={`${field} mt-1`} />
                 </label>
-                <label className="block text-sm font-medium">Email (they sign in with this)
-                  <input value={email} disabled={!!edit} type="email" onChange={(e) => setEmail(e.target.value)} className={`${field} mt-1 disabled:opacity-60`} />
+                <label className="block text-sm font-medium">Login email (they sign in with this)
+                  <input value={email} type="email" autoComplete="off" onChange={(e) => setEmail(e.target.value)} className={`${field} mt-1`} />
                 </label>
               </div>
               <label className="block text-sm font-medium">{edit ? "New password (leave empty to keep theirs)" : "Password"}
