@@ -210,6 +210,18 @@ export const modules: Module[] = [
     ],
   },
   {
+    slug: "refer", title: "Refer & Earn", group: "Customers", icon: "handshake",
+    summary: "A customer books a game for another team: you check it and both get loyalty points.",
+    clientFeatures: ["Popular > Refer & Earn", "Pick the booking made for the other team, the captain's number and team name", "Both people are told when you decide", "Withdraw while waiting"],
+    adminTasks: ["See referrals waiting, approved and rejected", "Approve (change the points first if needed) or reject with a reason", "Adjust the points of an approved referral", "Set the points for each side and pause the feature", "Call either person"],
+    endpoints: [
+      e("GET", "/admin/refer", "list, status filter, search"), e("GET", "/admin/refer/counts", "counts per status"), e("GET", "/admin/refer/overview", "totals and rules"),
+      e("PATCH", "/admin/refer/:id", "change points while waiting"), e("POST", "/admin/refer/:id/approve", "gives both customers their points"),
+      e("POST", "/admin/refer/:id/reject", "reason, customer told"), e("POST", "/admin/refer/:id/adjust", "change points after approval"),
+      e("GET", "/admin/refer/settings", "points and on/off"), e("PUT", "/admin/refer/settings", "save points, pause"),
+    ],
+  },
+  {
     slug: "academy", title: "Children's Academy", group: "Communication", icon: "graduation",
     summary: "Football classes for children aged 10 to 14: you set the times, guardians confirm.",
     clientFeatures: ["Popular > Children's Academy", "Guardian name, contact and emergency number, address", "Child name, age (10 to 14) and health status", "Pick a class time you made visible", "Accept your Terms and Conditions", "Cancel until the class starts"],

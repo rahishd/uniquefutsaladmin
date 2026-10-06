@@ -759,6 +759,31 @@ model AcademyEnrollment {
   @@index([sessionId, status])
 }
 
+// Refer & Earn (customer backend migration 20261011000001_refer_earn).
+model Referral {
+  id             String    @id @default(cuid())
+  code           String    @unique
+  referrerId     String
+  friendId       String
+  teamName       String
+  bookingId      String    @unique
+  bookingCode    String?
+  gameDate       String
+  gameTime       String
+  status         String    @default("pending") // pending | approved | rejected
+  referrerPoints Decimal   @db.Decimal(8, 1)
+  friendPoints   Decimal   @db.Decimal(8, 1)
+  staffNote      String?
+  decidedBy      String?
+  decidedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([referrerId])
+  @@index([friendId])
+  @@index([status, createdAt])
+}
+
 // ADMIN-OWNED TABLES (created by sql/*.sql in production; `npm run db:push` builds them locally).
 // Everything above this line mirrors the customer backend's schema: keep it in sync, never edit it here.
 // =====================================================================

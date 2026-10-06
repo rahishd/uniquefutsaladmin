@@ -77,6 +77,12 @@ export const SECTIONS: Section[] = [
     { key: "complaints.view", label: "View Complaints" },
     { key: "complaints.reply", label: "Reply & Change Status" },
   ] },
+  { id: "refer", label: "Refer & Earn", permissions: [
+    { key: "refer.view", label: "View Referrals" },
+    { key: "refer.review", label: "Approve / Reject Referrals" },
+    { key: "refer.adjust", label: "Adjust Referral Points" },
+    { key: "refer.settings", label: "Set Referral Points & Pause" },
+  ] },
   { id: "academy", label: "Children's Academy", permissions: [
     { key: "academy.view", label: "View Classes & Enrolled Children" },
     { key: "academy.sessions", label: "Add / Edit / Cancel Classes & Show Times" },
