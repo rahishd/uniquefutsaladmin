@@ -3,14 +3,80 @@ import { z } from "zod";
 import { prisma } from "../db";
 import { audit } from "../lib/audit";
 import { awardPoints, notify } from "../lib/customer-effects";
-import { AppError, handler, param, parse, send } from "../lib/http";
+import { AppError, handler, page, param, parse, send } from "../lib/http";
 import { requirePermission } from "../middleware/auth";
 
 export const teamsRouter = Router();
 
-teamsRouter.get("/", requirePermission("teams.view"), handler(async (_req, res) => {
+// Win / draw / loss and goals from APPROVED results only (the same rule as the customer app's ranking).
+type Rec = { played: number; wins: number; draws: number; losses: number; goalsFor: number; goalsAgainst: number; form: ("W" | "D" | "L")[] };
+async function records(teamIds?: string[]): Promise<Map<string, Rec>> {
+  const rows = await prisma.challengeResult.findMany({ where: { status: "approved" }, include: { challenge: true }, orderBy: { createdAt: "asc" } });
+  const out = new Map<string, Rec>();
+  const get = (id: string) => out.get(id) ?? out.set(id, { played: 0, wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0, form: [] }).get(id)!;
+  for (const r of rows) {
+    const other = r.submittedByTeamId === r.challenge.challengerTeamId ? r.challenge.challengedTeamId : r.challenge.challengerTeamId;
+    for (const [team, gf, ga] of [[r.submittedByTeamId, r.scoreSubmitter, r.scoreOther], [other, r.scoreOther, r.scoreSubmitter]] as const) {
+      if (teamIds && !teamIds.includes(team)) continue;
+      const x = get(team);
+      const res = gf > ga ? "W" : gf === ga ? "D" : "L";
+      x.played++; x.goalsFor += gf; x.goalsAgainst += ga;
+      if (res === "W") x.wins++; else if (res === "D") x.draws++; else x.losses++;
+      x.form = [...x.form, res as "W" | "D" | "L"].slice(-5);
+    }
+  }
+  return out;
+}
+const blank: Rec = { played: 0, wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0, form: [] };
+
+teamsRouter.get("/", requirePermission("teams.view"), handler(async (req, res) => {
+  const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
   const teams = await prisma.team.findMany({ include: { members: true }, orderBy: { createdAt: "desc" } });
-  send(res, teams.map((t) => ({ id: t.id, name: t.name, area: t.area, captainId: t.captainId, members: t.members.length, createdAt: t.createdAt })));
+  const captains = new Map((await prisma.user.findMany({ where: { phoneNumber: { in: teams.map((t) => t.captainId) } }, select: { phoneNumber: true, name: true } })).map((u) => [u.phoneNumber, u.name]));
+  const rec = await records();
+  const todayKey = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kathmandu" }).format(new Date());
+  // open = waiting for an answer, or accepted and not played yet
+  const open = await prisma.challenge.findMany({ where: { OR: [{ status: "pending" }, { status: "accepted", date: { gte: todayKey } }] }, select: { challengerTeamId: true, challengedTeamId: true } });
+  const items = teams
+    .map((t) => ({
+      id: t.id, name: t.name, area: t.area, captainId: t.captainId, captain: { phone: t.captainId, name: captains.get(t.captainId) ?? null }, members: new Set([t.captainId, ...t.members.map((m) => m.userId)]).size, createdAt: t.createdAt, // the captain always counts, even if the roster row is missing
+      record: rec.get(t.id) ?? blank, openChallenges: open.filter((c) => c.challengerTeamId === t.id || c.challengedTeamId === t.id).length,
+    }))
+    .filter((t) => !q || [t.name, t.area, t.captain.name ?? "", t.captain.phone].some((x) => x.toLowerCase().includes(q.toLowerCase())));
+  send(res, items);
+}));
+
+// Numbers for the top of the page
+teamsRouter.get("/overview", requirePermission("teams.view"), handler(async (_req, res) => {
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kathmandu" }).format(new Date());
+  const [teams, pending, accepted, awaiting, disputed, unpaid] = await Promise.all([
+    prisma.team.count(), prisma.challenge.count({ where: { status: "pending" } }), prisma.challenge.count({ where: { status: "accepted", date: { gte: today } } }),
+    prisma.challengeResult.count({ where: { status: "awaiting_approval" } }), prisma.challengeResult.count({ where: { status: "disputed" } }),
+    prisma.challenge.findMany({ where: { status: "accepted", venuePaidAt: null, date: { lte: today } }, select: { courtPrice: true } }),
+  ]);
+  send(res, { teams, pendingChallenges: pending, upcomingGames: accepted, resultsAwaitingApproval: awaiting, disputes: disputed, unpaidGames: unpaid.length, unpaidAmount: unpaid.reduce((t, c) => t + c.courtPrice, 0) });
+}));
+
+// Every challenge with both team names, the court booking, the money rule and the result
+const CH_STATUS = ["pending", "accepted", "declined", "cancelled", "expired"] as const;
+teamsRouter.get("/challenges", requirePermission("teams.view"), handler(async (req, res) => {
+  const status = CH_STATUS.find((x) => x === req.query.status);
+  const q = typeof req.query.q === "string" ? req.query.q.trim().toLowerCase() : "";
+  const all = await prisma.challenge.findMany({ where: status ? { status } : {}, orderBy: [{ date: "desc" }, { startHour: "desc" }], take: 500, include: { results: true } });
+  const ids = [...new Set(all.flatMap((c) => [c.challengerTeamId, c.challengedTeamId]))];
+  const names = new Map((await prisma.team.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } })).map((t) => [t.id, t.name]));
+  const bookings = new Map((await prisma.booking.findMany({ where: { id: { in: all.flatMap((c) => (c.bookingId ? [c.bookingId] : [])) } }, select: { id: true, code: true } })).map((b) => [b.id, b.code]));
+  const rows = all.map((c) => {
+    const r = c.results[0];
+    return {
+      id: c.id, type: c.type, status: c.status, date: c.date, startHour: c.startHour, courtPrice: c.courtPrice, loserPct: c.loserPct, message: c.message,
+      challenger: names.get(c.challengerTeamId) ?? "Team", challenged: names.get(c.challengedTeamId) ?? "Team", bookingCode: c.bookingId ? bookings.get(c.bookingId) ?? null : null,
+      venuePaidAt: c.venuePaidAt, createdAt: c.createdAt,
+      result: r ? { status: r.status, submittedBy: names.get(r.submittedByTeamId) ?? "Team", scoreSubmitter: r.scoreSubmitter, scoreOther: r.scoreOther } : null,
+    };
+  }).filter((c) => !q || [c.challenger, c.challenged, c.bookingCode ?? ""].some((x) => x.toLowerCase().includes(q)));
+  const { take, skip, pageNo, limit } = page(req.query as Record<string, unknown>);
+  send(res, { items: rows.slice(skip, skip + take), total: rows.length, page: pageNo, limit });
 }));
 
 teamsRouter.get("/disputes", requirePermission("teams.view"), handler(async (_req, res) => {
@@ -107,4 +173,25 @@ teamsRouter.post("/challenges/:id/venue-paid", requirePermission("teams.venuepai
   }
   await audit(req, "venue-paid", "challenge", id);
   send(res, { alreadyPaid: false }, "Marked as paid");
+}));
+
+// One team: roster with names, record, and its challenges
+teamsRouter.get("/:id", requirePermission("teams.view"), handler(async (req, res) => {
+  const t = await prisma.team.findUnique({ where: { id: param(req, "id") }, include: { members: true } });
+  if (!t) throw new AppError(404, "Team not found");
+  const roster = t.members.some((m) => m.userId === t.captainId) ? t.members : [...t.members, { userId: t.captainId, position: "MID", joinedAt: t.createdAt }];
+  const users = new Map((await prisma.user.findMany({ where: { phoneNumber: { in: roster.map((m) => m.userId) } }, select: { phoneNumber: true, name: true } })).map((u) => [u.phoneNumber, u.name]));
+  const rec = (await records([t.id])).get(t.id) ?? blank;
+  const ch = await prisma.challenge.findMany({ where: { OR: [{ challengerTeamId: t.id }, { challengedTeamId: t.id }] }, orderBy: [{ date: "desc" }, { startHour: "desc" }], take: 20, include: { results: true } });
+  const other = [...new Set(ch.map((c) => (c.challengerTeamId === t.id ? c.challengedTeamId : c.challengerTeamId)))];
+  const names = new Map((await prisma.team.findMany({ where: { id: { in: other } }, select: { id: true, name: true } })).map((x) => [x.id, x.name]));
+  send(res, {
+    id: t.id, name: t.name, area: t.area, createdAt: t.createdAt, record: rec,
+    members: roster.map((m) => ({ phone: m.userId, name: users.get(m.userId) ?? null, position: m.position, captain: m.userId === t.captainId, joinedAt: m.joinedAt })).sort((a, b) => Number(b.captain) - Number(a.captain)),
+    challenges: ch.map((c) => {
+      const r = c.results[0];
+      const mine = r ? (r.submittedByTeamId === t.id ? [r.scoreSubmitter, r.scoreOther] : [r.scoreOther, r.scoreSubmitter]) : null;
+      return { id: c.id, status: c.status, date: c.date, startHour: c.startHour, versus: names.get(c.challengerTeamId === t.id ? c.challengedTeamId : c.challengerTeamId) ?? "Team", youChallenged: c.challengerTeamId === t.id, result: r && mine ? { status: r.status, goalsFor: mine[0], goalsAgainst: mine[1] } : null };
+    }),
+  });
 }));
