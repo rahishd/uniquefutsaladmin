@@ -6,7 +6,8 @@ import { Badge } from "../bookings/Badge";
 import { ApiError } from "@/lib/api";
 import { prettyDate, rs } from "@/lib/bookings";
 import { Report as ReportData, getReport } from "@/lib/inventory";
-import { downloadReport, whatsappLink } from "@/lib/report-export";
+import { downloadReportPdf } from "@/lib/report-pdf";
+import { whatsappLink } from "@/lib/report-export";
 
 const field = "rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
 const nepalToday = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kathmandu" }).format(new Date());
@@ -70,7 +71,7 @@ export default function Report() {
         {shown && (
           <div className="ml-auto flex gap-2">
             <a href={whatsappLink(shown)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 rounded-full bg-[#25D366] px-4 py-2 text-sm font-semibold text-white"><MessageCircle size={15} /> Send on WhatsApp</a>
-            <button onClick={() => downloadReport(shown)} className="flex items-center gap-1.5 rounded-full border border-line bg-surface px-4 py-2 text-sm font-semibold"><Download size={15} /> Download</button>
+            <button onClick={() => downloadReportPdf(shown)} className="flex items-center gap-1.5 rounded-full border border-line bg-surface px-4 py-2 text-sm font-semibold"><Download size={15} /> Download PDF</button>
           </div>
         )}
       </div>
