@@ -76,23 +76,53 @@ overviewRouter.get("/overview", requirePermission("dashboard.view"), handler(asy
 }));
 
 // ---- broadcast ----
-overviewRouter.post("/notifications/broadcast", requirePermission("notifications.send"), handler(async (req, res) => {
-  const b = parse(z.object({
-    type: z.enum(["promo", "tournament", "general"]), title: z.string().min(2).max(60), message: z.string().min(2).max(240),
-    href: z.string().regex(/^\/[a-z0-9/_-]*$/i).optional(), audience: z.enum(["all", "captains"]).default("all"),
-  }), req.body);
+const AUDIENCE = z.enum(["all", "captains", "customer"]);
+type Aud = { type: string; audience: z.infer<typeof AUDIENCE>; phone?: string };
+
+// Who would get this notice: active customers, minus promo opt-outs, narrowed to captains or one customer.
+async function recipients(b: Aud) {
   const prefs = b.type === "promo" ? await prisma.userPrefs.findMany({ where: { promoNotifications: false }, select: { userId: true } }) : [];
   const optedOut = new Set(prefs.map((p) => p.userId));
   const captains = b.audience === "captains" ? new Set((await prisma.team.findMany({ select: { captainId: true } })).map((t) => t.captainId)) : null;
-  const users = await prisma.user.findMany({ where: { role: "user", isActive: true }, select: { phoneNumber: true } });
-  const targets = users.map((u) => u.phoneNumber).filter((p) => !optedOut.has(p) && (!captains || captains.has(p)));
+  const users = await prisma.user.findMany({ where: { role: "user", isActive: true, ...(b.audience === "customer" ? { phoneNumber: b.phone ?? "" } : {}) }, select: { phoneNumber: true } });
+  const all = users.map((u) => u.phoneNumber);
+  return { targets: all.filter((p) => !optedOut.has(p) && (!captains || captains.has(p))), optedOut: all.filter((p) => optedOut.has(p)).length };
+}
+
+// How many customers a notice would reach (shown before staff press Send).
+overviewRouter.get("/notifications/reach", requirePermission("notifications.send"), handler(async (req, res) => {
+  const q = parse(z.object({ type: z.enum(["promo", "tournament", "general"]).default("general"), audience: AUDIENCE.default("all"), phone: z.string().regex(/^\d{10}$/).optional() }), req.query);
+  if (q.audience === "customer" && !q.phone) return send(res, { reach: 0, skippedOptOut: 0 });
+  const r = await recipients(q);
+  send(res, { reach: r.targets.length, skippedOptOut: r.optedOut });
+}));
+
+// Notices staff sent, newest first, with how many customers opened them.
+overviewRouter.get("/notifications/history", requirePermission("notifications.send"), handler(async (_req, res) => {
+  const rows = await prisma.adminAuditLog.findMany({ where: { action: "broadcast", entity: "notification" }, orderBy: { createdAt: "desc" }, take: 30 });
+  const items = await Promise.all(rows.map(async (r) => {
+    let d: Record<string, unknown> = {};
+    try { d = JSON.parse(r.details ?? "{}"); } catch { /* keep empty */ }
+    const read = r.entityId ? await prisma.notification.count({ where: { dedupeKey: { startsWith: `${r.entityId}-` }, isRead: true } }) : 0;
+    return { id: r.id, at: r.createdAt, by: r.staffName, type: d.type ?? "general", title: d.title ?? "", message: d.message ?? "", href: d.href ?? null, audience: d.audience ?? "all", phone: d.phone ?? null, sent: Number(d.sent ?? 0), read };
+  }));
+  send(res, items);
+}));
+
+overviewRouter.post("/notifications/broadcast", requirePermission("notifications.send"), handler(async (req, res) => {
+  const b = parse(z.object({
+    type: z.enum(["promo", "tournament", "general"]), title: z.string().min(2).max(60), message: z.string().min(2).max(240),
+    href: z.string().regex(/^\/[a-z0-9/_-]*$/i).optional(), audience: AUDIENCE.default("all"), phone: z.string().regex(/^\d{10}$/).optional(),
+  }).refine((v) => v.audience !== "customer" || !!v.phone, { message: "Enter the customer's mobile number", path: ["phone"] }), req.body);
+  const { targets, optedOut } = await recipients(b);
+  if (b.audience === "customer" && targets.length === 0) throw new AppError(404, "No active customer with that number (or they turned off promo notices)");
   const batch = `bcast-${Date.now()}`;
   const made = await prisma.notification.createMany({
     data: targets.map((userId) => ({ userId, type: b.type, title: b.title, message: b.message, href: b.href ?? null, dedupeKey: `${batch}-${userId}` })),
     skipDuplicates: true,
   });
   await audit(req, "broadcast", "notification", batch, { ...b, sent: made.count });
-  send(res, { sent: made.count, skippedOptOut: optedOut.size }, "Notice sent", 201);
+  send(res, { sent: made.count, skippedOptOut: optedOut }, "Notice sent", 201);
 }));
 
 // ---- reports ----
