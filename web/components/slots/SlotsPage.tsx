@@ -5,6 +5,7 @@ import { CalendarDays, Clock, Lock, Plus, X } from "lucide-react";
 import BookSlotModal from "./BookSlotModal";
 import DatePicker from "./DatePicker";
 import BookingDetailSheet from "../bookings/BookingDetailSheet";
+import { canDo } from "@/lib/auth";
 import { Booking, bookingDetail, rs } from "@/lib/bookings";
 import { Hour, OPEN_FROM, OPEN_TO, SlotBooking, getDay, hourLabel, nowHour, rejectBooking, todayKey } from "@/lib/slots";
 
@@ -32,7 +33,7 @@ function BookedCard({ h, onOpen, onReject }: { h: Hour; onOpen: () => void; onRe
           </span>
         </span>
       </button>
-      {live && first && (
+      {live && first && canDo("bookings.write") && (
         <button onClick={onReject} className="flex shrink-0 items-center gap-1 self-end rounded-full bg-white px-3 py-1.5 text-[11px] font-bold tracking-wide text-red-600 sm:self-auto">
           <X size={13} /> REJECT
         </button>
@@ -125,7 +126,7 @@ export default function SlotsPage() {
                   )}
 
                   {h.state === "free" && (
-                    <button onClick={() => setBook(h.hour)} aria-label={`${past ? "Log a past booking at" : "Book"} ${hourLabel(h.hour)}`}
+                    <button onClick={() => setBook(h.hour)} disabled={!canDo("bookings.write")} aria-label={`${past ? "Log a past booking at" : "Book"} ${hourLabel(h.hour)}`}
                       className={`flex w-full items-center gap-3 rounded-2xl border-2 border-dashed p-3 text-left hover:border-brand hover:bg-brand/5 sm:p-4 ${past ? "border-line opacity-60" : "border-line"}`}>
                       <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-surface-2 text-muted">{past ? <Clock size={18} /> : <Plus size={20} />}</span>
                       <span className="min-w-0 flex-1">

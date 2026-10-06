@@ -720,7 +720,8 @@ model StaffUser {
   id           String    @id @default(cuid())
   email        String    @unique
   name         String
-  role         String // owner | manager | frontdesk | accountant
+  role         String // owner | admin | staff (older: manager | frontdesk | accountant)
+  permissions  String[]  @default([]) // what a "staff" account may do; admins have everything
   passwordHash String
   isActive     Boolean   @default(true)
   lastLoginAt  DateTime?

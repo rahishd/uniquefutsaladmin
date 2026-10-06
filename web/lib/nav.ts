@@ -256,11 +256,10 @@ export const modules: Module[] = [
     slug: "staff", title: "Staff & Roles", group: "System", icon: "key",
     summary: "Who may use the portal and what they may do.",
     clientFeatures: [],
-    adminTasks: ["Staff accounts", "Roles: owner, manager, front desk, accountant", "Disable an account"],
+    adminTasks: ["Add admin accounts (all access) and staff accounts (only what you tick)", "Pick what each staff member can see and do, page by page", "Disable an account or reset a password"],
     endpoints: [
-      e("GET", "/admin/staff", "accounts"),
-      e("POST", "/admin/staff", "create (owner)"),
-      e("PATCH", "/admin/staff/:id", "role, disable, reset password"),
+      e("GET", "/admin/staff", "all accounts with what each can do"), e("GET", "/admin/staff/catalog", "the features you can tick, and quick-start presets"),
+      e("POST", "/admin/staff", "create an admin or staff account"), e("PATCH", "/admin/staff/:id", "change access, disable, reset password"),
     ],
   },
   {
