@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { CheckCircle2, Eye, EyeOff, Settings as Cog, XCircle } from "lucide-react";
 import { ApiError } from "@/lib/api";
+import Switch from "../Switch";
 import { guard } from "@/lib/access";
 import { SettingsData, Venue, changePassword, getSettings, saveBooking, saveVenue, saveWifi } from "@/lib/settings";
 
@@ -68,12 +69,12 @@ function VenueCard({ initial, canEdit }: { initial: Venue; canEdit: boolean }) {
   );
 }
 
-function WifiCard({ initial, canEdit }: { initial: { ssid: string; password: string }; canEdit: boolean }) {
+function WifiCard({ initial, canEdit }: { initial: { ssid: string; password: string; visible: boolean }; canEdit: boolean }) {
   const [w, setW] = useState(initial);
   const [show, setShow] = useState(false);
   const s = useSave(saveWifi, "settings.edit");
   return (
-    <Card title="Venue Wi-Fi" hint="The name and password customers can see in the app. Leave both empty to hide it.">
+    <Card title="Venue Wi-Fi" hint="The name and password signed-in customers see when they tap the Wi-Fi button in the app. Turn the switch off to hide the button, or leave the name empty.">
       <form onSubmit={(e) => { e.preventDefault(); s.run(w); }}>
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block text-sm font-medium">Wi-Fi name<input className={`${input} mt-1`} value={w.ssid} maxLength={32} disabled={!canEdit} onChange={(e) => { setW({ ...w, ssid: e.target.value }); s.reset(); }} /></label>
@@ -83,6 +84,10 @@ function WifiCard({ initial, canEdit }: { initial: { ssid: string; password: str
               <button type="button" onClick={() => setShow((x) => !x)} aria-label={show ? "Hide password" : "Show password"} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted">{show ? <EyeOff size={18} /> : <Eye size={18} />}</button>
             </span>
           </label>
+        </div>
+        <div className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-surface-2 p-3">
+          <span className="text-sm font-medium">Show the Wi-Fi button in the customer app<span className="block text-xs font-normal text-muted">{w.visible ? "Customers can see the name and password." : "The button is hidden."}</span></span>
+          <Switch on={w.visible} label="Show the Wi-Fi button in the customer app" disabled={!canEdit} onChange={() => { setW({ ...w, visible: !w.visible }); s.reset(); }} />
         </div>
         {canEdit && <SaveRow busy={s.busy} saved={s.saved} error={s.error} />}
       </form>
