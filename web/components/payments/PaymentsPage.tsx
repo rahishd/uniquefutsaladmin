@@ -157,7 +157,7 @@ export default function PaymentsPage() {
         </div>
       )}
 
-      {collecting && <CollectModal target={collecting} onClose={() => setCollecting(null)} onDone={() => { setCollecting(null); setTick((t) => t + 1); }} />}
+      {collecting && <CollectModal target={collecting} onClose={() => setCollecting(null)} onDone={() => { setTick((t) => t + 1); }} />}
     </div>
   );
 }
