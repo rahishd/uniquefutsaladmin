@@ -318,6 +318,19 @@ describe("gamezone, teams, notices, reports", () => {
     }
   });
 
+  it("overview counts website visitors, page views and signed-in visitors", async () => {
+    await prisma.siteVisit.deleteMany({});
+    await prisma.siteVisit.createMany({ data: [
+      { day: today, visitor: "v-aaaaaaaaaaaaaaaa", pages: 3, registered: true },
+      { day: today, visitor: "v-bbbbbbbbbbbbbbbb", pages: 1 },
+      { day: addDaysKey(today, -1), visitor: "v-cccccccccccccccc", pages: 2 },
+    ] });
+    const owner = await staff("owner");
+    const o = (await api.get(`/overview?from=${today}&to=${today}`, owner.auth)).body.data;
+    assert.deepEqual(o.visits, { visitors: 2, pageViews: 4, signedIn: 1, previous: 1 });
+    await prisma.siteVisit.deleteMany({});
+  });
+
   it("dashboard, revenue report and audit log work; the audit log never holds passwords", async () => {
     const owner = await staff("owner");
     await api.post("/bookings/walk-in", owner.auth, { date: today, startTime: "09:00", customerName: "Ram", paid: true, priceOverride: 1000 });

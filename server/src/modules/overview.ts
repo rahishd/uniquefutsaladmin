@@ -50,7 +50,8 @@ overviewRouter.get("/overview", requirePermission("dashboard.view"), handler(asy
   const week = await Promise.all(Array.from({ length: 7 }, (_, i) => addDaysKey(to, i - 6)).map(async (d) => ({ date: d, ...sales(await buildReport(d, d)) })));
   const live = { status: { notIn: ["cancelled", "expired", "cancelled_due_to_tournament", "skipped_due_to_tournament"] } };
   const nowKey = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kathmandu", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());
-  const [next, dues, products, pendingMembers, subs, complaints, referrals, unpaidToday, disputes, newCustomers] = await Promise.all([
+  const visitRange = (a: string, b: string) => prisma.siteVisit.aggregate({ where: { day: { gte: a, lte: b } }, _count: { _all: true }, _sum: { pages: true } });
+  const [next, dues, products, pendingMembers, subs, complaints, referrals, unpaidToday, disputes, newCustomers, visitNow, visitPrev, visitSignedIn] = await Promise.all([
     prisma.booking.findMany({ where: { date: today, startTime: { gte: nowKey }, OR: [{ notes: null }, { notes: { not: { contains: "MEMBERSHIP_PAYMENT" } } }], ...live }, orderBy: { startTime: "asc" }, take: 6, select: { id: true, code: true, startTime: true, customerName: true, totalPrice: true, paymentStatus: true } }),
     prisma.goodsDue.aggregate({ where: { status: "due" }, _sum: { amount: true }, _count: true }),
     prisma.product.findMany({ select: { inventory: true, lowStockThreshold: true } }),
@@ -61,6 +62,9 @@ overviewRouter.get("/overview", requirePermission("dashboard.view"), handler(asy
     prisma.booking.count({ where: { date: today, paymentStatus: { not: "completed" }, OR: [{ notes: null }, { notes: { not: { contains: "MEMBERSHIP_PAYMENT" } } }], ...live } }),
     prisma.challengeResult.count({ where: { status: "disputed" } }),
     prisma.user.count({ where: { createdAt: { gte: new Date(`${today}T00:00:00+05:45`) }, role: "user" } }),
+    visitRange(from, to),
+    visitRange(addDaysKey(from, -days), addDaysKey(from, -1)),
+    prisma.siteVisit.count({ where: { day: { gte: from, lte: to }, registered: true } }),
   ]);
   const soon = addDaysKey(today, 15);
   const expiring = subs.filter((x) => { const e = x.endDate.toISOString().slice(0, 10); return e >= today && e <= soon; }).length;
@@ -72,6 +76,8 @@ overviewRouter.get("/overview", requirePermission("dashboard.view"), handler(asy
       unpaidGamesToday: unpaidToday, goodsDue: { amount: dues._sum.amount ?? 0, count: dues._count }, lowStock: products.filter((p) => p.inventory <= p.lowStockThreshold).length,
       membersWaiting: pendingMembers, membersExpiring: expiring, openComplaints: complaints, pendingReferrals: referrals, disputes,
     },
+    // Website visits: one visitor counts once per day, so a range adds the daily counts together
+    visits: { visitors: visitNow._count._all, pageViews: visitNow._sum.pages ?? 0, signedIn: visitSignedIn, previous: visitPrev._count._all },
     nextGames: next,
   });
 }));

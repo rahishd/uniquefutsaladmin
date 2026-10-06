@@ -964,3 +964,17 @@ model MembershipAttendance {
   @@unique([subscriptionId, date])
   @@index([userId, date])
 }
+
+// Owned by the customer backend (migration 20261016000001_site_visits). One row per visitor per Nepal day, anonymous.
+model SiteVisit {
+  id         String   @id @default(cuid())
+  day        String
+  visitor    String
+  registered Boolean  @default(false)
+  pages      Int      @default(1)
+  firstAt    DateTime @default(now())
+  lastAt     DateTime @default(now())
+
+  @@unique([day, visitor])
+  @@index([day])
+}
