@@ -5,7 +5,7 @@ import { prisma } from "../db";
 import { audit } from "../lib/audit";
 import { AppError, handler, param, parse, send } from "../lib/http";
 import { ACCOUNT_TYPES, ASSIGNABLE, PRESETS, SECTIONS, effectivePermissions, isAdminRole } from "../lib/permissions";
-import { requirePermission } from "../middleware/auth";
+import { requirePermission, signStaffToken } from "../middleware/auth";
 
 // Accounts. ONLY THE OWNER can open this (the "staff.manage" permission belongs to the owner alone): add admin and staff accounts and
 // choose, one small permission at a time, what each staff member may do. Admins have every permission except this one.
@@ -71,13 +71,21 @@ staffRouter.patch("/:id", handler(async (req, res) => {
   else if (b.accountType === "staff") { data.role = "staff"; data.permissions = b.permissions ?? (isAdminRole(target.role) ? [] : effectivePermissions(target).filter((p) => (ASSIGNABLE as string[]).includes(p))); }
   else if (b.permissions && becomesStaff) { data.role = "staff"; data.permissions = b.permissions; }
   else if (b.permissions && isAdminRole(target.role)) throw new AppError(400, "Admins already have all access. Change the account to Staff to choose what they can do.");
-  if (b.password) { data.passwordHash = await bcrypt.hash(b.password, 12); data.sessionVersion = { increment: 1 }; } // signs them out everywhere
+  if (b.password) data.passwordHash = await bcrypt.hash(b.password, 12);
+  // a new password or a new login email signs the person out on every device
+  const signsOut = !!b.password || (!!newEmail && newEmail !== target.email);
+  if (signsOut) data.sessionVersion = { increment: 1 };
 
   const s = await prisma.staffUser.update({ where: { id }, data, select: pub });
   await audit(req, "update", "staff", id, {
     name: b.name, isActive: b.isActive, passwordChanged: !!b.password, ...(newEmail && newEmail !== target.email ? { email: { from: target.email, to: newEmail } } : {}),
-    access: { before: effectivePermissions(target).length, after: effectivePermissions(s).length, role: s.role, permissions: s.permissions },
+    signedOut: signsOut, access: { before: effectivePermissions(target).length, after: effectivePermissions(s).length, role: s.role, permissions: s.permissions },
   });
+  // you edited your own login: keep this device signed in with a fresh token (your other devices are signed out)
+  if (signsOut && id === me.id) {
+    const v = await prisma.staffUser.findUniqueOrThrow({ where: { id }, select: { sessionVersion: true } });
+    return send(res, { ...view(s), token: signStaffToken({ id, role: s.role, sessionVersion: v.sessionVersion }) }, "Account updated");
+  }
   send(res, view(s), "Account updated");
 }));
 
