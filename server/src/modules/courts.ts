@@ -34,7 +34,7 @@ courtsRouter.put("/pricing", requirePermission("courts.price"), handler(async (r
 courtsRouter.get("/slots", requirePermission("slots.view"), handler(async (req, res) => {
   const date = parse(dateStr, req.query.date ?? todayKey());
   const [slots, blocks] = await Promise.all([prisma.bookingSlot.findMany({ where: { date } }), prisma.slotBlock.findMany({ where: { date } })]);
-  const bookings = await prisma.booking.findMany({ where: { id: { in: slots.map((s) => s.bookingId) } }, select: { id: true, code: true, customerName: true, customerPhone: true, userId: true, status: true, paymentStatus: true, startTime: true, endTime: true, duration: true, totalPrice: true, source: true, notes: true } });
+  const bookings = await prisma.booking.findMany({ where: { id: { in: slots.map((s) => s.bookingId) } }, select: { id: true, code: true, customerName: true, customerPhone: true, userId: true, status: true, paymentStatus: true, startTime: true, endTime: true, duration: true, totalPrice: true, source: true, notes: true, promoCode: true, discountAmount: true } });
   const pricing = await getHourlyPricing();
   const fallback = await getHourlyRate();
   const hours = Array.from({ length: 24 }, (_, hour) => {

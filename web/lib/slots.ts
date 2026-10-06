@@ -14,6 +14,8 @@ export type SlotBooking = {
   totalPrice: number;
   source: string;
   notes: string | null;
+  promoCode: string | null;
+  discountAmount: number;
 };
 
 export type Hour = {
