@@ -694,16 +694,21 @@ model Complaint {
   @@index([status, createdAt])
 }
 
-// Promo codes switched OFF for one customer (customer backend migration 20261008000001_customer_promo_rules). A row = blocked.
-model CustomerPromoRule {
-  id        String   @id @default(cuid())
-  userId    String
+// VIP discount code staff give to ONE customer (customer backend migration 20261009000001_vip_codes).
+model VipCode {
+  id        String    @id @default(cuid())
+  userId    String    @unique
   code      String
+  type      String // percent | flat
+  value     Int
+  active    Boolean   @default(true)
+  note      String?
+  claimedAt DateTime?
   createdBy String
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
-  @@unique([userId, code])
-  @@index([userId])
+  @@index([code])
 }
 
 // =====================================================================

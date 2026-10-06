@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, Phone, Search, Users } from "lucide-react";
+import { Ban, ChevronLeft, ChevronRight, Phone, Search, Users } from "lucide-react";
 import { Badge } from "../bookings/Badge";
 import CustomerSheet from "./CustomerSheet";
 import { rs } from "@/lib/bookings";
-import { CustomerList, CustomerRow, Mode, PAGE_SIZE, initials, listCustomers } from "@/lib/customers";
+import { canDo } from "@/lib/auth";
+import { CustomerList, CustomerRow, Mode, PAGE_SIZE, initials, listCustomers, setActive } from "@/lib/customers";
 
 const MODES: { id: Mode | ""; label: string }[] = [{ id: "", label: "Everyone" }, { id: "captain", label: "Captains" }, { id: "player", label: "Regular players" }];
 
@@ -19,6 +20,17 @@ export default function CustomersPage() {
   const [error, setError] = useState("");
   const [open, setOpen] = useState<CustomerRow | null>(null);
   const [tick, setTick] = useState(0);
+  const canSuspend = canDo("customers.write");
+
+  async function suspend(c: CustomerRow) {
+    if (!window.confirm(`Suspend ${c.name ?? c.phoneNumber}? They cancelled ${c.stats.cancelStreak} games in a row. They will not be able to sign in. Their records are kept and you can reactivate them later.`)) return;
+    try {
+      await setActive(c.phoneNumber, false);
+      setTick((t) => t + 1);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not suspend this account");
+    }
+  }
 
   useEffect(() => {
     const t = setTimeout(() => { setQ(search); setPageNo(1); }, 300);
@@ -74,7 +86,8 @@ export default function CustomersPage() {
 
       <ul className="space-y-2">
         {data?.items.map((c) => (
-          <li key={c.phoneNumber} className="flex items-center gap-3 rounded-2xl bg-surface p-3 shadow-sm">
+          <li key={c.phoneNumber} className="rounded-2xl bg-surface p-3 shadow-sm">
+            <div className="flex items-center gap-3">
             <button onClick={() => setOpen(c)} className="flex min-w-0 flex-1 items-center gap-3 text-left" aria-label={`Open ${c.name ?? c.phoneNumber}`}>
               <span className="relative grid h-12 w-12 shrink-0 place-items-center rounded-full bg-brand/15 font-bold text-brand">
                 {initials(c.name, c.phoneNumber)}
@@ -95,6 +108,13 @@ export default function CustomersPage() {
               </span>
             </button>
             <a href={`tel:${c.phoneNumber}`} aria-label={`Call ${c.name ?? c.phoneNumber}`} className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-brand text-white"><Phone size={18} /></a>
+            </div>
+            {c.stats.cancelStreak >= 2 && (
+              <div className={`mt-2 flex items-center justify-between gap-2 rounded-xl px-3 py-2 text-sm ${c.stats.cancelStreak >= 3 ? "bg-red-500/10 text-red-600" : "bg-amber-500/10 text-amber-700"}`}>
+                <span className="flex items-center gap-1.5 font-semibold"><Ban size={15} /> Cancelled {c.stats.cancelStreak} games in a row</span>
+                {canSuspend && c.isActive && <button onClick={() => suspend(c)} className="rounded-full bg-red-600 px-3 py-1 text-xs font-bold text-white">Suspend now</button>}
+              </div>
+            )}
           </li>
         ))}
       </ul>
