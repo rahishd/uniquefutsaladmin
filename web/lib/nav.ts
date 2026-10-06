@@ -322,10 +322,11 @@ export const modules: Module[] = [
   {
     slug: "settings", title: "Settings", group: "System", icon: "settings",
     summary: "Venue settings and integrations.",
-    clientFeatures: ["Booking window and rules", "OTP off, test payment gateway until real keys exist"],
-    adminTasks: ["Venue settings", "Payment gateway status", "Push and SMS status"],
+    clientFeatures: ["Footer, Help page and the Call / WhatsApp buttons show the venue details", "Venue Wi-Fi", "Advance deposit when booking"],
+    adminTasks: ["Edit venue name, phone, WhatsApp, email, address, social links and map", "Venue Wi-Fi name and password", "Booking advance deposit", "See Fonepay (test or live), push and database status", "Change my password"],
     endpoints: [
-      e("GET", "/admin/settings", "venue settings, Wi-Fi", "needed"),
+      e("GET", "/admin/settings", "venue details, Wi-Fi, deposit and integration status (no secrets)"),
+      e("PUT", "/admin/settings/venue", "save venue details"), e("PUT", "/admin/settings/wifi", "save Wi-Fi"), e("PUT", "/admin/settings/booking", "save the advance deposit"),
     ],
   },
 ];

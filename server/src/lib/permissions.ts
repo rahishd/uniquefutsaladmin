@@ -109,6 +109,10 @@ export const SECTIONS: Section[] = [
     { key: "reports.view", label: "View Reports" },
     { key: "audit.view", label: "View Audit Log" },
   ] },
+  { id: "settings", label: "Settings", permissions: [
+    { key: "settings.view", label: "View Venue Settings & Integrations" },
+    { key: "settings.edit", label: "Change Venue Details, Wi-Fi & Booking Deposit" },
+  ] },
 ];
 
 // "staff.manage" (add accounts, choose what staff may do) belongs to the owner only and is never offered in the list above.
