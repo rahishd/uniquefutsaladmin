@@ -19,6 +19,7 @@ import { ledgerRouter } from "./modules/payments-ledger";
 import { promosRouter } from "./modules/promos";
 import { staffRouter } from "./modules/staff";
 import { teamsRouter } from "./modules/teams";
+import { vipRouter } from "./modules/vip";
 
 export const app = express();
 app.set("trust proxy", 1);
@@ -47,6 +48,7 @@ admin.use("/loyalty", loyaltyRouter);
 admin.use("/membership", membershipPlansRouter);
 admin.use("/gamezone", gamezoneRouter);
 admin.use("/teams", teamsRouter);
+admin.use("/vip", vipRouter);
 admin.use("/", overviewRouter);
 app.use("/api/admin", admin);
 

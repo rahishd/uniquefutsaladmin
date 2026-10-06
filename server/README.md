@@ -18,7 +18,7 @@ npm run db:local            # throw-away PostgreSQL on :5441 (leave running)
 npm run db:push             # builds all tables in the LOCAL database
 npm run create-owner        # first owner account, then delete OWNER_PASSWORD from .env
 npm run dev                 # http://localhost:5100/api
-npm test                    # 45 tests against the local unique_test database (run db:push for it first, see below)
+npm test                    # 51 tests against the local unique_test database (run db:push for it first, see below)
 ```
 `db:push` only suits an empty local database: on a dev database that already has data and the `_admin_migrations` table, Prisma refuses (it would drop that table), so apply admin changes with `npm run db:migrate` instead (this is also how production gets them).
 

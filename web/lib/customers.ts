@@ -9,6 +9,7 @@ export type CustomerRow = {
   isActive: boolean;
   createdAt: string;
   mode: Mode;
+  vip: null | { code: string; active: boolean };
   stats: { gamesPlayed: number; gamezoneSessions: number; paidTotal: number; unpaidTotal: number; openComplaints: number; cancelStreak: number };
 };
 export type CustomerList = { items: CustomerRow[]; total: number; page: number; limit: number };

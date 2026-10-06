@@ -95,6 +95,16 @@ export const modules: Module[] = [
     ],
   },
   {
+    slug: "vip", title: "VIP Privilege", group: "Customers", icon: "crown",
+    summary: "Give a customer a special code. They type it once and get a discount on every game.",
+    clientFeatures: ["Promo code box on the booking screen", "The VIP code is typed once, then applied to every booking automatically", "The bigger of the VIP discount and a normal promo code is used"],
+    adminTasks: ["Pick a customer and make a code (or type your own, for example VIP)", "Choose a percent or a rupee amount off", "Share the code on WhatsApp", "Pause, change or remove it", "See who has typed it, how many games it discounted and how much it saved"],
+    endpoints: [
+      e("GET", "/admin/vip", "all VIP customers with usage and totals"), e("GET", "/admin/vip/generate-code", "a fresh unused code"),
+      e("POST", "/admin/vip", "give a customer a VIP code"), e("PUT", "/admin/customers/:phone/vip", "change or pause"), e("DELETE", "/admin/customers/:phone/vip", "remove"),
+    ],
+  },
+  {
     slug: "membership", title: "Membership", group: "Customers", icon: "badge",
     summary: "Monthly / 3 / 6 month plans by shift (Basic, Premium).",
     clientFeatures: ["Offers with discounted prices per shift", "Request a plan (pending until staff verify payment)", "4 PM to 8 PM never offered", "Points for 3 and 6 month plans"],
