@@ -46,8 +46,8 @@ export type BulkInput = Omit<WalkInInput, "date"> & { dates: string[]; mode: "fr
 export type BulkResult = BulkPlan & { created?: { id: string; code: string; date: string }[]; skipped?: string[] };
 export const bulkBook = (b: BulkInput) => api<BulkResult>("/admin/bookings/walk-in/bulk", { method: "POST", body: JSON.stringify(b) });
 export const rejectBooking = (id: string) => api(`/admin/bookings/${encodeURIComponent(id)}/cancel`, { method: "POST", body: "{}" });
-export const findCustomer = (phone: string) =>
-  api<{ items: { phoneNumber: string; name: string | null }[] }>(`/admin/customers?q=${encodeURIComponent(phone)}&limit=1`);
+export const findCustomer = (phone: string, limit = 1) =>
+  api<{ items: { phoneNumber: string; name: string | null }[] }>(`/admin/customers?q=${encodeURIComponent(phone)}&limit=${limit}`);
 
 // ---- date and time helpers (Nepal time, whatever the browser's time zone) ----
 const nepalDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kathmandu", year: "numeric", month: "2-digit", day: "2-digit" });

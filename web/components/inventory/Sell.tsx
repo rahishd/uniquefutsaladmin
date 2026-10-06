@@ -1,5 +1,6 @@
 "use client";
 
+import CustomerSuggest from "../CustomerSuggest";
 import WhatsAppInvoice from "../WhatsAppInvoice";
 import { useEffect, useState } from "react";
 import { CheckCircle2, Minus, Plus, Search, ShoppingCart } from "lucide-react";
@@ -154,7 +155,7 @@ export default function Sell({ tick, onChanged }: { tick: number; onChanged: () 
         <h2 className="flex items-center gap-2 font-semibold"><ShoppingCart size={18} /> {known ? "Final bill" : "This sale"}</h2>
 
         <label className="block space-y-1 text-sm font-medium">Customer number <span className="font-normal text-muted">(optional)</span>
-          <input inputMode="numeric" value={phone} onChange={(e) => { setPhone(e.target.value.replace(/\D/g, "").slice(0, 10)); setError(""); }} placeholder="98XXXXXXXX" className={`${field} w-full`} />
+          <CustomerSuggest by="phone" value={phone} onChange={(v) => { setPhone(v); setError(""); }} onPick={(c) => { setPhone(c.phoneNumber); setError(""); }} placeholder="98XXXXXXXX" className={`${field} w-full`} />
         </label>
         {phone && !phoneOk && <p className="text-xs text-red-600">Enter all 10 digits, starting with 9.</p>}
         {phoneOk && customer && !known && <p className="rounded-xl bg-amber-500/10 p-2 text-xs text-amber-700">This number is not registered, so there is no account for the bill or points. Clear it for a walk-in sale.</p>}

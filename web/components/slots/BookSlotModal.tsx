@@ -1,5 +1,6 @@
 "use client";
 
+import CustomerSuggest from "../CustomerSuggest";
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { Hour, WalkInInput, bookManually, findCustomer, hhmm, hourLabel, longDate } from "@/lib/slots";
@@ -80,13 +81,13 @@ export default function BookSlotModal({ date, hours, hour, past, onClose, onBook
         </div>
 
         <label className="block text-sm font-medium">Mobile number <span className="font-normal text-muted">(optional)</span>
-          <input className={`${input} mt-1`} inputMode="numeric" maxLength={10} value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))} placeholder="98XXXXXXXX" />
+          <CustomerSuggest by="phone" className={`${input} mt-1`} value={phone} onChange={setPhone} onPick={(c) => { setPhone(c.phoneNumber); if (c.name) setName(c.name); }} placeholder="98XXXXXXXX" />
           {registered && <span className="mt-1 block text-xs font-normal text-brand">Registered customer: {registered}. Points are added to their account.</span>}
           {phoneOk && !registered && found?.phone !== phone && <span className="mt-1 block text-xs font-normal text-muted">Not registered: booked as a guest.</span>}
         </label>
 
         <label className="block text-sm font-medium">Customer name
-          <input className={`${input} mt-1`} value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" autoFocus />
+          <CustomerSuggest by="name" className={`${input} mt-1`} value={name} onChange={setName} onPick={(c) => { setPhone(c.phoneNumber); if (c.name) setName(c.name); }} placeholder="Full name" autoFocus />
         </label>
 
         <div className="grid grid-cols-2 gap-3">
