@@ -313,9 +313,10 @@ export const modules: Module[] = [
     slug: "audit", title: "Audit Log", group: "System", icon: "list",
     summary: "Who changed what and when.",
     clientFeatures: [],
-    adminTasks: ["Filter by action, entity, user", "View before / after"],
+    adminTasks: ["Search a name, record code, phone or any word in the details", "Filter by staff, what changed, action and date (Today, Yesterday, custom)", "Open an entry to see what was saved", "Download the filtered log"],
     endpoints: [
-      e("GET", "/admin/audit", "filter by entity, action, staff"),
+      e("GET", "/admin/audit", "filter by entity, action, staff, record id, from / to dates and search text"),
+      e("GET", "/admin/audit/filters", "staff, entities and actions with counts, and today / 7 days / all-time totals"),
     ],
   },
   {
