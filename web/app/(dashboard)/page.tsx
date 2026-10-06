@@ -66,6 +66,8 @@ export default function Home() {
         </div>
       </section>
 
+      <Link href="/overview" className="flex items-center justify-between rounded-2xl bg-surface p-4 text-sm font-semibold shadow-sm"><span>Overview: today&apos;s sales, a week chart and what needs attention</span><span className="text-brand">Open</span></Link>
+
       <Card title="Needs attention">
         {attention.map((a) => <Tile key={a.label} href={a.href} label={a.label} Icon={icons[a.icon]} badge="—" />)}
       </Card>

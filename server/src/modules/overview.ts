@@ -7,6 +7,7 @@ import { audit } from "../lib/audit";
 import { addDaysKey, todayKey } from "../lib/dates";
 import { AppError, dateStr, handler, page, parse, send } from "../lib/http";
 import { requirePermission } from "../middleware/auth";
+import { buildReport } from "./inventory-report";
 
 export const overviewRouter = Router();
 
@@ -28,6 +29,41 @@ overviewRouter.get("/dashboard", requirePermission("dashboard.view"), handler(as
   send(res, {
     date: today, bookingsToday, revenueToday: (paidToday._sum.totalPrice ?? 0) + (gzPaidToday._sum.total ?? 0),
     pendingPayments, disputes, refundsDue: refundOrders.length - new Set(paidRefunds.map((e) => e.orderCode)).size, arrivalsToday: checkins, newCustomers,
+  });
+}));
+
+// ---- overview: one screen for the day (money, what needs attention, the next games, a week of sales) ----
+const sales = (r: Awaited<ReturnType<typeof buildReport>>) => ({ cash: r.totals.cash, fonepay: r.totals.fonepay, total: r.totals.total });
+
+overviewRouter.get("/overview", requirePermission("dashboard.view"), handler(async (_req, res) => {
+  const today = todayKey();
+  const [t, y] = await Promise.all([buildReport(today, today), buildReport(addDaysKey(today, -1), addDaysKey(today, -1))]);
+  const week = await Promise.all(Array.from({ length: 7 }, (_, i) => addDaysKey(today, i - 6)).map(async (d) => ({ date: d, ...sales(await buildReport(d, d)) })));
+  const live = { status: { notIn: ["cancelled", "expired", "cancelled_due_to_tournament", "skipped_due_to_tournament"] } };
+  const nowKey = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kathmandu", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());
+  const [next, dues, products, pendingMembers, subs, complaints, referrals, unpaidToday, disputes, newCustomers] = await Promise.all([
+    prisma.booking.findMany({ where: { date: today, startTime: { gte: nowKey }, OR: [{ notes: null }, { notes: { not: { contains: "MEMBERSHIP_PAYMENT" } } }], ...live }, orderBy: { startTime: "asc" }, take: 6, select: { id: true, code: true, startTime: true, customerName: true, totalPrice: true, paymentStatus: true } }),
+    prisma.goodsDue.aggregate({ where: { status: "due" }, _sum: { amount: true }, _count: true }),
+    prisma.product.findMany({ select: { inventory: true, lowStockThreshold: true } }),
+    prisma.membershipSubscription.count({ where: { status: "pending" } }),
+    prisma.membershipSubscription.findMany({ where: { status: "active" }, select: { endDate: true } }),
+    prisma.complaint.count({ where: { status: { in: ["open", "in_review"] } } }),
+    prisma.referral.count({ where: { status: "pending" } }),
+    prisma.booking.count({ where: { date: today, paymentStatus: { not: "completed" }, OR: [{ notes: null }, { notes: { not: { contains: "MEMBERSHIP_PAYMENT" } } }], ...live } }),
+    prisma.challengeResult.count({ where: { status: "disputed" } }),
+    prisma.user.count({ where: { createdAt: { gte: new Date(`${today}T00:00:00+05:45`) }, role: "user" } }),
+  ]);
+  const soon = addDaysKey(today, 15);
+  const expiring = subs.filter((x) => { const e = x.endDate.toISOString().slice(0, 10); return e >= today && e <= soon; }).length;
+  send(res, {
+    date: today, today: sales(t), yesterday: sales(y), week,
+    bySource: t.totals.bySource,
+    games: { count: t.games.count, paid: t.games.paidCount, unpaid: unpaidToday }, gamezone: t.gamezone.count, itemsSold: t.itemsSold.reduce((n, i) => n + i.qty, 0), newCustomers,
+    attention: {
+      unpaidGamesToday: unpaidToday, goodsDue: { amount: dues._sum.amount ?? 0, count: dues._count }, lowStock: products.filter((p) => p.inventory <= p.lowStockThreshold).length,
+      membersWaiting: pendingMembers, membersExpiring: expiring, openComplaints: complaints, pendingReferrals: referrals, disputes,
+    },
+    nextGames: next,
   });
 }));
 
