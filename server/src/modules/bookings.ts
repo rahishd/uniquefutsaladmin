@@ -8,6 +8,7 @@ import { awardForCompletedBooking, notify } from "../lib/customer-effects";
 import { addDaysKey, currentHour, todayKey } from "../lib/dates";
 import { AppError, dateStr, handler, page, param, parse, send, timeStr } from "../lib/http";
 import { requirePermission } from "../middleware/auth";
+import { billCode, gameLabel } from "./inventory";
 import { getHourPrice } from "./settings-store";
 
 export const bookingsRouter = Router();
@@ -77,6 +78,86 @@ bookingsRouter.get("/calendar", requirePermission("bookings.view"), handler(asyn
 bookingsRouter.get("/counts", requirePermission("bookings.view"), handler(async (_req, res) => {
   const [upcoming, today, previous] = await Promise.all(["upcoming", "today", "previous"].map((s) => prisma.booking.count({ where: { AND: [NOT_LEDGER, { date: scopeDate(s) }] } })));
   send(res, { upcoming, today, previous });
+}));
+
+// ---- dues: what one customer still owes ----
+const DEAD = ["cancelled", "expired", "rejected"];
+type Owner = { userId: string | null; customerPhone: string | null };
+const ownerKey = (b: Owner) => b.userId ?? (b.customerPhone && /^9\d{9}$/.test(b.customerPhone) ? b.customerPhone : null);
+const sameOwner = (a: Owner, b: Owner) => !!ownerKey(a) && ownerKey(a) === ownerKey(b);
+const owes = (b: { paymentStatus: string; status: string; paymentMethod: string }) =>
+  b.paymentStatus !== "completed" && !DEAD.includes(b.status) && !(b.status === "pending" && b.paymentMethod !== "venue"); // an online booking still waiting for its QR is not a due
+const dueView = (b: { id: string; code: string | null; date: string; startTime: string; endTime: string; totalPrice: number; status: string; promoCode: string | null }) => ({
+  id: b.id, code: b.code ?? "UF-" + b.id.slice(-6).toUpperCase(), date: b.date, startTime: b.startTime, endTime: b.endTime, total: Math.round(b.totalPrice), status: b.status, promoCode: b.promoCode,
+});
+
+// For an unpaid booking: the same customer's other unpaid bookings, old ones up to today (to be added to today's payment) and upcoming ones (optional).
+bookingsRouter.get("/:id/dues", requirePermission("bookings.view"), handler(async (req, res) => {
+  const b = await load(param(req, "id"));
+  const key = ownerKey(b);
+  const today = todayKey();
+  const others = key
+    ? await prisma.booking.findMany({ where: { id: { not: b.id }, OR: [{ userId: key }, { customerPhone: key }] }, orderBy: [{ date: "asc" }, { startTime: "asc" }], take: 300 })
+    : [];
+  const unpaid = others.filter(owes);
+  const past = unpaid.filter((x) => x.date < today), todays = unpaid.filter((x) => x.date === today), upcoming = unpaid.filter((x) => x.date > today);
+  const user = b.userId ? await prisma.user.findUnique({ where: { phoneNumber: b.userId }, select: { name: true } }) : null;
+  send(res, {
+    customer: { name: user?.name ?? b.customerName, phone: key, registered: !!b.userId, known: !!key },
+    current: { ...dueView(b), owed: owes(b) },
+    past: past.map(dueView), today: todays.map(dueView), upcoming: upcoming.map(dueView),
+    pastTotal: past.reduce((s, x) => s + Math.round(x.totalPrice), 0),
+  });
+}));
+
+// Collect several of one customer's unpaid bookings in one payment. A registered customer gets one bill (CB-...) in their payment history.
+bookingsRouter.post("/collect-dues", requirePermission("payments.collect"), handler(async (req, res) => {
+  const b = parse(z.object({ anchorId: z.string().min(1), bookingIds: z.array(z.string().min(1)).min(1).max(40), method: z.enum(["venue", "esewa", "fonepay"]).default("venue") }), req.body);
+  const anchor = await load(b.anchorId);
+  const ids = [...new Set(b.bookingIds)];
+  const rows = await prisma.booking.findMany({ where: { id: { in: ids } }, orderBy: [{ date: "asc" }, { startTime: "asc" }] });
+  if (rows.length !== ids.length) throw new AppError(404, "One of the bookings was not found");
+  for (const r of rows) {
+    if (r.id !== anchor.id && !sameOwner(anchor, r)) throw new AppError(400, "These bookings do not all belong to the same customer");
+    if (DEAD.includes(r.status)) throw new AppError(409, `${gameLabel(r)} is ${r.status}`);
+  }
+  const staffId = req.staff!.id;
+  const code = anchor.userId ? await billCode() : null;
+  const out = await prisma.$transaction(async (tx) => {
+    let total = 0;
+    const lines: { type: "game"; label: string; quantity: number; amount: number }[] = [];
+    for (const r of rows) {
+      const amount = Math.round(r.totalPrice);
+      // only one request can move a booking to paid, so nothing is collected twice
+      const claimed = await tx.booking.updateMany({
+        where: { id: r.id, paymentStatus: { not: "completed" } },
+        data: { paymentStatus: "completed", status: r.status === "pending" ? "confirmed" : r.status, holdExpiresAt: null, paymentMethod: b.method, amountPaidNow: r.totalPrice, remainingAmount: 0, cashAmount: b.method === "venue" ? r.totalPrice : r.cashAmount, onlineAmount: b.method === "venue" ? r.onlineAmount : r.totalPrice },
+      });
+      if (claimed.count === 0) throw new AppError(409, `${gameLabel(r)} is already paid`);
+      if (r.paymentOrderCode) {
+        await tx.paymentOrder.updateMany({ where: { orderCode: r.paymentOrderCode, status: { in: ["pending", "expired"] } }, data: { status: "paid", paidAt: new Date(), paidBy: staffId } });
+        await tx.paymentEvent.create({ data: { orderCode: r.paymentOrderCode, source: "staff", payload: JSON.stringify({ event: "MARKED_PAID", by: staffId, method: b.method, dues: true }) } });
+      }
+      total += amount;
+      lines.push({ type: "game", label: gameLabel(r), quantity: 1, amount });
+    }
+    const bill = code && anchor.userId
+      ? await tx.checkout.create({ data: { code, userId: anchor.userId, paymentMethod: b.method === "venue" ? "cash" : "online", goodsTotal: 0, gameTotal: total, total, lines: JSON.stringify(lines), bookingIds: rows.map((r) => r.id), createdBy: staffId } })
+      : null;
+    return { total, bill };
+  });
+  let points = 0;
+  for (const r of rows) {
+    const fresh = await load(r.id);
+    if (fresh.status === "completed" && (await awardForCompletedBooking(fresh))) points += Math.floor(Math.max(0, fresh.totalPrice) / 10) / 10;
+  }
+  points = Math.round(points * 10) / 10;
+  if (out.bill) {
+    await prisma.checkout.update({ where: { id: out.bill.id }, data: { pointsGames: points } });
+    await notify(prisma, { userId: anchor.userId!, type: "payment", title: `Bill ${code}: Rs. ${out.total}`, message: `Paid ${b.method === "venue" ? "in cash" : "online"} at the venue for ${rows.length} game${rows.length === 1 ? "" : "s"}.${points ? ` You earned ${points} loyalty points.` : ""}`, href: "/profile", dedupeKey: `bill-${code}` });
+  }
+  await audit(req, "collect-dues", "booking", anchor.id, { bookings: rows.map((r) => r.code ?? r.id), total: out.total, method: b.method, bill: code });
+  send(res, { count: rows.length, total: out.total, billCode: code, points }, `Collected Rs. ${out.total} for ${rows.length} booking${rows.length === 1 ? "" : "s"}`);
 }));
 
 bookingsRouter.get("/:id", requirePermission("bookings.view"), handler(async (req, res) => {
