@@ -291,6 +291,33 @@ describe("gamezone, teams, notices, reports", () => {
     assert.equal((await api.get("/notifications/history", (await staff("staff", "nonotice@test.np")).auth)).status, 403);
   });
 
+  it("notices also go out as Web Push to saved devices, and dead devices are removed", async () => {
+    const { setPushSender } = await import("../src/lib/push");
+    await customer("9820000021"); await customer("9820000022");
+    await prisma.pushSubscription.createMany({ data: [
+      { userId: "9820000021", endpoint: "https://push.test/live", p256dh: "k", auth: "a" },
+      { userId: "9820000022", endpoint: "https://push.test/dead", p256dh: "k", auth: "a" },
+    ] });
+    const got: { endpoint: string; body: string }[] = [];
+    setPushSender(async (sub, payload) => {
+      if (sub.endpoint.endsWith("dead")) throw Object.assign(new Error("gone"), { statusCode: 410 });
+      got.push({ endpoint: sub.endpoint, body: payload });
+    });
+    try {
+      const mgr = await staff("manager");
+      const r = await api.post("/notifications/broadcast", mgr.auth, { type: "general", title: "Push me", message: "Hello there", href: "/promos" });
+      assert.equal(r.body.data.pushed, 1);
+      assert.equal(got.length, 1);
+      assert.deepEqual(JSON.parse(got[0].body).title, "Push me");
+      assert.equal(JSON.parse(got[0].body).href, "/promos");
+      assert.equal(await prisma.pushSubscription.count({ where: { endpoint: "https://push.test/dead" } }), 0);
+      const h = await api.get("/notifications/history", mgr.auth);
+      assert.equal(h.body.data[0].pushed, 1);
+    } finally {
+      setPushSender(null);
+    }
+  });
+
   it("dashboard, revenue report and audit log work; the audit log never holds passwords", async () => {
     const owner = await staff("owner");
     await api.post("/bookings/walk-in", owner.auth, { date: today, startTime: "09:00", customerName: "Ram", paid: true, priceOverride: 1000 });

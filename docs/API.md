@@ -47,7 +47,7 @@ Dates `YYYY-MM-DD`, times `HH:00`, Nepal time, money in whole rupees. List endpo
 | | `POST /teams/challenges/:id/venue-paid` | teams.write | marks the game paid and sends "Did you win?" to both captains |
 | Gamezone | `GET /gamezone/bookings`, `POST /gamezone/bookings/:code/mark-paid|complete|cancel` | gamezone.read / write | cancelling frees the console hour; paid → refund due |
 | | `GET /gamezone/catalog`, `POST/PATCH /gamezone/consoles|games`, `PUT /gamezone/plans/:players` | gamezone.write | plans for 1, 2 or 4 players |
-| Notices | `POST /notifications/broadcast` | notifications.write | `{type: promo|tournament|general, title, message, href?, audience: all|captains|customer, phone? (customer only)}`; promo respects opt-outs; inactive customers skipped |
+| Notices | `POST /notifications/broadcast` | notifications.write | `{type: promo|tournament|general, title, message, href?, audience: all|captains|customer, phone? (customer only)}`; promo respects opt-outs; inactive customers skipped; also sent as Web Push to each customer's saved devices (needs the customer backend's VAPID keys in this server's `.env`), response has `pushed` |
 | Notices | `GET /notifications/reach?type&audience&phone` | notifications.write | `{reach, skippedOptOut}` before sending |
 | Notices | `GET /notifications/history` | notifications.write | last 30 broadcasts: `{type,title,message,audience,phone,sent,read,by,at}` |
 | Reports | `GET /reports/revenue`, `/reports/occupancy`, `/reports/loyalty-liability` | reports.read | revenue and occupancy: max 93 days |
