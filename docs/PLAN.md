@@ -18,5 +18,5 @@ Customer-side admin requirements: `FRD/BACKEND-REQUIREMENTS.md` section 4.14 and
 ## Open items (decide before connecting)
 - Staff roles beyond owner?
 - One court or two?
-- Refund handling while eSewa/Fonepay keys do not exist.
+- Refund handling while the Fonepay keys do not exist.
 - How the admin server shares the customer database: for now it mirrors the customer Prisma schema and owns only StaffUser, AdminAuditLog and SlotBlock (sql/001_admin_tables.sql).

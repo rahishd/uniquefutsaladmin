@@ -47,7 +47,7 @@ export type BillLine = { type: "game" | "goods"; label: string; quantity: number
 export type CustomerGame = { id: string; code: string; date: string; startTime: string; endTime: string; total: number; status: string; paid: boolean; paymentMethod: string; pointsIfCompleted: number; upcoming: boolean };
 export type GoodsDueItem = { id: string; items: string; amount: number; createdAt: string };
 export type CustomerBill = { customer: { phone: string; name: string | null } | null; games: CustomerGame[]; goodsDues: GoodsDueItem[] };
-export type PayArgs = { payment?: "cash" | "online" | "due"; payments?: { method: "cash" | "esewa" | "fonepay"; amount: number }[] };
+export type PayArgs = { payment?: "cash" | "online" | "due"; payments?: { method: "cash" | "fonepay"; amount: number }[]; fonepayQrId?: string };
 export type BillResult = { id: string; code: string; due?: false; total: number; goodsTotal: number; gameTotal: number; lines: BillLine[]; customerName: string | null; pointsGoods: number; pointsGames: number; gamesWaitingForPoints: number };
 export type Bill = { id: string; code: string; customerPhone: string; customerName: string | null; total: number; goodsTotal: number; gameTotal: number; paymentMethod: string; lines: BillLine[]; points: number; createdAt: string };
 

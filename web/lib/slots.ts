@@ -34,7 +34,7 @@ export type WalkInInput = {
   duration: number;
   customerName: string;
   customerPhone?: string;
-  paymentMethod: "venue" | "esewa" | "fonepay";
+  paymentMethod: "venue" | "fonepay";
   paid: boolean;
   priceOverride?: number;
   notes?: string;

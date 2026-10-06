@@ -3,7 +3,7 @@ import { shiftDate, todayKey } from "./slots";
 
 export type Kind = "court" | "gamezone";
 export type PayStatus = "paid" | "unpaid" | "cancelled";
-export type Mode = "cash" | "online" | "esewa" | "fonepay";
+export type Mode = "cash" | "online" | "fonepay";
 export type Period = "today" | "week" | "month" | "all" | "custom";
 
 export type Filters = { kind: Kind; status: PayStatus | ""; mode: Mode | ""; period: Period; from: string; to: string; q: string };
@@ -68,9 +68,7 @@ export const paymentSummary = (f: Filters) => {
 
 export type CollectTarget = Pick<Row, "kind" | "ref" | "code" | "customer" | "amount" | "method">;
 
-export const collect = (row: CollectTarget, method: "venue" | "esewa" | "fonepay") =>
-  row.kind === "court"
-    ? api(`/admin/bookings/${encodeURIComponent(row.ref)}/mark-paid`, { method: "POST", body: JSON.stringify({ method }) })
-    : api(`/admin/gamezone/bookings/${encodeURIComponent(row.ref)}/mark-paid`, { method: "POST", body: "{}" });
+// Court bookings are collected through the dues call (cash, Fonepay QR or both); only Gamezone sessions use this one.
+export const collectGamezone = (row: CollectTarget) => api(`/admin/gamezone/bookings/${encodeURIComponent(row.ref)}/mark-paid`, { method: "POST", body: "{}" });
 
-export const METHOD_LABEL: Record<string, string> = { venue: "Cash at venue", esewa: "eSewa", fonepay: "Fonepay" };
+export const METHOD_LABEL: Record<string, string> = { venue: "Cash at venue", fonepay: "Fonepay", esewa: "eSewa (old)" };

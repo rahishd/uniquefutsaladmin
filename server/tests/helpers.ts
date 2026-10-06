@@ -11,7 +11,7 @@ export { app, prisma, request, todayKey, addDaysKey };
 export const PASSWORD = "correct-horse-battery";
 
 export async function reset() {
-  for (const t of ["AdminAuditLog", "SlotBlock", "StaffUser", "BookingSlot", "PlayerGameStat", "PaymentEvent", "PaymentOrder", "LoyaltyEntry", "FreeGameVoucher", "GoodsSale", "ChallengeResult", "ChallengePrompt", "Challenge", "TeamMember", "Team", "GzSlot", "GzBooking", "GzConsole", "GzGame", "GzPlan", "ArrivalCheckin", "Notification", "UserPrefs", "Complaint", "VipCode", "GoodsDue", "Checkout", "InventoryLog", "GoodsSale", "Product", "Category", "AcademyEnrollment", "AcademySession", "Referral", "SiteAd", "SiteGallery", "ContentMedia", "Registration", "Tournament", "Booking", "MembershipSubscription", "MembershipPlan", "User", "Settings"]) {
+  for (const t of ["AdminAuditLog", "SlotBlock", "StaffUser", "BookingSlot", "PlayerGameStat", "PaymentEvent", "PaymentOrder", "LoyaltyEntry", "FreeGameVoucher", "GoodsSale", "ChallengeResult", "ChallengePrompt", "Challenge", "TeamMember", "Team", "GzSlot", "GzBooking", "GzConsole", "GzGame", "GzPlan", "ArrivalCheckin", "Notification", "UserPrefs", "Complaint", "VipCode", "FonepayQr", "GoodsDue", "Checkout", "InventoryLog", "GoodsSale", "Product", "Category", "AcademyEnrollment", "AcademySession", "Referral", "SiteAd", "SiteGallery", "ContentMedia", "Registration", "Tournament", "Booking", "MembershipSubscription", "MembershipPlan", "User", "Settings"]) {
     await prisma.$executeRawUnsafe(`DELETE FROM "${t}"`);
   }
 }
@@ -34,3 +34,12 @@ export const api = {
   patch: (path: string, auth: Record<string, string>, body: object = {}) => request(app).patch(`/api/admin${path}`).set(auth).send(body),
   del: (path: string, auth: Record<string, string>) => request(app).delete(`/api/admin${path}`).set(auth),
 };
+
+// A Fonepay QR that the (test) gateway has marked paid, ready to back the Fonepay part of a bill
+export async function paidQr(auth: Record<string, string>, amount: number) {
+  const q = await api.post("/fonepay/qr", auth, { amount });
+  if (q.status !== 201) throw new Error("QR not made: " + JSON.stringify(q.body));
+  const p = await api.post(`/fonepay/qr/${q.body.data.id}/simulate-paid`, auth);
+  if (p.status !== 200) throw new Error("QR not paid: " + JSON.stringify(p.body));
+  return q.body.data.id as string;
+}

@@ -20,10 +20,10 @@ Dates `YYYY-MM-DD`, times `HH:00`, Nepal time, money in whole rupees. List endpo
 | | `POST /bookings/:id/cancel` | bookings.write | keeps the record, frees the slot, returns a used voucher, paid online order → `refunded` + REFUND_DUE |
 | | `POST /bookings/:id/complete` | bookings.write | not for future games; awards price/100 points once (paid, registered, regular games only) |
 | | `POST /bookings/:id/no-show` | bookings.write | |
-| | `POST /bookings/:id/mark-paid` | payments.write | `{method: venue|esewa|fonepay}`; records how it was really paid (the booking's method is updated) |
+| | `POST /bookings/:id/mark-paid` | payments.write | `{method: venue|fonepay, fonepayQrId?}`; records how it was really paid. Fonepay needs `fonepayQrId`: a QR the gateway marked paid, for exactly the booking total (eSewa was removed) |
 | | `PUT /bookings/:id/player-stats` | bookings.write | goals and assists for registered players |
-| Payments | `GET /payments/ledger?kind=court|gamezone&status=paid|unpaid|cancelled&mode=cash|online|esewa|fonepay&from&to&q` | payments.read | one row per court booking or Gamezone session with paid / unpaid / cancelled and cash (pay at venue) or online (eSewa, Fonepay); `from`/`to` are game dates; membership ledger rows excluded |
-| | `GET /payments/summary` (same filters, without status) | payments.read | paid, unpaid, cancelled counts and sums, split cash / online / eSewa / Fonepay |
+| Payments | `GET /payments/ledger?kind=court|gamezone&status=paid|unpaid|cancelled&mode=cash|online|fonepay&from&to&q` | payments.read | one row per court booking or Gamezone session with paid / unpaid / cancelled and cash (pay at venue) or online (eSewa, Fonepay); `from`/`to` are game dates; membership ledger rows excluded |
+| | `GET /payments/summary` (same filters, without status) | payments.read | paid, unpaid, cancelled counts and sums, split cash / online / Fonepay (older eSewa payments still count as online) |
 | | `GET /payments?status&purpose&method&q` | payments.read | gateway payment orders |
 | | `GET /payments/reconciliation` | payments.read | paid orders whose booking is unpaid, expired-but-paid, failed gateway events |
 | | `GET /payments/refunds?status=due|paid` | payments.read | |
@@ -149,15 +149,35 @@ Staff enter a registered customer's number in Sell goods. The bill lists their g
 
 `GET /bookings/:id/dues` (bookings.view): for an unpaid booking, the same customer's other unpaid bookings (matched by account or by phone number; no phone number means nothing else can be found). `past` = before today, `today`, `upcoming` = after today, plus `pastTotal`. Cancelled, expired, rejected, paid, and online bookings still waiting for their QR are left out.
 
-`POST /bookings/collect-dues` (payments.collect): `{anchorId, bookingIds[], method: venue|esewa|fonepay}`. Collects those bookings in one payment (all must belong to the same customer, each only once: 409 if already paid). A registered customer gets one bill `CB-XXXXXX` in their payment history; games already played earn their points, upcoming ones earn them when completed.
+`POST /bookings/collect-dues` (payments.collect): `{anchorId, bookingIds[], goodsDueIds[], method: venue|fonepay or payments[], fonepayQrId?}`. Collects those bookings in one payment (all must belong to the same customer, each only once: 409 if already paid). A registered customer gets one bill `CB-XXXXXX` in their payment history; games already played earn their points, upcoming ones earn them when completed.
 
 ## Split payment and goods on credit (inventory dues)
 
 All counter collections go through one shared module (`server/src/lib/settle.ts`).
 
-- **Split payment:** `checkout`, `collect-dues` and `POST /inventory/sales` accept `payments: [{method: cash|esewa|fonepay, amount}]` (up to 3, whole rupees). The amounts must add up exactly to the total (400 otherwise, nothing changes). Each line records how much of it was cash and how much online (booking `cashAmount`/`onlineAmount`, stock log). A bill paid with several methods is stored with `paymentMethod: "split"`. A single `payment`/`method` still pays the whole total.
+- **Split payment:** `checkout`, `collect-dues` and `POST /inventory/sales` accept `payments: [{method: cash|fonepay, amount}]` (whole rupees). The amounts must add up exactly to the total (400 otherwise, nothing changes). Each line records how much of it was cash and how much online (booking `cashAmount`/`onlineAmount`, stock log). A bill paid with several methods is stored with `paymentMethod: "split"`. A single `payment`/`method` still pays the whole total.
 - **Goods on credit:** `POST /inventory/checkout` with `payment: "due"` and only `items`: the stock leaves now, a `GoodsDue` row (admin-owned table, `sql/011_goods_dues.sql`) is put on the customer's account (registered customers only), no bill and no points yet, and it is not counted in sales. It needs only `inventory.sell`.
 - **Collecting dues:** `GET /bookings/:id/dues` also returns `goods[]` and `goodsTotal`; `POST /bookings/collect-dues` and `POST /inventory/checkout` accept `goodsDueIds[]` next to `bookingIds[]` (needs `payments.collect`). Paying a goods due makes the bill line, earns the goods points (Rs. 100 = 1) and cannot be done twice (409). `GET /inventory/customer-bill` also lists `goodsDues`; `GET /inventory/overview` has `goodsDue {amount, count}`; `GET /inventory/sales` marks each sale `credit: due|paid|null`.
+
+## Fonepay dynamic QR (eSewa is removed: cash and Fonepay only)
+
+Money collected at the counter is **cash** and/or **Fonepay**. The Fonepay part is always backed by a dynamic QR the server makes for the exact amount. Example: a bill of Rs. 1000, staff enter Rs. 500 cash, the screen works out Rs. 500 for Fonepay and shows a Rs. 500 QR; when the gateway reports it paid, the bill can be saved.
+
+| Route | Who | Notes |
+|---|---|---|
+| `POST /fonepay/qr` | payments.collect, inventory.sell or bookings.create | `{amount (whole rupees, 1 to 1,000,000), remarks?, purpose?, customerPhone?}` -> `{id, prn, amount, status: pending, expiresAt (10 minutes), qrPayload, qrImage (PNG data URL), mode: test or live}` |
+| `GET /fonepay/qr/:id` | same | status `pending, paid, failed, expired`; the screen polls it every 3 seconds; asks the gateway on each call |
+| `POST /fonepay/qr/:id/cancel` | same | not allowed once paid |
+| `POST /fonepay/qr/:id/simulate-paid` | same | **TEST mode only** (404 in live mode): plays the gateway |
+| `POST /fonepay/webhook` | gateway (public) | the gateway's callback; trusted only after the provider verifies its signature; idempotent; amount must match. Returns 501 until the live provider is filled in |
+
+How a QR backs a bill: `checkout`, `collect-dues`, `POST /inventory/sales` and `mark-paid` take `fonepayQrId`. The server checks that the QR is **paid**, **not used before**, and **exactly the Fonepay part** (409 otherwise), and marks it used for that bill. Staff cannot say "it was paid": only the gateway can. A walk-in or bulk booking cannot be created already "paid by Fonepay" (400): book it unpaid, then collect with the QR.
+
+**Going live with the real Fonepay API** (everything else stays the same):
+1. Fill in `LiveFonepayProvider` in `server/src/lib/fonepay.ts`: `createQr` (call Fonepay, return the QR text), `checkStatus` (Fonepay status API), `verifyCallback` (check the gateway signature, return `{prn, paidAmount, reference}`).
+2. Set in `.env`: `FONEPAY_MODE=live`, `FONEPAY_MERCHANT_CODE`, `FONEPAY_SECRET`, `FONEPAY_BASE_URL` (and `FONEPAY_QR_TTL_MINUTES` if needed). `FONEPAY_MODE=test` is refused when `NODE_ENV=production`.
+3. Give Fonepay the callback address `https://<admin server>/api/admin/fonepay/webhook`.
+Table `FonepayQr` (admin-owned, `sql/012_fonepay_qr.sql`) keeps every QR with its PRN, amount, status, who made it and which bill used it.
 
 ## Bulk booking
 

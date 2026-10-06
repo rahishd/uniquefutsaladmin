@@ -10,12 +10,13 @@ import { AppError } from "./http";
 export type Tx = Prisma.TransactionClient;
 
 // ---------- payment methods and splitting ----------
-export const PAY_METHODS = ["cash", "esewa", "fonepay"] as const;
+export const PAY_METHODS = ["cash", "fonepay"] as const;
 export type PayMethod = (typeof PAY_METHODS)[number];
 export type Pay = { method: PayMethod; amount: number };
 export const paysSchema = z.array(z.object({ method: z.enum(PAY_METHODS), amount: z.number().int().min(1).max(10_000_000) })).min(1).max(3);
 // What the caller sent: a list of payments (split), or one method for the whole amount
-export type PayInput = { payments?: Pay[]; single?: PayMethod };
+// fonepayQrId: the paid Fonepay QR that covers the Fonepay part (required whenever there is one)
+export type PayInput = { payments?: Pay[]; single?: PayMethod; fonepayQrId?: string };
 
 export function resolvePays(input: PayInput, total: number): Pay[] {
   let pays: Pay[];
@@ -30,13 +31,13 @@ export function resolvePays(input: PayInput, total: number): Pay[] {
   return pays;
 }
 
-type Share = { cash: number; esewa: number; fonepay: number };
+type Share = { cash: number; fonepay: number };
 // Hands out the payments to each line in order, so every line knows how much of it was cash and how much online.
 export function allocate(lineAmounts: number[], pays: Pay[]): Share[] {
   const pool = pays.map((p) => ({ ...p }));
   let i = 0;
   return lineAmounts.map((amount) => {
-    const share: Share = { cash: 0, esewa: 0, fonepay: 0 };
+    const share: Share = { cash: 0, fonepay: 0 };
     let need = amount;
     while (need > 0 && i < pool.length) {
       const take = Math.min(need, pool[i].amount);
@@ -48,9 +49,24 @@ export function allocate(lineAmounts: number[], pays: Pay[]): Share[] {
     return share;
   });
 }
-const online = (s: Share) => s.esewa + s.fonepay;
+const online = (s: Share) => s.fonepay;
 // The booking's main method is the one that paid most of it
-const dominant = (s: Share): "venue" | "esewa" | "fonepay" => (s.cash >= s.esewa && s.cash >= s.fonepay ? "venue" : s.esewa >= s.fonepay ? "esewa" : "fonepay");
+const dominant = (s: Share): "venue" | "fonepay" => (s.cash >= s.fonepay ? "venue" : "fonepay");
+
+// The Fonepay part of a bill must be backed by a QR the gateway has marked paid, for exactly that amount, and not used before.
+// Staff cannot say "it was paid": only the gateway can (callback or status check), see lib/fonepay.ts.
+export async function claimFonepay(tx: Tx, input: PayInput, pays: Pay[], usedFor: string) {
+  const part = pays.find((p) => p.method === "fonepay");
+  if (!part) return;
+  if (!input.fonepayQrId) throw new AppError(400, "Make the Fonepay QR and wait until it is paid before saving");
+  const q = await tx.fonepayQr.findUnique({ where: { id: input.fonepayQrId } });
+  if (!q) throw new AppError(404, "Fonepay QR not found");
+  if (q.status !== "paid") throw new AppError(409, "The Fonepay QR has not been paid yet");
+  if (q.consumedAt) throw new AppError(409, "This Fonepay payment was already used for another bill");
+  if (q.amount !== part.amount) throw new AppError(409, `The QR is for Rs. ${q.amount} but the Fonepay part is Rs. ${part.amount}. Make a new QR.`);
+  const claimed = await tx.fonepayQr.updateMany({ where: { id: q.id, consumedAt: null }, data: { consumedAt: new Date(), consumedFor: usedFor } });
+  if (claimed.count === 0) throw new AppError(409, "This Fonepay payment was already used for another bill");
+}
 
 // ---------- helpers ----------
 const ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
@@ -103,7 +119,9 @@ export async function commitGoods(tx: Tx, lines: GoodsLine[], staffId: string, p
 export async function sellGoods(tx: Tx, merged: Map<string, number>, pay: PayInput, staffId: string, phoneNo: string | null) {
   const lines = await buildGoods(tx, merged);
   const total = lines.reduce((s, l) => s + l.amount, 0);
-  return commitGoods(tx, lines, staffId, phoneNo, allocate(lines.map((l) => l.amount), resolvePays(pay, total)));
+  const pays = resolvePays(pay, total);
+  await claimFonepay(tx, pay, pays, "counter sale");
+  return commitGoods(tx, lines, staffId, phoneNo, allocate(lines.map((l) => l.amount), pays));
 }
 
 // Goods given on credit: the stock goes now, the money is a due that is collected later with the games.
@@ -140,6 +158,7 @@ export async function settle(inp: SettleInput) {
     const total = lines.reduce((s, l) => s + l.amount, 0);
     if (total <= 0) throw new AppError(400, "There is nothing to collect");
     const pays = resolvePays(inp.pay, total);
+    await claimFonepay(tx, inp.pay, pays, code ?? "counter");
     const shares = allocate(lines.map((l) => l.amount), pays);
     const bill: { type: "game" | "goods"; label: string; quantity: number; amount: number }[] = [];
     let gameTotal = 0, dueTotal = 0;
@@ -200,7 +219,7 @@ export async function settle(inp: SettleInput) {
   pointsGames = Math.round(pointsGames * 10) / 10;
   if (out.row) {
     await prisma.checkout.update({ where: { id: out.row.id }, data: { pointsGoods: new Prisma.Decimal(pointsGoods.toFixed(1)), pointsGames: new Prisma.Decimal(pointsGames.toFixed(1)) } });
-    const how = out.pays.length > 1 ? "in several payments" : out.pays[0].method === "cash" ? "in cash" : "online";
+    const how = out.pays.length > 1 ? "in cash and by Fonepay" : out.pays[0].method === "cash" ? "in cash" : "by Fonepay";
     await notify(prisma, { userId: inp.userId!, type: "payment", title: `Bill ${code}: Rs. ${out.total}`, message: `Paid ${how} at the venue.${pointsGoods + pointsGames ? ` You earned ${Math.round((pointsGoods + pointsGames) * 10) / 10} loyalty points.` : ""}`, href: "/profile", dedupeKey: `bill-${code}` });
   }
   return { id: out.row?.id ?? null, code, total: out.total, goodsTotal: out.goodsTotal, gameTotal: out.gameTotal, lines: out.bill, pointsGoods, pointsGames, gamesWaitingForPoints: waiting, payments: out.pays, count: games.length + inp.goodsDues.length };

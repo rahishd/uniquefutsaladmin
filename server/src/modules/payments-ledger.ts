@@ -1,6 +1,6 @@
 // Payments screen: one row per court booking or Gamezone session, with paid / unpaid status and how it is paid.
 //   status: paid (money received) | unpaid (still to collect) | cancelled (cancelled or expired, nothing owed)
-//   mode:   cash (pay at venue) | online (eSewa or Fonepay)
+//   mode:   cash (pay at venue) | online (Fonepay; older eSewa payments still count as online)
 import { Prisma } from "@prisma/client";
 import { Router } from "express";
 import { z } from "zod";

@@ -9,8 +9,7 @@ import { ApiError } from "@/lib/api";
 const PAYMENT = [
   { id: "unpaid", label: "Not paid yet (collect at the venue)", method: "venue" as const, paid: false },
   { id: "cash", label: "Paid in cash at the venue", method: "venue" as const, paid: true },
-  { id: "esewa", label: "Paid by eSewa", method: "esewa" as const, paid: true },
-  { id: "fonepay", label: "Paid by Fonepay", method: "fonepay" as const, paid: true },
+  // Fonepay is not offered here: it needs a dynamic QR, made from the booking's unpaid dues after booking
 ];
 
 const input = "w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";

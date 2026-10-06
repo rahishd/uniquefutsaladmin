@@ -32,7 +32,17 @@ const DATABASE_URL = process.env.DATABASE_URL || "";
 if (!DATABASE_URL) throw new Error("DATABASE_URL is required.");
 assertSafeDatabaseUrl(DATABASE_URL, NODE_ENV);
 
+// Fonepay dynamic QR: "test" (fake QR + a simulate button) until the real API details exist, then "live". Test mode is refused in production.
+const FONEPAY_MODE = (process.env.FONEPAY_MODE || "test") as "test" | "live";
+if (FONEPAY_MODE !== "test" && FONEPAY_MODE !== "live") throw new Error('FONEPAY_MODE must be "test" or "live".');
+if (NODE_ENV === "production" && FONEPAY_MODE === "test") throw new Error('FONEPAY_MODE=test is not allowed in production. Set FONEPAY_MODE=live and the Fonepay keys.');
+
 export const env = {
+  FONEPAY_MODE,
+  FONEPAY_MERCHANT_CODE: process.env.FONEPAY_MERCHANT_CODE || "",
+  FONEPAY_SECRET: process.env.FONEPAY_SECRET || "",
+  FONEPAY_BASE_URL: process.env.FONEPAY_BASE_URL || "",
+  FONEPAY_QR_TTL_MINUTES: Number(process.env.FONEPAY_QR_TTL_MINUTES) || 10,
   NODE_ENV,
   PORT: Number(process.env.PORT) || 5100,
   DATABASE_URL,

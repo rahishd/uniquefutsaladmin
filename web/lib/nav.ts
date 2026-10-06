@@ -56,7 +56,7 @@ export const modules: Module[] = [
   },
   {
     slug: "payments", title: "Payments", group: "Operations", icon: "wallet",
-    summary: "eSewa / Fonepay QR orders, pay-at-venue and refunds.",
+    summary: "Fonepay QR orders, pay-at-venue and refunds.",
     clientFeatures: ["QR with remarks, valid 10 minutes", "Status polling (paid is never trusted from the browser)", "Pay at venue (registered only)", "Free cancel creates a refund due"],
     adminTasks: ["Mark venue payments paid", "Refund queue (REFUND_DUE events)", "Reconciliation list", "Failed or expired orders and gateway callbacks"],
     endpoints: [

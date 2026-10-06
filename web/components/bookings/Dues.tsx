@@ -59,7 +59,7 @@ export default function Dues({ bookingId, onPaid }: { bookingId: string; onPaid:
     if (ready.problem) return setError(ready.problem);
     setBusy(true); setError("");
     try {
-      const r = await collectDues({ anchorId: bookingId, bookingIds: chosen.map((x) => x.id), goodsDueIds: chosenGoods.map((g) => g.id), ...(ready.payments ? { payments: ready.payments } : { method: ready.single === "cash" ? "venue" : ready.single }) });
+      const r = await collectDues({ anchorId: bookingId, bookingIds: chosen.map((x) => x.id), goodsDueIds: chosenGoods.map((g) => g.id), ...(ready.payments ? { payments: ready.payments } : { method: ready.single === "fonepay" ? "fonepay" : "venue" }), fonepayQrId: ready.fonepayQrId });
       setDone(r); onPaid();
     } catch (e) { setError(e instanceof ApiError ? e.message : "Could not collect the payment"); } finally { setBusy(false); }
   }
@@ -131,7 +131,7 @@ export default function Dues({ bookingId, onPaid }: { bookingId: string; onPaid:
 
       <div className="space-y-2 border-t border-line pt-3">
         <div className="flex items-center justify-between"><span className="text-sm text-muted">{count} selected</span><span className="text-xl font-bold">{rs(total)}</span></div>
-        <PaySplit total={total} value={pay} onChange={(v) => { setPay(v); setError(""); }} />
+        <PaySplit total={total} value={pay} onChange={(v) => { setPay(v); setError(""); }} customerPhone={info.customer.phone ?? undefined} />
         {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600" role="alert">{error}</p>}
         <button onClick={collect} disabled={busy || count === 0 || !!ready.problem} className="w-full rounded-full bg-brand py-3 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Saving…" : `Collect ${rs(total)}`}</button>
       </div>
