@@ -13,6 +13,7 @@ import { complaintsRouter } from "./modules/complaints";
 import { contentRouter } from "./modules/content";
 import { courtsRouter } from "./modules/courts";
 import { customersRouter } from "./modules/customers";
+import { fonepayRouter, fonepayWebhookRouter } from "./modules/fonepay";
 import { gamezoneRouter } from "./modules/gamezone";
 import { inventoryRouter } from "./modules/inventory";
 import { loyaltyRouter } from "./modules/loyalty";
@@ -41,6 +42,7 @@ app.get("/api/health", (_req, res) => { res.json({ success: true, message: "Admi
 
 const admin = express.Router();
 admin.use("/auth", authRouter); // login is the only route without a token
+admin.use("/fonepay/webhook", fonepayWebhookRouter); // the gateway's callback: no staff token, checked by the provider's signature
 // Pictures for the previews in this portal. They are public anyway (the customer app shows them), and an <img> tag cannot send a token.
 admin.get("/media/:id", async (req, res, next) => {
   try {
@@ -62,6 +64,7 @@ admin.use("/academy", academyRouter);
 admin.use("/refer", referRouter);
 admin.use("/content", contentRouter);
 admin.use("/inventory", inventoryRouter);
+admin.use("/fonepay", fonepayRouter);
 admin.use("/courts", courtsRouter);
 admin.use("/promos", promosRouter);
 admin.use("/loyalty", loyaltyRouter);

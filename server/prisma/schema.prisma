@@ -917,3 +917,26 @@ model GoodsDue {
 
   @@index([userId, status])
 }
+
+// Fonepay dynamic QR made at the counter. A paid QR is used once, for exactly its amount, to settle a bill (admin-owned table).
+model FonepayQr {
+  id            String    @id @default(cuid())
+  prn           String    @unique // payment reference number sent to the gateway
+  amount        Int
+  remarks       String
+  payload       String // the text inside the QR
+  providerRef   String?
+  purpose       String    @default("counter")
+  customerPhone String?
+  status        String    @default("pending") // pending | paid | failed | expired
+  note          String?
+  createdBy     String
+  createdAt     DateTime  @default(now())
+  expiresAt     DateTime
+  paidAt        DateTime?
+  paidReference String?
+  consumedAt    DateTime? // set when a bill used this payment
+  consumedFor   String? // the bill code
+
+  @@index([status, createdAt])
+}

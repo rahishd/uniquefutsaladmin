@@ -74,7 +74,7 @@ export default function Sell({ tick, onChanged }: { tick: number; onChanged: () 
     if (!onAccount && ready.problem) return setError(ready.problem);
     setBusy(true); setError("");
     const items = lines.map((l) => ({ productId: l.p.id, quantity: l.qty }));
-    const how = ready.payments ? { payments: ready.payments } : { payment: ready.single === "cash" ? ("cash" as const) : ("online" as const) };
+    const how = ready.payments ? { payments: ready.payments, fonepayQrId: ready.fonepayQrId } : { payment: ready.single === "cash" ? ("cash" as const) : ("online" as const), fonepayQrId: ready.fonepayQrId };
     try {
       if (onAccount && phone) setDone(await checkout({ phone, payment: "due", items, bookingIds: [], goodsDueIds: [] }));
       else if (phone && known) setDone(await checkout({ phone, ...how, items, bookingIds: chosenGames.map((g) => g.id), goodsDueIds: chosenDues.map((d) => d.id) }));
@@ -222,7 +222,7 @@ export default function Sell({ tick, onChanged }: { tick: number; onChanged: () 
           )}
         </div>
 
-        <PaySplit total={total} value={pay} onChange={(v) => { setPay(v); setError(""); }} />
+        <PaySplit total={total} value={pay} onChange={(v) => { setPay(v); setError(""); }} customerPhone={known ? phone : undefined} />
         {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600" role="alert">{error}</p>}
         <button onClick={() => complete(false)} disabled={busy || total === 0 || !!ready.problem || (!!phone && (!phoneOk || !known))} className="w-full rounded-full bg-brand py-3 text-sm font-semibold text-white disabled:opacity-50">
           {busy ? "Saving…" : known ? `Complete bill ${total ? rs(total) : ""}` : `Complete sale ${total ? rs(total) : ""}`}

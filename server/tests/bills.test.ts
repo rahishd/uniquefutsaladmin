@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { after, before, beforeEach, describe, it } from "node:test";
 import bcrypt from "bcryptjs";
 import request from "supertest";
-import { addDaysKey, api, app, customer, PASSWORD, prisma, reset, staff, todayKey } from "./helpers";
+import { addDaysKey, api, app, customer, paidQr, PASSWORD, prisma, reset, staff, todayKey } from "./helpers";
 
 before(reset);
 beforeEach(reset);
@@ -83,7 +83,7 @@ describe("Final bill: goods and games together", () => {
   it("a game still to be played is paid now and earns its points when it is completed", async () => {
     const { mgr } = await shop();
     const g = await game("UF-BILL01", { status: "confirmed" });
-    const r = await api.post("/inventory/checkout", mgr.auth, { phone: P, payment: "online", bookingIds: [g.id] });
+    const r = await api.post("/inventory/checkout", mgr.auth, { phone: P, payment: "online", bookingIds: [g.id], fonepayQrId: await paidQr(mgr.auth, 1250) });
     assert.equal(r.body.data.pointsGames, 0);
     assert.equal(r.body.data.gamesWaitingForPoints, 1);
     assert.equal((await prisma.booking.findUnique({ where: { id: g.id } }))!.onlineAmount, 1250);
@@ -231,7 +231,7 @@ describe("Dues: everything one customer still owes", () => {
     assert.equal((await api.post("/bookings/collect-dues", viewer.auth, { anchorId: cur.id, bookingIds: [cur.id] })).status, 403);
     assert.equal((await api.get(`/bookings/${cur.id}/dues`, viewer.auth)).status, 200);
     const g = await prisma.booking.create({ data: { userId: null, customerPhone: "9877000009", customerName: "Guest", date: today, startTime: "15:00", endTime: "16:00", duration: 1, basePrice: 700, subtotal: 700, totalPrice: 700, paymentMethod: "venue", status: "completed", paymentStatus: "pending", code: "UF-GST009" } });
-    const r = await api.post("/bookings/collect-dues", mgr.auth, { anchorId: g.id, bookingIds: [g.id], method: "esewa" });
+    const r = await api.post("/bookings/collect-dues", mgr.auth, { anchorId: g.id, bookingIds: [g.id], method: "fonepay", fonepayQrId: await paidQr(mgr.auth, 700) });
     assert.equal(r.status, 200);
     assert.equal(r.body.data.billCode, null);
     assert.equal((await prisma.booking.findUnique({ where: { id: g.id } }))!.onlineAmount, 700);
@@ -242,16 +242,16 @@ describe("Split payment and goods on credit", () => {
   const mkGame = (code: string, date: string, over: Record<string, unknown> = {}) =>
     prisma.booking.create({ data: { userId: P, date, startTime: "18:00", endTime: "19:00", duration: 1, customerName: "Bill Payer", customerPhone: P, basePrice: 1000, subtotal: 1000, totalPrice: 1000, paymentMethod: "venue", status: "completed", paymentStatus: "pending", code, ...over } });
 
-  it("pays one bill with cash and eSewa together, and the booking records how much was each", async () => {
+  it("pays one bill with cash and Fonepay together, and the booking records how much was each", async () => {
     const { mgr, water } = await shop();
     const g = await mkGame("UF-SPL001", today);
-    const r = await api.post("/inventory/checkout", mgr.auth, { phone: P, bookingIds: [g.id], items: [{ productId: water.id, quantity: 20 }], payments: [{ method: "cash", amount: 1200 }, { method: "esewa", amount: 300 }] });
+    const r = await api.post("/inventory/checkout", mgr.auth, { phone: P, bookingIds: [g.id], items: [{ productId: water.id, quantity: 20 }], payments: [{ method: "cash", amount: 1200 }, { method: "fonepay", amount: 300 }], fonepayQrId: await paidQr(mgr.auth, 300) });
     assert.equal(r.status, 201);
     assert.equal(r.body.data.total, 1500);
     const b = await prisma.booking.findUnique({ where: { id: g.id } });
     assert.deepEqual([b!.cashAmount, b!.onlineAmount, b!.paymentMethod], [1000, 0, "venue"], "the game was fully covered by cash");
     const log = await prisma.inventoryLog.findFirst({ where: { reason: { startsWith: "Goods Sale" } } });
-    assert.deepEqual([log!.cashAmount, log!.onlineAmount], [200, 300], "the goods took the rest of the cash and the eSewa part");
+    assert.deepEqual([log!.cashAmount, log!.onlineAmount], [200, 300], "the goods took the rest of the cash and the Fonepay part");
     const bill = await prisma.checkout.findFirst({ where: { userId: P } });
     assert.equal(bill!.paymentMethod, "split");
   });
@@ -293,7 +293,7 @@ describe("Split payment and goods on credit", () => {
     const g = await mkGame("UF-CRD002", today, { totalPrice: 1250 });
     const up = await mkGame("UF-CRD003", addDaysKey(today, 3), { status: "confirmed", totalPrice: 1350 });
     const dues = (await api.get(`/bookings/${g.id}/dues`, mgr.auth)).body.data;
-    const r = await api.post("/bookings/collect-dues", mgr.auth, { anchorId: g.id, bookingIds: [g.id, up.id], goodsDueIds: dues.goods.map((x: { id: string }) => x.id), payments: [{ method: "cash", amount: 2000 }, { method: "fonepay", amount: 1600 }] });
+    const r = await api.post("/bookings/collect-dues", mgr.auth, { anchorId: g.id, bookingIds: [g.id, up.id], goodsDueIds: dues.goods.map((x: { id: string }) => x.id), payments: [{ method: "cash", amount: 2000 }, { method: "fonepay", amount: 1600 }], fonepayQrId: await paidQr(mgr.auth, 1600) });
     assert.equal(r.status, 200);
     assert.deepEqual([r.body.data.count, r.body.data.total], [3, 3600]);
     assert.equal(await pts(), 22.5, "goods 10 + the played game 12.5; the upcoming game earns when played");

@@ -8,7 +8,7 @@ import { awardForCompletedBooking, notify } from "../lib/customer-effects";
 import { addDaysKey, currentHour, todayKey } from "../lib/dates";
 import { AppError, dateStr, handler, page, param, parse, send, timeStr } from "../lib/http";
 import { requirePermission } from "../middleware/auth";
-import { DEAD, gameLabel, paysSchema, settle } from "../lib/settle";
+import { DEAD, claimFonepay, gameLabel, paysSchema, settle } from "../lib/settle";
 import { getHourPrice } from "./settings-store";
 
 export const bookingsRouter = Router();
@@ -118,7 +118,7 @@ bookingsRouter.get("/:id/dues", requirePermission("bookings.view"), handler(asyn
 bookingsRouter.post("/collect-dues", requirePermission("payments.collect"), handler(async (req, res) => {
   const b = parse(z.object({
     anchorId: z.string().min(1), bookingIds: z.array(z.string().min(1)).max(40).default([]), goodsDueIds: z.array(z.string().min(1)).max(40).default([]),
-    method: z.enum(["venue", "esewa", "fonepay"]).optional(), payments: paysSchema.optional(),
+    method: z.enum(["venue", "fonepay"]).optional(), payments: paysSchema.optional(), fonepayQrId: z.string().min(1).optional(),
   }), req.body);
   if (b.bookingIds.length === 0 && b.goodsDueIds.length === 0) throw new AppError(400, "Choose at least one due to collect");
   const anchor = await load(b.anchorId);
@@ -134,7 +134,7 @@ bookingsRouter.post("/collect-dues", requirePermission("payments.collect"), hand
   const account = key ? await prisma.user.findUnique({ where: { phoneNumber: key }, select: { phoneNumber: true } }) : null;
   const r = await settle({
     staffId: req.staff!.id, userId: anchor.userId ?? account?.phoneNumber ?? null, bookings: rows, goodsDues, items: new Map(),
-    pay: { payments: b.payments, single: b.payments ? undefined : b.method === "esewa" || b.method === "fonepay" ? b.method : ("cash" as const) },
+    pay: { payments: b.payments, fonepayQrId: b.fonepayQrId, single: b.payments ? undefined : b.method === "fonepay" ? ("fonepay" as const) : ("cash" as const) },
   });
   await audit(req, "collect-dues", "booking", anchor.id, { bookings: rows.map((x) => x.code ?? x.id), goodsDues: goodsDues.map((g) => g.items), total: r.total, payments: r.payments, bill: r.code });
   send(res, { count: r.count, total: r.total, billCode: r.code, points: Math.round((r.pointsGoods + r.pointsGames) * 10) / 10, payments: r.payments }, `Collected Rs. ${r.total} for ${r.count} due${r.count === 1 ? "" : "s"}`);
@@ -154,7 +154,7 @@ const walkIn = z.object({
   date: dateStr, startTime: timeStr, duration: z.number().int().min(1).max(4).default(1),
   customerName: z.string().min(2).max(60),
   customerPhone: z.string().regex(/^9\d{9}$/, "mobile number like 98XXXXXXXX").optional(),
-  paymentMethod: z.enum(["venue", "esewa", "fonepay"]).default("venue"),
+  paymentMethod: z.enum(["venue", "fonepay"]).default("venue"),
   paid: z.boolean().default(false),
   priceOverride: z.number().int().min(0).optional(),
   notes: z.string().max(300).optional(),
@@ -162,6 +162,7 @@ const walkIn = z.object({
 
 bookingsRouter.post("/walk-in", requirePermission("bookings.create"), handler(async (req, res) => {
   const b = parse(walkIn, req.body);
+  if (b.paid && b.paymentMethod === "fonepay") throw new AppError(400, "A Fonepay payment needs a QR: book it as not paid, then collect it from the booking with the Fonepay QR");
   // Staff may log a game that already happened (retroactive) or book ahead, within a sane range.
   if (b.date < addDaysKey(todayKey(), -60) || b.date > addDaysKey(todayKey(), 60)) throw new AppError(400, "Pick a date within 60 days of today");
   const startHour = Number(b.startTime.slice(0, 2));
@@ -206,7 +207,7 @@ const bulkWalkIn = z.object({
   startTime: timeStr, duration: z.number().int().min(1).max(4).default(1),
   customerName: z.string().min(2).max(60),
   customerPhone: z.string().regex(/^9\d{9}$/, "mobile number like 98XXXXXXXX").optional(),
-  paymentMethod: z.enum(["venue", "esewa", "fonepay"]).default("venue"),
+  paymentMethod: z.enum(["venue", "fonepay"]).default("venue"),
   paid: z.boolean().default(false),
   priceOverride: z.number().int().min(0).optional(), // per game, applied to every date
   notes: z.string().max(300).optional(),
@@ -216,6 +217,7 @@ const bulkWalkIn = z.object({
 
 bookingsRouter.post("/walk-in/bulk", requirePermission("bookings.create"), handler(async (req, res) => {
   const b = parse(bulkWalkIn, req.body);
+  if (b.paid && b.paymentMethod === "fonepay") throw new AppError(400, "A Fonepay payment needs a QR: book it as not paid, then collect it from the booking with the Fonepay QR");
   const dates = [...new Set(b.dates)].sort();
   if (dates[0] < addDaysKey(todayKey(), -60) || dates[dates.length - 1] > addDaysKey(todayKey(), 60)) throw new AppError(400, "Pick dates within 60 days of today");
   const startHour = Number(b.startTime.slice(0, 2));
@@ -312,12 +314,14 @@ bookingsRouter.post("/:id/no-show", requirePermission("bookings.noshow"), handle
 
 // Money collected at the venue (or confirmed by staff) for a booking.
 bookingsRouter.post("/:id/mark-paid", requirePermission("payments.collect"), handler(async (req, res) => {
-  const { method } = parse(z.object({ method: z.enum(["venue", "esewa", "fonepay"]).default("venue") }), req.body ?? {});
+  const { method, fonepayQrId } = parse(z.object({ method: z.enum(["venue", "fonepay"]).default("venue"), fonepayQrId: z.string().min(1).optional() }), req.body ?? {});
   const b = await load(param(req, "id"));
   if (b.status === "cancelled") throw new AppError(409, "This booking is cancelled");
   if (b.paymentStatus === "completed") throw new AppError(409, "Already paid");
   const total = b.totalPrice;
   await prisma.$transaction(async (tx) => {
+    // a Fonepay payment must be backed by a QR the gateway marked paid, for exactly this amount
+    if (method === "fonepay") await claimFonepay(tx, { fonepayQrId }, [{ method: "fonepay", amount: Math.round(total) }], b.code ?? b.id);
     await tx.booking.update({
       where: { id: b.id },
       data: { paymentStatus: "completed", status: b.status === "pending" ? "confirmed" : b.status, holdExpiresAt: null, paymentMethod: method, amountPaidNow: total, remainingAmount: 0, cashAmount: method === "venue" ? total : b.cashAmount, onlineAmount: method === "venue" ? b.onlineAmount : total },

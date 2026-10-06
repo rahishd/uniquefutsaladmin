@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { after, before, beforeEach, describe, it } from "node:test";
 import bcrypt from "bcryptjs";
 import request from "supertest";
-import { api, app, customer, PASSWORD, prisma, reset, staff } from "./helpers";
+import { api, app, customer, paidQr, PASSWORD, prisma, reset, staff } from "./helpers";
 
 before(reset);
 beforeEach(reset);
@@ -97,7 +97,7 @@ describe("Inventory: selling goods", () => {
   it("a registered customer earns Rs. 100 = 1 point, once, with a notice", async () => {
     const { mgr, water } = await setup();
     await customer("9860001111", "Goods Buyer");
-    const r = await api.post("/inventory/sales", mgr.auth, { payment: "online", phone: "9860001111", items: [{ productId: water.id, quantity: 20 }] });
+    const r = await api.post("/inventory/sales", mgr.auth, { payment: "online", fonepayQrId: await paidQr(mgr.auth, 800), phone: "9860001111", items: [{ productId: water.id, quantity: 20 }] });
     assert.equal(r.status, 201);
     assert.equal(r.body.data.amount, 800);
     assert.equal(r.body.data.points, 8);

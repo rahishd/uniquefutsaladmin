@@ -189,11 +189,11 @@ const mergeItems = (items: { productId: string; quantity: number }[]) => {
 };
 
 inventoryRouter.post("/sales", requirePermission("inventory.sell"), handler(async (req, res) => {
-  const b = parse(z.object({ phone: phone.optional(), payment: z.enum(["cash", "online"]).optional(), payments: paysSchema.optional(), items: itemsSchema.min(1, "Add at least one item") }), req.body);
+  const b = parse(z.object({ phone: phone.optional(), payment: z.enum(["cash", "online"]).optional(), payments: paysSchema.optional(), fonepayQrId: z.string().min(1).optional(), items: itemsSchema.min(1, "Add at least one item") }), req.body);
   const merged = mergeItems(b.items);
   const customer = b.phone ? await prisma.user.findUnique({ where: { phoneNumber: b.phone }, select: { phoneNumber: true, name: true } }) : null;
   if (b.phone && !customer) throw new AppError(404, "No registered customer with this number. Leave the number empty for a walk-in sale.");
-  const pay = { payments: b.payments, single: b.payment === "online" ? ("esewa" as const) : b.payment === "cash" ? ("cash" as const) : undefined };
+  const pay = { payments: b.payments, fonepayQrId: b.fonepayQrId, single: b.payment === "online" ? ("fonepay" as const) : b.payment === "cash" ? ("cash" as const) : undefined };
 
   const sale = (await prisma.$transaction((tx) => sellGoods(tx, merged, pay, req.staff!.id, customer?.phoneNumber ?? null))).sale;
   let points = 0;
@@ -246,7 +246,7 @@ inventoryRouter.get("/customer-bill", requirePermission("inventory.sell"), handl
 // payment: "due" puts the goods on the customer's account to pay later (stock goes now, points come when it is paid)
 inventoryRouter.post("/checkout", requirePermission("inventory.sell"), handler(async (req, res) => {
   const b = parse(z.object({
-    phone, payment: z.enum(["cash", "online", "due"]).optional(), payments: paysSchema.optional(),
+    phone, payment: z.enum(["cash", "online", "due"]).optional(), payments: paysSchema.optional(), fonepayQrId: z.string().min(1).optional(),
     items: itemsSchema.default([]), bookingIds: z.array(z.string().min(1)).max(40).default([]), goodsDueIds: z.array(z.string().min(1)).max(40).default([]),
   }), req.body);
   if (b.items.length === 0 && b.bookingIds.length === 0 && b.goodsDueIds.length === 0) throw new AppError(400, "Add goods or choose a game or a due to put on the bill");
@@ -270,7 +270,7 @@ inventoryRouter.post("/checkout", requirePermission("inventory.sell"), handler(a
   const goodsDues = await prisma.goodsDue.findMany({ where: { id: { in: b.goodsDueIds }, userId: b.phone } });
   if (goodsDues.length !== new Set(b.goodsDueIds).size) throw new AppError(404, "One of the goods dues is not on this customer's account");
 
-  const r = await settle({ staffId, userId: b.phone, bookings: games, goodsDues, items: merged, pay: { payments: b.payments, single: b.payment === "online" ? "esewa" : b.payment === "cash" ? "cash" : undefined } });
+  const r = await settle({ staffId, userId: b.phone, bookings: games, goodsDues, items: merged, pay: { payments: b.payments, fonepayQrId: b.fonepayQrId, single: b.payment === "online" ? "fonepay" : b.payment === "cash" ? "cash" : undefined } });
   await audit(req, "checkout", "inventory_bill", r.id, { code: r.code, customer: b.phone, goods: r.goodsTotal, games: r.gameTotal, payments: r.payments, pointsGoods: r.pointsGoods, pointsGames: r.pointsGames });
   send(res, { ...r, customerName: customer.name }, "Bill saved", 201);
 }));

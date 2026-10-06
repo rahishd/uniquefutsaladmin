@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, describe, it } from "node:test";
-import { addDaysKey, api, app, customer, customerToken, PASSWORD, prisma, request, reset, staff, todayKey } from "./helpers";
+import { addDaysKey, api, app, customer, customerToken, paidQr, PASSWORD, prisma, request, reset, staff, todayKey } from "./helpers";
 
 const today = todayKey();
 const tomorrow = addDaysKey(today, 1);
@@ -139,8 +139,8 @@ describe("bookings", () => {
     const due = await api.get("/payments/refunds?status=due", fd.auth);
     assert.equal(due.body.data.length, 1);
     assert.equal(due.body.data[0].orderCode, "UF-ORDER1");
-    assert.equal((await api.post("/payments/UF-ORDER1/refund", fd.auth, { method: "esewa", reference: "TXN1" })).status, 200);
-    assert.equal((await api.post("/payments/UF-ORDER1/refund", fd.auth, { method: "esewa" })).status, 409);
+    assert.equal((await api.post("/payments/UF-ORDER1/refund", fd.auth, { method: "fonepay", reference: "TXN1" })).status, 200);
+    assert.equal((await api.post("/payments/UF-ORDER1/refund", fd.auth, { method: "fonepay" })).status, 409);
     assert.equal((await api.get("/payments/refunds?status=due", fd.auth)).body.data.length, 0);
     assert.equal(await prisma.notification.count({ where: { userId: "9833333333", type: "booking" } }), 1);
   });
@@ -366,10 +366,11 @@ describe("payments ledger", () => {
   it("collecting an unpaid booking moves it to paid and records how it was really paid", async () => {
     const fd = await staff("frontdesk");
     const b = await mk(5, "venue");
-    assert.equal((await api.post(`/bookings/${b.id}/mark-paid`, fd.auth, { method: "esewa" })).status, 200);
+    assert.equal((await api.post(`/bookings/${b.id}/mark-paid`, fd.auth, { method: "fonepay" })).status, 400, "Fonepay needs a paid QR, staff cannot just say it was paid");
+    assert.equal((await api.post(`/bookings/${b.id}/mark-paid`, fd.auth, { method: "fonepay", fonepayQrId: await paidQr(fd.auth, 1005) })).status, 200);
     const row = (await api.get("/payments/ledger?q=UF-LED5", fd.auth)).body.data.items[0];
     assert.equal(row.status, "paid");
-    assert.equal(row.method, "esewa");
+    assert.equal(row.method, "fonepay");
     assert.equal(row.mode, "online");
     assert.equal((await api.get("/payments/summary", fd.auth)).body.data.unpaid.count, 0);
   });

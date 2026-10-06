@@ -15,7 +15,7 @@ const PERIODS: { id: Period; label: string }[] = [
   { id: "today", label: "Today" }, { id: "week", label: "7 days" }, { id: "month", label: "This month" }, { id: "all", label: "All time" }, { id: "custom", label: "Custom" },
 ];
 const MODES: { id: Mode | ""; label: string }[] = [
-  { id: "", label: "All payment modes" }, { id: "cash", label: "Cash at venue" }, { id: "online", label: "Online (eSewa + Fonepay)" }, { id: "esewa", label: "eSewa only" }, { id: "fonepay", label: "Fonepay only" },
+  { id: "", label: "All payment modes" }, { id: "cash", label: "Cash at venue" }, { id: "online", label: "Online (Fonepay)" },
 ];
 const TONE: Record<PayStatus, { label: string; tone: string }> = {
   paid: { label: "Paid", tone: "bg-brand/15 text-brand" },
@@ -79,7 +79,7 @@ export default function PaymentsPage() {
         <Card title="Paid" value={sum ? rs(sum.paid.sum) : "—"} sub={sum ? `${sum.paid.count} payments` : " "} tone="text-brand" />
         <Card title="Unpaid (to collect)" value={sum ? rs(sum.unpaid.sum) : "—"} sub={sum ? `${sum.unpaid.count} bookings` : " "} tone="text-amber-600" />
         <Card title="Cash at venue (paid)" value={sum ? rs(sum.paidCash.sum) : "—"} sub={sum ? `${sum.paidCash.count} payments` : " "} />
-        <Card title="Online (paid)" value={sum ? rs(sum.paidOnline.sum) : "—"} sub={sum ? `eSewa ${rs(sum.paidEsewa.sum)} · Fonepay ${rs(sum.paidFonepay.sum)}` : " "} />
+        <Card title="Online (paid)" value={sum ? rs(sum.paidOnline.sum) : "—"} sub={sum ? `Fonepay ${rs(sum.paidFonepay.sum)}${sum.paidEsewa.sum > 0 ? ` · earlier eSewa ${rs(sum.paidEsewa.sum)}` : ""}` : " "} />
       </div>
 
       <div className="flex gap-1 overflow-x-auto rounded-2xl bg-surface p-1 shadow-sm" role="tablist" aria-label="Payment status">

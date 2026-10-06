@@ -46,7 +46,7 @@ paymentsRouter.get("/refunds", requirePermission("payments.view"), handler(async
 }));
 
 paymentsRouter.post("/:orderCode/refund", requirePermission("payments.refund"), handler(async (req, res) => {
-  const b = parse(z.object({ method: z.enum(["cash", "esewa", "fonepay", "bank"]), reference: z.string().max(80).optional(), note: z.string().max(200).optional() }), req.body);
+  const b = parse(z.object({ method: z.enum(["cash", "fonepay", "bank"]), reference: z.string().max(80).optional(), note: z.string().max(200).optional() }), req.body);
   const code = param(req, "orderCode");
   const order = await prisma.paymentOrder.findUnique({ where: { orderCode: code } });
   if (!order) throw new AppError(404, "Order not found");
@@ -58,7 +58,7 @@ paymentsRouter.post("/:orderCode/refund", requirePermission("payments.refund"), 
   send(res, null, "Refund recorded");
 }));
 
-// Mark an order paid after the money was received outside the gateway (venue counter, manual eSewa check).
+// Mark an order paid after the money was received outside the gateway (venue counter, manual check).
 paymentsRouter.post("/:orderCode/mark-paid", requirePermission("payments.collect"), handler(async (req, res) => {
   const code = param(req, "orderCode");
   const order = await prisma.paymentOrder.findUnique({ where: { orderCode: code } });
