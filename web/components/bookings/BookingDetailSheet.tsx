@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { Badge } from "./Badge";
@@ -13,7 +14,8 @@ const Row = ({ label, children }: { label: string; children: React.ReactNode }) 
   </div>
 );
 
-export default function BookingDetailSheet({ booking, onClose, onChanged }: { booking: Booking; onClose: () => void; onChanged?: () => void }) {
+// billing=false (used from Slots): no payment is taken in this sheet; billing is done on the Bookings page.
+export default function BookingDetailSheet({ booking, onClose, onChanged, billing = true }: { booking: Booking; onClose: () => void; onChanged?: () => void; billing?: boolean }) {
   const [detail, setDetail] = useState<BookingDetail | null>(null);
   const [error, setError] = useState("");
   const [again, setAgain] = useState(0); // refetch after a payment is collected
@@ -61,7 +63,10 @@ export default function BookingDetailSheet({ booking, onClose, onChanged }: { bo
           {b.cancelledAt && <Row label="Cancelled on">{new Date(b.cancelledAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}</Row>}
         </dl>
 
-        {booking.paymentStatus !== "completed" && !(b.status === "cancelled" || b.status === "expired") && <Dues bookingId={b.id} onPaid={() => { onChanged?.(); setAgain((n) => n + 1); }} />}
+        {!billing && booking.paymentStatus !== "completed" && !(b.status === "cancelled" || b.status === "expired") && (
+          <p className="mt-4 rounded-xl bg-surface-2 p-3 text-sm text-muted">To collect payment, open this booking on the <Link href="/bookings" className="font-semibold text-brand underline">Bookings page</Link>. The game and add-on items are billed there.</p>
+        )}
+        {billing && booking.paymentStatus !== "completed" && !(b.status === "cancelled" || b.status === "expired") && <Dues bookingId={b.id} onPaid={() => { onChanged?.(); setAgain((n) => n + 1); }} />}
 
         {error && <p className="mt-3 text-sm text-red-600" role="alert">{error}</p>}
         {!detail && !error && <p className="mt-3 text-sm text-muted">Loading payment details…</p>}

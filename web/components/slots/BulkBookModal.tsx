@@ -9,11 +9,6 @@ import { rs } from "@/lib/bookings";
 import { BulkPlan, OPEN_FROM, OPEN_TO, bulkBook, findCustomer, hhmm, hourLabel, shiftDate, todayKey } from "@/lib/slots";
 
 const input = "w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
-const PAYMENT = [
-  { id: "unpaid", label: "Not paid yet (collect at the venue)", method: "venue" as const, paid: false },
-  { id: "cash", label: "Paid in cash at the venue", method: "venue" as const, paid: true },
-  // Fonepay is not offered here: it needs a dynamic QR, made from the booking's unpaid dues after booking
-];
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const dayName = (key: string) => new Date(`${key}T00:00:00Z`).toLocaleDateString("en-GB", { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" });
 
@@ -32,7 +27,6 @@ export default function BulkBookModal({ startDate, onClose, onBooked }: { startD
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [found, setFound] = useState<{ phone: string; name: string } | null>(null);
-  const [payment, setPayment] = useState("unpaid");
   const [price, setPrice] = useState("");
   const [notes, setNotes] = useState("");
   const [mode, setMode] = useState<"free" | "all">("free");
@@ -65,9 +59,8 @@ export default function BulkBookModal({ startDate, onClose, onBooked }: { startD
   }, [phone, phoneOk]);
 
   const body = () => {
-    const pay = PAYMENT.find((p) => p.id === payment)!;
     return {
-      dates, startTime: hhmm(hour), duration, customerName: name.trim(), paymentMethod: pay.method, paid: pay.paid, mode,
+      dates, startTime: hhmm(hour), duration, customerName: name.trim(), paymentMethod: "venue" as const, paid: false, mode,
       ...(phone ? { customerPhone: phone } : {}), ...(price !== "" ? { priceOverride: Math.round(Number(price)) } : {}), ...(notes.trim() ? { notes: notes.trim() } : {}),
     };
   };
@@ -173,7 +166,7 @@ export default function BulkBookModal({ startDate, onClose, onBooked }: { startD
               </label>
               <label className={lab}>Customer or team name<CustomerSuggest by="name" value={name} onChange={setName} onPick={(c) => { setPhone(c.phoneNumber); if (c.name) setName(c.name); }} placeholder="Full name" className={`${input} mt-1`} /></label>
               <label className={lab}>Price per game (Rs.) <span className="font-normal text-muted">empty = court price</span><input inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value.replace(/\D/g, ""))} className={`${input} mt-1`} /></label>
-              <label className={lab}>Payment<select value={payment} onChange={(e) => setPayment(e.target.value)} className={`${input} mt-1`}>{PAYMENT.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}</select></label>
+              <p className="rounded-xl bg-surface-2 p-3 text-xs text-muted">Payment is not taken here. Collect it on the Bookings page.</p>
             </div>
             <label className={lab}>Note <span className="font-normal text-muted">(optional)</span><input value={notes} maxLength={200} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. weekly league, school block" className={`${input} mt-1`} /></label>
 

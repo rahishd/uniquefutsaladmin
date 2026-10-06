@@ -7,12 +7,6 @@ import { Hour, WalkInInput, bookManually, findCustomer, hhmm, hourLabel, longDat
 import { rs } from "@/lib/bookings";
 import { ApiError } from "@/lib/api";
 
-const PAYMENT = [
-  { id: "unpaid", label: "Not paid yet (collect at the venue)", method: "venue" as const, paid: false },
-  { id: "cash", label: "Paid in cash at the venue", method: "venue" as const, paid: true },
-  // Fonepay is not offered here: it needs a dynamic QR, made from the booking's unpaid dues after booking
-];
-
 const input = "w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
 
 export default function BookSlotModal({ date, hours, hour, past, onClose, onBooked }: {
@@ -26,7 +20,6 @@ export default function BookSlotModal({ date, hours, hour, past, onClose, onBook
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [found, setFound] = useState<{ phone: string; name: string } | null>(null); // result of the last lookup
-  const [payment, setPayment] = useState("unpaid");
   const [price, setPrice] = useState<string | null>(null); // null = use the court price
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
@@ -54,8 +47,8 @@ export default function BookSlotModal({ date, hours, hour, past, onClose, onBook
     setError("");
     if (name.trim().length < 2) return setError("Enter the customer's name.");
     if (phone && !phoneOk) return setError("Enter a 10-digit mobile number starting with 9, or leave it empty.");
-    const pay = PAYMENT.find((p) => p.id === payment)!;
-    const body: WalkInInput = { date, startTime: hhmm(hour), duration, customerName: name.trim(), paymentMethod: pay.method, paid: pay.paid };
+    // Billing is not done from Slots: the booking is saved unpaid and billed on the Bookings page (game + add-on items together).
+    const body: WalkInInput = { date, startTime: hhmm(hour), duration, customerName: name.trim(), paymentMethod: "venue", paid: false };
     if (phone) body.customerPhone = phone;
     if (price !== null && price !== "") body.priceOverride = Math.max(0, Math.round(Number(price)));
     if (notes.trim()) body.notes = notes.trim();
@@ -102,11 +95,7 @@ export default function BookSlotModal({ date, hours, hour, past, onClose, onBook
         </div>
         {price !== null && Number(price) !== standard && <p className="-mt-2 text-xs text-muted">Court price is {rs(standard)}. The changed price is recorded as a discount.</p>}
 
-        <label className="block text-sm font-medium">Payment
-          <select className={`${input} mt-1`} value={payment} onChange={(e) => setPayment(e.target.value)}>
-            {PAYMENT.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
-          </select>
-        </label>
+        <p className="rounded-xl bg-surface-2 p-3 text-xs text-muted">Payment is not taken here. Collect it on the Bookings page, where the game and any add-on items are billed together.</p>
 
         <label className="block text-sm font-medium">Note <span className="font-normal text-muted">(optional)</span>
           <input className={`${input} mt-1`} value={notes} maxLength={200} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. phone booking, team name" />
