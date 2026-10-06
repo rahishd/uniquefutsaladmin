@@ -35,10 +35,18 @@ overviewRouter.get("/dashboard", requirePermission("dashboard.view"), handler(as
 // ---- overview: one screen for the day (money, what needs attention, the next games, a week of sales) ----
 const sales = (r: Awaited<ReturnType<typeof buildReport>>) => ({ cash: r.totals.cash, fonepay: r.totals.fonepay, total: r.totals.total });
 
-overviewRouter.get("/overview", requirePermission("dashboard.view"), handler(async (_req, res) => {
+// from / to (Nepal dates) pick the period: Today, Yesterday or any range of up to 93 days. It is compared with the period just before it.
+overviewRouter.get("/overview", requirePermission("dashboard.view"), handler(async (req, res) => {
   const today = todayKey();
-  const [t, y] = await Promise.all([buildReport(today, today), buildReport(addDaysKey(today, -1), addDaysKey(today, -1))]);
-  const week = await Promise.all(Array.from({ length: 7 }, (_, i) => addDaysKey(today, i - 6)).map(async (d) => ({ date: d, ...sales(await buildReport(d, d)) })));
+  const q = parse(z.object({ from: dateStr.optional(), to: dateStr.optional() }), req.query);
+  const from = q.from ?? q.to ?? today;
+  const to = q.to ?? from;
+  if (from > to) throw new AppError(400, "The From date must not be after the To date");
+  if (to > today) throw new AppError(400, "Pick dates up to today");
+  const days = Math.round((new Date(`${to}T00:00:00Z`).getTime() - new Date(`${from}T00:00:00Z`).getTime()) / 86_400_000) + 1;
+  if (days > 93 || from < addDaysKey(today, -366)) throw new AppError(400, "Pick at most 93 days, within the last year");
+  const [t, y] = await Promise.all([buildReport(from, to), buildReport(addDaysKey(from, -days), addDaysKey(from, -1))]);
+  const week = await Promise.all(Array.from({ length: 7 }, (_, i) => addDaysKey(to, i - 6)).map(async (d) => ({ date: d, ...sales(await buildReport(d, d)) })));
   const live = { status: { notIn: ["cancelled", "expired", "cancelled_due_to_tournament", "skipped_due_to_tournament"] } };
   const nowKey = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kathmandu", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());
   const [next, dues, products, pendingMembers, subs, complaints, referrals, unpaidToday, disputes, newCustomers] = await Promise.all([
@@ -56,7 +64,7 @@ overviewRouter.get("/overview", requirePermission("dashboard.view"), handler(asy
   const soon = addDaysKey(today, 15);
   const expiring = subs.filter((x) => { const e = x.endDate.toISOString().slice(0, 10); return e >= today && e <= soon; }).length;
   send(res, {
-    date: today, today: sales(t), yesterday: sales(y), week,
+    date: today, from, to, days, today: sales(t), yesterday: sales(y), week,
     bySource: t.totals.bySource,
     games: { count: t.games.count, paid: t.games.paidCount, unpaid: unpaidToday }, gamezone: t.gamezone.count, itemsSold: t.itemsSold.reduce((n, i) => n + i.qty, 0), newCustomers,
     attention: {
