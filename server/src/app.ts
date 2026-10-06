@@ -4,11 +4,13 @@ import helmet from "helmet";
 import env from "./config/env";
 import { AppError } from "./lib/http";
 import { requireStaff } from "./middleware/auth";
+import { prisma } from "./db";
 import { academyRouter } from "./modules/academy";
 import { arrivalsRouter } from "./modules/arrivals";
 import { authRouter } from "./modules/auth";
 import { bookingsRouter } from "./modules/bookings";
 import { complaintsRouter } from "./modules/complaints";
+import { contentRouter } from "./modules/content";
 import { courtsRouter } from "./modules/courts";
 import { customersRouter } from "./modules/customers";
 import { gamezoneRouter } from "./modules/gamezone";
@@ -30,12 +32,23 @@ app.use(helmet());
 app.use(cors({
   origin: (origin, cb) => (!origin || env.ALLOWED_ORIGINS.includes(origin) ? cb(null, true) : cb(new Error("Not allowed by CORS"))),
 }));
-app.use(express.json({ limit: "100kb" }));
+// Site Content takes pictures (big bodies); its own router reads them, after the staff sign-in check
+const smallJson = express.json({ limit: "100kb" });
+app.use((req, res, next) => (req.path.startsWith("/api/admin/content") ? next() : smallJson(req, res, next)));
 
 app.get("/api/health", (_req, res) => { res.json({ success: true, message: "Admin server is running" }); });
 
 const admin = express.Router();
 admin.use("/auth", authRouter); // login is the only route without a token
+// Pictures for the previews in this portal. They are public anyway (the customer app shows them), and an <img> tag cannot send a token.
+admin.get("/media/:id", async (req, res, next) => {
+  try {
+    const m = await prisma.contentMedia.findUnique({ where: { id: String(req.params.id) } });
+    if (!m) return next(new AppError(404, "Not found"));
+    res.set({ "Content-Type": m.mime, "Cache-Control": "public, max-age=31536000, immutable", "Cross-Origin-Resource-Policy": "cross-origin" });
+    res.send(Buffer.from(m.data));
+  } catch (e) { next(e); }
+});
 admin.use(requireStaff); // everything below needs a valid staff token; each route then checks its permission
 admin.use("/staff", staffRouter);
 admin.use("/arrivals", arrivalsRouter);
@@ -46,6 +59,7 @@ admin.use("/customers", customersRouter);
 admin.use("/complaints", complaintsRouter);
 admin.use("/academy", academyRouter);
 admin.use("/refer", referRouter);
+admin.use("/content", contentRouter);
 admin.use("/courts", courtsRouter);
 admin.use("/promos", promosRouter);
 admin.use("/loyalty", loyaltyRouter);
