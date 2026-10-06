@@ -167,3 +167,73 @@ describe("Bulk booking", () => {
     assert.equal((await api.post("/bookings/walk-in/bulk", noPerm.auth, { ...base, dates: d })).status, 403);
   });
 });
+
+describe("Dues: everything one customer still owes", () => {
+  const mk = (code: string, date: string, over: Record<string, unknown> = {}) =>
+    prisma.booking.create({ data: { userId: P, date, startTime: "18:00", endTime: "19:00", duration: 1, customerName: "Bill Payer", customerPhone: P, basePrice: 1000, subtotal: 1000, totalPrice: 1000, paymentMethod: "venue", status: "completed", paymentStatus: "pending", code, ...over } });
+
+  it("lists old unpaid games, today's, and upcoming ones separately, and leaves out what is paid, cancelled or waiting for a QR", async () => {
+    const { mgr } = await shop();
+    const cur = await mk("UF-DUE000", today);
+    await mk("UF-DUE001", addDaysKey(today, -9));
+    await mk("UF-DUE002", addDaysKey(today, -2), { totalPrice: 1500 });
+    await mk("UF-PAID01", addDaysKey(today, -3), { paymentStatus: "completed" });
+    await mk("UF-CANC01", addDaysKey(today, -4), { status: "cancelled" });
+    await mk("UF-QR0001", addDaysKey(today, -1), { status: "pending", paymentMethod: "esewa" });
+    await mk("UF-UP0001", addDaysKey(today, 3), { status: "confirmed" });
+    await mk("UF-UP0002", addDaysKey(today, 6), { status: "confirmed" });
+    const r = (await api.get(`/bookings/${cur.id}/dues`, mgr.auth)).body.data;
+    assert.equal(r.customer.registered, true);
+    assert.deepEqual(r.past.map((x: { code: string }) => x.code), ["UF-DUE001", "UF-DUE002"]);
+    assert.equal(r.pastTotal, 2500);
+    assert.deepEqual(r.upcoming.map((x: { code: string }) => x.code), ["UF-UP0001", "UF-UP0002"]);
+    assert.equal(r.current.owed, true);
+  });
+
+  it("a guest with a phone number is matched by that number; no number means only this booking", async () => {
+    const { mgr } = await shop();
+    const g1 = await prisma.booking.create({ data: { userId: null, customerPhone: "9877000001", customerName: "Guest", date: today, startTime: "09:00", endTime: "10:00", duration: 1, basePrice: 800, subtotal: 800, totalPrice: 800, paymentMethod: "venue", status: "completed", paymentStatus: "pending", code: "UF-GST001" } });
+    await prisma.booking.create({ data: { userId: null, customerPhone: "9877000001", customerName: "Guest", date: addDaysKey(today, -5), startTime: "09:00", endTime: "10:00", duration: 1, basePrice: 800, subtotal: 800, totalPrice: 800, paymentMethod: "venue", status: "completed", paymentStatus: "pending", code: "UF-GST002" } });
+    const r = (await api.get(`/bookings/${g1.id}/dues`, mgr.auth)).body.data;
+    assert.equal(r.customer.registered, false);
+    assert.equal(r.past.length, 1);
+    const none = await prisma.booking.create({ data: { userId: null, customerPhone: null, customerName: "test", date: today, startTime: "11:00", endTime: "12:00", duration: 1, basePrice: 500, subtotal: 500, totalPrice: 500, paymentMethod: "venue", status: "completed", paymentStatus: "pending", code: "UF-NOPH01" } });
+    const n = (await api.get(`/bookings/${none.id}/dues`, mgr.auth)).body.data;
+    assert.equal(n.customer.known, false);
+    assert.deepEqual([n.past.length, n.upcoming.length], [0, 0]);
+  });
+
+  it("collects this booking, the old dues and a chosen upcoming one in one payment, with one bill and the points", async () => {
+    const { mgr } = await shop();
+    const cur = await mk("UF-DUE000", today);
+    const old = await mk("UF-DUE001", addDaysKey(today, -9));
+    const up = await mk("UF-UP0001", addDaysKey(today, 3), { status: "confirmed" });
+    const skipped = await mk("UF-UP0002", addDaysKey(today, 6), { status: "confirmed" });
+    const r = await api.post("/bookings/collect-dues", mgr.auth, { anchorId: cur.id, bookingIds: [cur.id, old.id, up.id], method: "venue" });
+    assert.equal(r.status, 200);
+    assert.deepEqual([r.body.data.count, r.body.data.total], [3, 3000]);
+    assert.match(r.body.data.billCode, /^CB-/);
+    for (const x of [cur, old, up]) assert.equal((await prisma.booking.findUnique({ where: { id: x.id } }))!.paymentStatus, "completed");
+    assert.equal((await prisma.booking.findUnique({ where: { id: skipped.id } }))!.paymentStatus, "pending", "the skipped one stays unpaid");
+    const bill = await prisma.checkout.findFirst({ where: { userId: P } });
+    assert.deepEqual([bill!.total, bill!.bookingIds.length], [3000, 3]);
+    assert.equal(await pts(), 20, "the two played games earn 10 each; the upcoming one earns when it is played");
+    assert.equal((await api.post("/bookings/collect-dues", mgr.auth, { anchorId: cur.id, bookingIds: [old.id] })).status, 409, "never twice");
+  });
+
+  it("refuses another customer's booking, needs the collect permission, and works for a guest without a bill", async () => {
+    const { mgr } = await shop();
+    const cur = await mk("UF-DUE000", today);
+    await customer("9870003333", "Other");
+    const theirs = await prisma.booking.create({ data: { userId: "9870003333", customerPhone: "9870003333", date: today, startTime: "13:00", endTime: "14:00", duration: 1, customerName: "Other", basePrice: 900, subtotal: 900, totalPrice: 900, paymentMethod: "venue", status: "completed", paymentStatus: "pending", code: "UF-OTHER1" } });
+    assert.equal((await api.post("/bookings/collect-dues", mgr.auth, { anchorId: cur.id, bookingIds: [cur.id, theirs.id] })).status, 400);
+    const viewer = await staffWith(["bookings.view"], "v@test.np");
+    assert.equal((await api.post("/bookings/collect-dues", viewer.auth, { anchorId: cur.id, bookingIds: [cur.id] })).status, 403);
+    assert.equal((await api.get(`/bookings/${cur.id}/dues`, viewer.auth)).status, 200);
+    const g = await prisma.booking.create({ data: { userId: null, customerPhone: "9877000009", customerName: "Guest", date: today, startTime: "15:00", endTime: "16:00", duration: 1, basePrice: 700, subtotal: 700, totalPrice: 700, paymentMethod: "venue", status: "completed", paymentStatus: "pending", code: "UF-GST009" } });
+    const r = await api.post("/bookings/collect-dues", mgr.auth, { anchorId: g.id, bookingIds: [g.id], method: "esewa" });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.data.billCode, null);
+    assert.equal((await prisma.booking.findUnique({ where: { id: g.id } }))!.onlineAmount, 700);
+  });
+});

@@ -56,13 +56,14 @@ export default function BookingsPage() {
   const [counts, setCounts] = useState<Record<Scope, number> | null>(null);
   const [error, setError] = useState("");
   const [open, setOpen] = useState<Booking | null>(null);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     const t = setTimeout(() => { setQ(search); setPageNo(1); }, 300);
     return () => clearTimeout(t);
   }, [search]);
 
-  useEffect(() => { bookingCounts().then(setCounts).catch(() => {}); }, []);
+  useEffect(() => { bookingCounts().then(setCounts).catch(() => {}); }, [reload]);
 
   useEffect(() => {
     let live = true;
@@ -70,7 +71,7 @@ export default function BookingsPage() {
       .then((d) => { if (live) { setData(d); setError(""); } })
       .catch((e) => { if (live) setError(e instanceof Error ? e.message : "Could not load bookings"); });
     return () => { live = false; };
-  }, [scope, pageNo, q, status]);
+  }, [scope, pageNo, q, status, reload]);
 
   const loading = !data && !error;
   const pages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1;
@@ -139,7 +140,7 @@ export default function BookingsPage() {
         </div>
       )}
 
-      {open && <BookingDetailSheet booking={open} onClose={() => setOpen(null)} />}
+      {open && <BookingDetailSheet booking={open} onClose={() => setOpen(null)} onChanged={() => setReload((n) => n + 1)} />}
     </div>
   );
 }

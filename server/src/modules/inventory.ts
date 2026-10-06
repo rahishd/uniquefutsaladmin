@@ -238,7 +238,7 @@ inventoryRouter.get("/sales", requirePermission("inventory.view"), handler(async
 
 // ---------- final bill: goods + games for one customer ----------
 const ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
-async function billCode(): Promise<string> {
+export async function billCode(): Promise<string> {
   for (let i = 0; i < 10; i++) {
     const code = "CB-" + Array.from({ length: 6 }, () => ALPHABET[randomInt(ALPHABET.length)]).join("");
     if (!(await prisma.checkout.findUnique({ where: { code }, select: { id: true } }))) return code;
@@ -246,7 +246,7 @@ async function billCode(): Promise<string> {
   throw new AppError(500, "Could not make a bill number");
 }
 const DEAD = ["cancelled", "expired", "rejected"];
-const gameLabel = (b: { date: string; startTime: string; endTime: string }) => `Game ${b.date} ${b.startTime}-${b.endTime}`;
+export const gameLabel = (b: { date: string; startTime: string; endTime: string }) => `Game ${b.date} ${b.startTime}-${b.endTime}`;
 
 // The customer's games from the last 7 days up to today, so the bill can include what they still owe.
 inventoryRouter.get("/customer-bill", requirePermission("inventory.sell"), handler(async (req, res) => {

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { Badge } from "./Badge";
+import Dues from "./Dues";
 import { BookingDetail, METHOD, PAYMENT, STATUS, bookingDetail, prettyDate, rs, tags, Booking } from "@/lib/bookings";
 
 const Row = ({ label, children }: { label: string; children: React.ReactNode }) => (
@@ -12,15 +13,16 @@ const Row = ({ label, children }: { label: string; children: React.ReactNode }) 
   </div>
 );
 
-export default function BookingDetailSheet({ booking, onClose }: { booking: Booking; onClose: () => void }) {
+export default function BookingDetailSheet({ booking, onClose, onChanged }: { booking: Booking; onClose: () => void; onChanged?: () => void }) {
   const [detail, setDetail] = useState<BookingDetail | null>(null);
   const [error, setError] = useState("");
+  const [again, setAgain] = useState(0); // refetch after a payment is collected
 
   useEffect(() => {
     let live = true;
     bookingDetail(booking.id).then((d) => live && setDetail(d)).catch((e) => live && setError(e instanceof Error ? e.message : "Could not load details"));
     return () => { live = false; };
-  }, [booking.id]);
+  }, [booking.id, again]);
 
   const b = detail?.booking ?? booking;
   const st = STATUS[b.status] ?? { label: b.status, tone: "bg-slate-500/15 text-slate-500" };
@@ -58,6 +60,8 @@ export default function BookingDetailSheet({ booking, onClose }: { booking: Book
           <Row label="Booked on">{new Date(b.createdAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}</Row>
           {b.cancelledAt && <Row label="Cancelled on">{new Date(b.cancelledAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}</Row>}
         </dl>
+
+        {booking.paymentStatus !== "completed" && !(b.status === "cancelled" || b.status === "expired") && <Dues bookingId={b.id} onPaid={() => { onChanged?.(); setAgain((n) => n + 1); }} />}
 
         {error && <p className="mt-3 text-sm text-red-600" role="alert">{error}</p>}
         {!detail && !error && <p className="mt-3 text-sm text-muted">Loading payment details…</p>}

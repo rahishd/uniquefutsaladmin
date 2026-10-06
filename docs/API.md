@@ -145,6 +145,12 @@ Staff enter a registered customer's number in Sell goods. The bill lists their g
 | `POST /inventory/checkout` | inventory.sell (+ payments.collect when games are included) | `{phone, payment: cash or online, items[], bookingIds[]}`: marks each game paid (only once; 409 if already paid), takes the stock, writes one bill `CB-XXXXXX`, all in one transaction. Points: goods Rs. 100 = 1 now; a game already played is completed and earns price / 100 now; a game still to be played earns its points when completed. The customer is notified |
 | `GET /inventory/bills?page` | inventory.view | bills newest first with lines and points |
 
+## Dues (what one customer still owes)
+
+`GET /bookings/:id/dues` (bookings.view): for an unpaid booking, the same customer's other unpaid bookings (matched by account or by phone number; no phone number means nothing else can be found). `past` = before today, `today`, `upcoming` = after today, plus `pastTotal`. Cancelled, expired, rejected, paid, and online bookings still waiting for their QR are left out.
+
+`POST /bookings/collect-dues` (payments.collect): `{anchorId, bookingIds[], method: venue|esewa|fonepay}`. Collects those bookings in one payment (all must belong to the same customer, each only once: 409 if already paid). A registered customer gets one bill `CB-XXXXXX` in their payment history; games already played earn their points, upcoming ones earn them when completed.
+
 ## Bulk booking
 
 `POST /bookings/walk-in/bulk` (bookings.create): `{dates[1-31], startTime, duration 1-4, customerName, customerPhone?, paymentMethod, paid, priceOverride? (per game), notes?, mode: free or all, dryRun}`. The same hour(s) on every date. `dryRun: true` returns each date as free or taken (a blocked hour counts as taken) with the price and the total, and changes nothing. `mode: "free"` books the free dates and skips the taken ones; `"all"` books everything or nothing (409 listing the taken dates). Dates must be within 60 days of today. Each booking has its own code; the notes carry `BULK <first code>` so a batch can be found. One audit entry for the batch.
