@@ -292,8 +292,9 @@ export const modules: Module[] = [
     slug: "reports", title: "Reports", group: "Business", icon: "chart",
     summary: "Revenue, occupancy, no-shows and loyalty liability.",
     clientFeatures: ["Price, promo and loyalty rules live on the server"],
-    adminTasks: ["Revenue by day and method", "Occupancy", "No-shows", "Loyalty liability", "PDF / CSV export"],
+    adminTasks: ["Pick Today, Yesterday, Last 7 / 30 days, This month or a custom range", "Sales (Fonepay and cash) by day and by source, compared with the period before", "Games: paid, unpaid, average rate, cancelled, no-shows, who booked", "Busy hours and weekdays", "Promo code use and best customers", "Membership and loyalty standing", "Send on WhatsApp and download a PDF"],
     endpoints: [
+      e("GET", "/admin/reports/summary", "everything above for a period in one call"),
       e("GET", "/admin/dashboard", "today's numbers"),
       e("GET", "/admin/reports/revenue", "revenue by day and method"),
       e("GET", "/admin/reports/occupancy", "booked hours, no-shows"),
