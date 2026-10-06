@@ -11,7 +11,7 @@ import { requirePermission } from "../middleware/auth";
 export const loyaltyRouter = Router();
 const phone = z.string().regex(/^9\d{9}$/, "registered mobile number like 98XXXXXXXX");
 
-loyaltyRouter.get("/customers/:phone", requirePermission("loyalty.read"), handler(async (req, res) => {
+loyaltyRouter.get("/customers/:phone", requirePermission("loyalty.view"), handler(async (req, res) => {
   const p = param(req, "phone");
   const [rows, vouchers] = await Promise.all([
     prisma.loyaltyEntry.findMany({ where: { userId: p }, orderBy: { createdAt: "desc" }, take: 200 }),
@@ -25,7 +25,7 @@ loyaltyRouter.get("/customers/:phone", requirePermission("loyalty.read"), handle
 }));
 
 // Goods bought at the venue: Rs. 100 = 1 point (kept for a year).
-loyaltyRouter.post("/goods-sale", requirePermission("loyalty.write"), handler(async (req, res) => {
+loyaltyRouter.post("/goods-sale", requirePermission("loyalty.goods"), handler(async (req, res) => {
   const b = parse(z.object({ phone, amount: z.number().int().min(1).max(1000000), items: z.string().max(200).optional() }), req.body);
   const user = await prisma.user.findUnique({ where: { phoneNumber: b.phone }, select: { phoneNumber: true } });
   if (!user) throw new AppError(404, "No registered customer with this number");
@@ -52,7 +52,7 @@ loyaltyRouter.post("/adjust", requirePermission("loyalty.adjust"), handler(async
   send(res, null, "Points adjusted");
 }));
 
-loyaltyRouter.post("/vouchers/:id/void", requirePermission("loyalty.adjust"), handler(async (req, res) => {
+loyaltyRouter.post("/vouchers/:id/void", requirePermission("loyalty.void"), handler(async (req, res) => {
   const id = param(req, "id");
   const v = await prisma.freeGameVoucher.findUnique({ where: { id } });
   if (!v) throw new AppError(404, "Voucher not found");

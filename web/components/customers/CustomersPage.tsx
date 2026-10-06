@@ -6,7 +6,7 @@ import { Badge } from "../bookings/Badge";
 import CustomerSheet from "./CustomerSheet";
 import VipTag from "./VipTag";
 import { rs } from "@/lib/bookings";
-import { canDo } from "@/lib/auth";
+import { guard } from "@/lib/access";
 import { CustomerList, CustomerRow, Mode, PAGE_SIZE, initials, listCustomers, setActive } from "@/lib/customers";
 
 const MODES: { id: Mode | ""; label: string }[] = [{ id: "", label: "Everyone" }, { id: "captain", label: "Captains" }, { id: "player", label: "Regular players" }];
@@ -21,9 +21,10 @@ export default function CustomersPage() {
   const [error, setError] = useState("");
   const [open, setOpen] = useState<CustomerRow | null>(null);
   const [tick, setTick] = useState(0);
-  const canSuspend = canDo("customers.write");
+  const canSuspend = true;
 
   async function suspend(c: CustomerRow) {
+    if (!guard("customers.suspend")) return;
     if (!window.confirm(`Suspend ${c.name ?? c.phoneNumber}? They cancelled ${c.stats.cancelStreak} games in a row. They will not be able to sign in. Their records are kept and you can reactivate them later.`)) return;
     try {
       await setActive(c.phoneNumber, false);

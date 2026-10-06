@@ -6,7 +6,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { Bell, CalendarDays, LayoutGrid, LayoutDashboard, LogOut, Plus, Search, User, X } from "lucide-react";
 import { icons } from "./icons";
 import { groups, modules } from "@/lib/nav";
-import { canSee } from "@/lib/access";
+import DeniedDialog from "./DeniedDialog";
 import { getToken } from "@/lib/api";
 import { currentAdmin, logout, refreshAdmin, type Admin } from "@/lib/auth";
 
@@ -33,8 +33,6 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
   if (!ready || !fresh) return <div className="grid min-h-screen place-items-center text-sm text-muted">Loading…</div>;
 
-  const seg = pathname.split("/")[1];
-  const blocked = !!seg && modules.some((m) => m.slug === seg) && !canSee(seg);
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
   const link = (href: string, label: string, Icon: React.ElementType) => (
@@ -65,10 +63,10 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         </div>
         <nav className="flex-1 space-y-5 overflow-y-auto">
           {link("/", "Dashboard", LayoutDashboard)}
-          {groups.filter((g) => modules.some((m) => m.group === g && canSee(m.slug))).map((g) => (
+          {groups.map((g) => (
             <div key={g}>
               <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wide text-muted">{g}</p>
-              <div className="space-y-0.5">{modules.filter((m) => m.group === g && canSee(m.slug)).map((m) => link(`/${m.slug}`, m.title, icons[m.icon]))}</div>
+              <div className="space-y-0.5">{modules.filter((m) => m.group === g).map((m) => link(`/${m.slug}`, m.title, icons[m.icon]))}</div>
             </div>
           ))}
         </nav>
@@ -88,18 +86,19 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             <Link href="/arrivals" aria-label="Arrivals"><Bell size={24} /></Link>
           </div>
         </header>
-        <main className="p-4 pb-28 lg:p-8">{blocked ? <div className="mx-auto mt-10 max-w-md rounded-2xl bg-surface p-8 text-center shadow-sm"><h1 className="text-lg font-bold">No access to this page</h1><p className="mt-2 text-sm text-muted">Your account is not set up to use this page. Ask an admin if you need it.</p><Link href="/" className="mt-4 inline-block rounded-full bg-brand px-5 py-2 text-sm font-semibold text-white">Back to the dashboard</Link></div> : children}</main>
+        <main className="p-4 pb-28 lg:p-8">{children}</main>
+        <DeniedDialog />
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 z-30 flex items-end border-t border-line bg-surface lg:hidden">
         {nav("/", "Home", LayoutDashboard)}
-        {canSee("bookings") ? nav("/bookings", "Bookings", CalendarDays) : <span className="flex-1" />}
+        {nav("/bookings", "Bookings", CalendarDays)}
         <div className="flex flex-1 justify-center">
-          <Link href={canSee("slots") ? "/slots" : "/"} aria-label="Slots: book a customer" className="-mt-7 grid h-16 w-16 place-items-center rounded-full bg-brand text-white shadow-lg ring-4 ring-surface">
+          <Link href="/slots" aria-label="Slots: book a customer" className="-mt-7 grid h-16 w-16 place-items-center rounded-full bg-brand text-white shadow-lg ring-4 ring-surface">
             <Plus size={30} />
           </Link>
         </div>
-        {canSee("arrivals") ? nav("/arrivals", "Arrivals", Bell) : <span className="flex-1" />}
+        {nav("/arrivals", "Arrivals", Bell)}
         <button onClick={() => setOpen(true)} className="flex flex-1 flex-col items-center gap-1 py-2 text-xs text-muted">
           <span className="grid h-9 w-12 place-items-center rounded-xl"><LayoutGrid size={22} /></span>
           More

@@ -66,14 +66,14 @@ function check(b: Body) {
   if (b.isActive && !offered) throw new AppError(400, "Set at least one price before making the plan active");
 }
 
-membershipPlansRouter.get("/plans", requirePermission("membership.read"), handler(async (_req, res) => {
+membershipPlansRouter.get("/plans", requirePermission("membership.view"), handler(async (_req, res) => {
   const plans = await prisma.membershipPlan.findMany({ orderBy: [{ isActive: "desc" }, { createdAt: "asc" }] });
   const subs = await prisma.membershipSubscription.groupBy({ by: ["planId"], where: { status: "active", endDate: { gte: new Date() } }, _count: { _all: true } });
   const n = new Map(subs.map((s) => [s.planId, s._count._all]));
   send(res, plans.map((p) => view(p, n.get(p.id) ?? 0)));
 }));
 
-membershipPlansRouter.post("/plans", requirePermission("membership.write"), handler(async (req, res) => {
+membershipPlansRouter.post("/plans", requirePermission("membership.create"), handler(async (req, res) => {
   const b = parse(body, req.body);
   check(b);
   const created = await prisma.$transaction(async (tx) => {
@@ -86,7 +86,7 @@ membershipPlansRouter.post("/plans", requirePermission("membership.write"), hand
   send(res, view(created), "Plan created", 201);
 }));
 
-membershipPlansRouter.put("/plans/:id", requirePermission("membership.write"), handler(async (req, res) => {
+membershipPlansRouter.put("/plans/:id", requirePermission("membership.edit"), handler(async (req, res) => {
   const id = param(req, "id");
   const b = parse(body, req.body);
   check(b);

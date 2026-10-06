@@ -56,7 +56,7 @@ const gzStatus = (s?: F["status"]): Prisma.GzBookingWhereInput =>
 
 const modeOf = (method: string) => (method === "venue" ? "cash" : "online");
 
-ledgerRouter.get("/ledger", requirePermission("payments.read"), handler(async (req, res) => {
+ledgerRouter.get("/ledger", requirePermission("payments.view"), handler(async (req, res) => {
   const f = parse(filters, req.query);
   const { take, skip, pageNo, limit } = page(req.query as Record<string, unknown>);
 
@@ -88,7 +88,7 @@ ledgerRouter.get("/ledger", requirePermission("payments.read"), handler(async (r
 }));
 
 // Totals for the cards above the list. They follow the date, mode and search filters, but not the status filter.
-ledgerRouter.get("/summary", requirePermission("payments.read"), handler(async (req, res) => {
+ledgerRouter.get("/summary", requirePermission("payments.view"), handler(async (req, res) => {
   const f = parse(filters, req.query);
   type Row = { method: string; sum: number; count: number };
   const group = async (paid: boolean): Promise<Row[]> => {

@@ -39,7 +39,7 @@ function scopeDate(scope: string): string | Prisma.StringFilter {
   return scope === "today" ? t : scope === "upcoming" ? { gt: t } : { lt: t };
 }
 
-bookingsRouter.get("/", requirePermission("bookings.read"), handler(async (req, res) => {
+bookingsRouter.get("/", requirePermission("bookings.view"), handler(async (req, res) => {
   const q = req.query as Record<string, string | undefined>;
   const { take, skip, pageNo, limit } = page(q);
   const scope = q.scope && ["upcoming", "today", "previous"].includes(q.scope) ? q.scope : undefined;
@@ -64,7 +64,7 @@ bookingsRouter.get("/", requirePermission("bookings.read"), handler(async (req, 
 
 // Tab badges: how many bookings are upcoming, today and previous (cancelled and expired holds included in previous).
 // Calendar dots: live bookings per day for one month (`?month=YYYY-MM`). Cancelled and expired bookings do not count.
-bookingsRouter.get("/calendar", requirePermission("bookings.read"), handler(async (req, res) => {
+bookingsRouter.get("/calendar", requirePermission("bookings.view"), handler(async (req, res) => {
   const month = parse(z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "use YYYY-MM"), req.query.month);
   const rows = await prisma.booking.groupBy({
     by: ["date"],
@@ -74,12 +74,12 @@ bookingsRouter.get("/calendar", requirePermission("bookings.read"), handler(asyn
   send(res, rows.map((r) => ({ date: r.date, count: r._count._all })));
 }));
 
-bookingsRouter.get("/counts", requirePermission("bookings.read"), handler(async (_req, res) => {
+bookingsRouter.get("/counts", requirePermission("bookings.view"), handler(async (_req, res) => {
   const [upcoming, today, previous] = await Promise.all(["upcoming", "today", "previous"].map((s) => prisma.booking.count({ where: { AND: [NOT_LEDGER, { date: scopeDate(s) }] } })));
   send(res, { upcoming, today, previous });
 }));
 
-bookingsRouter.get("/:id", requirePermission("bookings.read"), handler(async (req, res) => {
+bookingsRouter.get("/:id", requirePermission("bookings.view"), handler(async (req, res) => {
   const b = await load(param(req, "id"));
   const [order, stats] = await Promise.all([
     b.paymentOrderCode ? prisma.paymentOrder.findUnique({ where: { orderCode: b.paymentOrderCode } }) : null,
@@ -99,7 +99,7 @@ const walkIn = z.object({
   notes: z.string().max(300).optional(),
 });
 
-bookingsRouter.post("/walk-in", requirePermission("bookings.write"), handler(async (req, res) => {
+bookingsRouter.post("/walk-in", requirePermission("bookings.create"), handler(async (req, res) => {
   const b = parse(walkIn, req.body);
   // Staff may log a game that already happened (retroactive) or book ahead, within a sane range.
   if (b.date < addDaysKey(todayKey(), -60) || b.date > addDaysKey(todayKey(), 60)) throw new AppError(400, "Pick a date within 60 days of today");
@@ -137,7 +137,7 @@ bookingsRouter.post("/walk-in", requirePermission("bookings.write"), handler(asy
   }
 }));
 
-bookingsRouter.post("/:id/cancel", requirePermission("bookings.write"), handler(async (req, res) => {
+bookingsRouter.post("/:id/cancel", requirePermission("bookings.cancel"), handler(async (req, res) => {
   const { reason } = parse(z.object({ reason: z.string().max(200).optional() }), req.body ?? {});
   const b = await load(param(req, "id"));
   if (b.status === "cancelled" || b.status === "completed") throw new AppError(409, `This booking is already ${b.status}`);
@@ -157,7 +157,7 @@ bookingsRouter.post("/:id/cancel", requirePermission("bookings.write"), handler(
   send(res, null, "Booking cancelled");
 }));
 
-bookingsRouter.post("/:id/complete", requirePermission("bookings.write"), handler(async (req, res) => {
+bookingsRouter.post("/:id/complete", requirePermission("bookings.complete"), handler(async (req, res) => {
   const b = await load(param(req, "id"));
   if (!["pending", "confirmed"].includes(b.status)) throw new AppError(409, `Only pending or confirmed bookings can be completed (this one is ${b.status})`);
   if (b.date > todayKey()) throw new AppError(400, "A future booking cannot be completed yet");
@@ -167,7 +167,7 @@ bookingsRouter.post("/:id/complete", requirePermission("bookings.write"), handle
   send(res, { booking: withCode(done), pointsAwarded: awarded }, "Booking completed");
 }));
 
-bookingsRouter.post("/:id/no-show", requirePermission("bookings.write"), handler(async (req, res) => {
+bookingsRouter.post("/:id/no-show", requirePermission("bookings.noshow"), handler(async (req, res) => {
   const b = await load(param(req, "id"));
   if (!["pending", "confirmed"].includes(b.status)) throw new AppError(409, `This booking is ${b.status}`);
   if (b.date > todayKey()) throw new AppError(400, "A future booking cannot be a no-show");
@@ -177,7 +177,7 @@ bookingsRouter.post("/:id/no-show", requirePermission("bookings.write"), handler
 }));
 
 // Money collected at the venue (or confirmed by staff) for a booking.
-bookingsRouter.post("/:id/mark-paid", requirePermission("payments.write"), handler(async (req, res) => {
+bookingsRouter.post("/:id/mark-paid", requirePermission("payments.collect"), handler(async (req, res) => {
   const { method } = parse(z.object({ method: z.enum(["venue", "esewa", "fonepay"]).default("venue") }), req.body ?? {});
   const b = await load(param(req, "id"));
   if (b.status === "cancelled") throw new AppError(409, "This booking is cancelled");
@@ -200,7 +200,7 @@ bookingsRouter.post("/:id/mark-paid", requirePermission("payments.write"), handl
 }));
 
 // Goals and assists for a game that has started.
-bookingsRouter.put("/:id/player-stats", requirePermission("bookings.write"), handler(async (req, res) => {
+bookingsRouter.put("/:id/player-stats", requirePermission("bookings.stats"), handler(async (req, res) => {
   const { stats } = parse(z.object({ stats: z.array(z.object({ phone: z.string().regex(/^9\d{9}$/), goals: z.number().int().min(0).max(50), assists: z.number().int().min(0).max(50) })).max(30) }), req.body);
   const b = await load(param(req, "id"));
   if (b.date > todayKey()) throw new AppError(400, "The game has not started yet");

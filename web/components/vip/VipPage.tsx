@@ -6,7 +6,7 @@ import { Badge } from "../bookings/Badge";
 import Switch from "../Switch";
 import GiveVipSheet from "./GiveVipSheet";
 import { ApiError } from "@/lib/api";
-import { canDo } from "@/lib/auth";
+import { guard } from "@/lib/access";
 import { prettyDate, rs } from "@/lib/bookings";
 import { removeVip, saveVip } from "@/lib/customers";
 import { PAGE_SIZE, VipItem, VipList, VipStatus, copyText, describe, listVip, shareLink } from "@/lib/vip";
@@ -25,7 +25,7 @@ export default function VipPage() {
   const [sheet, setSheet] = useState<"new" | VipItem | null>(null);
   const [tick, setTick] = useState(0);
   const [copied, setCopied] = useState("");
-  const canWrite = canDo("customers.write");
+  const canWrite = true;
 
   useEffect(() => {
     const t = setTimeout(() => { setQ(search); setPageNo(1); }, 300);
@@ -45,6 +45,7 @@ export default function VipPage() {
   const input = "rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
 
   async function toggle(v: VipItem) {
+    if (!guard("vip.manage")) return;
     setError("");
     try {
       await saveVip(v.phone, { code: v.code, type: v.type, value: v.value, active: !v.active, note: v.note });
@@ -55,6 +56,7 @@ export default function VipPage() {
   }
 
   async function remove(v: VipItem) {
+    if (!guard("vip.manage")) return;
     if (!window.confirm(`Remove the VIP code ${v.code} from ${v.customerName ?? v.phone}? They will pay the normal price again.`)) return;
     try {
       await removeVip(v.phone);
@@ -72,7 +74,7 @@ export default function VipPage() {
           <h1 className="flex items-center gap-2 text-2xl font-bold"><Crown className="text-amber-500" /> VIP Privilege</h1>
           <p className="text-sm text-muted">Give a customer a special code. They type it once when booking and get a discount on every game.</p>
         </div>
-        {canWrite && <button onClick={() => setSheet("new")} className="flex shrink-0 items-center gap-1.5 rounded-full bg-brand px-4 py-2.5 text-sm font-semibold text-white"><Plus size={16} /> Give VIP</button>}
+        {canWrite && <button onClick={() => guard("vip.manage") && setSheet("new")} className="flex shrink-0 items-center gap-1.5 rounded-full bg-brand px-4 py-2.5 text-sm font-semibold text-white"><Plus size={16} /> Give VIP</button>}
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -99,7 +101,7 @@ export default function VipPage() {
         <div className="grid place-items-center gap-3 rounded-2xl bg-surface py-14 text-center text-muted shadow-sm">
           <Crown size={34} strokeWidth={1.5} />
           <p>{q || status ? "No VIP customers match." : "No VIP customers yet."}</p>
-          {canWrite && !q && !status && <button onClick={() => setSheet("new")} className="rounded-full bg-brand px-5 py-2 text-sm font-semibold text-white">Give the first VIP code</button>}
+          {canWrite && !q && !status && <button onClick={() => guard("vip.manage") && setSheet("new")} className="rounded-full bg-brand px-5 py-2 text-sm font-semibold text-white">Give the first VIP code</button>}
         </div>
       )}
 
@@ -135,7 +137,7 @@ export default function VipPage() {
               <a href={shareLink(v.phone, v.customerName, v)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold"><MessageCircle size={13} /> Send code</a>
               {canWrite && (
                 <>
-                  <button onClick={() => setSheet(v)} className="flex items-center gap-1.5 rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold"><Pencil size={13} /> Change</button>
+                  <button onClick={() => guard("vip.manage") && setSheet(v)} className="flex items-center gap-1.5 rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold"><Pencil size={13} /> Change</button>
                   <button onClick={() => remove(v)} className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-red-600"><Trash2 size={13} /> Remove</button>
                   <span className="ml-auto flex items-center gap-2 text-xs text-muted">{v.active ? "On" : "Paused"}<Switch on={v.active} label={v.active ? `Pause ${v.code}` : `Resume ${v.code}`} onChange={() => toggle(v)} /></span>
                 </>

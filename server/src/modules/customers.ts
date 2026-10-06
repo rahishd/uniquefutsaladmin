@@ -17,7 +17,7 @@ export const customersRouter = Router();
 const pub = { phoneNumber: true, name: true, email: true, isActive: true, createdAt: true, freeMatchesAvailable: true, isVerified: true, avatar: true } as const;
 const DEAD = ["cancelled", "expired"];
 
-customersRouter.get("/", requirePermission("customers.read"), handler(async (req, res) => {
+customersRouter.get("/", requirePermission("customers.view"), handler(async (req, res) => {
   const q = req.query as Record<string, string | undefined>;
   const { take, skip, pageNo, limit } = page(q);
   const captains = q.mode === "captain" || q.mode === "player" ? (await prisma.userPrefs.findMany({ where: { mode: "captain" }, select: { userId: true } })).map((p) => p.userId) : [];
@@ -61,7 +61,7 @@ customersRouter.get("/", requirePermission("customers.read"), handler(async (req
 }));
 
 // Everything staff want to know about one customer, in one call.
-customersRouter.get("/:phone/profile", requirePermission("customers.read"), handler(async (req, res) => {
+customersRouter.get("/:phone/profile", requirePermission("customers.view"), handler(async (req, res) => {
   const phone = param(req, "phone");
   const user = await prisma.user.findUnique({ where: { phoneNumber: phone }, select: pub });
   if (!user) throw new AppError(404, "Customer not found");
@@ -178,7 +178,7 @@ const vipBody = z.object({
   if (v.type === "flat" && v.value > 100000) ctx.addIssue({ code: "custom", path: ["value"], message: "at most Rs. 100,000" });
 });
 
-customersRouter.put("/:phone/vip", requirePermission("customers.write"), handler(async (req, res) => {
+customersRouter.put("/:phone/vip", requirePermission("vip.manage"), handler(async (req, res) => {
   const b = parse(vipBody, req.body);
   const phone = param(req, "phone");
   const u = await prisma.user.findUnique({ where: { phoneNumber: phone }, select: { role: true } });
@@ -198,7 +198,7 @@ customersRouter.put("/:phone/vip", requirePermission("customers.write"), handler
   send(res, { code: row.code, type: row.type, value: row.value, active: row.active, note: row.note, claimedAt: row.claimedAt }, old ? "VIP code saved" : "VIP code given", old ? 200 : 201);
 }));
 
-customersRouter.delete("/:phone/vip", requirePermission("customers.write"), handler(async (req, res) => {
+customersRouter.delete("/:phone/vip", requirePermission("vip.manage"), handler(async (req, res) => {
   const phone = param(req, "phone");
   const old = await prisma.vipCode.findUnique({ where: { userId: phone } });
   if (!old) throw new AppError(404, "This customer has no VIP code");
@@ -207,7 +207,7 @@ customersRouter.delete("/:phone/vip", requirePermission("customers.write"), hand
   send(res, null, "VIP code removed");
 }));
 
-customersRouter.get("/:phone", requirePermission("customers.read"), handler(async (req, res) => {
+customersRouter.get("/:phone", requirePermission("customers.view"), handler(async (req, res) => {
   const phone = param(req, "phone");
   const user = await prisma.user.findUnique({ where: { phoneNumber: phone }, select: pub });
   if (!user) throw new AppError(404, "Customer not found");
@@ -223,7 +223,7 @@ customersRouter.get("/:phone", requirePermission("customers.read"), handler(asyn
   send(res, { user, prefs, bookings, gamezone: gz, loyalty: { balanceBeforeExpiry: Math.round(points * 10) / 10, ledger, vouchers }, team: member?.team ?? null });
 }));
 
-customersRouter.patch("/:phone", requirePermission("customers.write"), handler(async (req, res) => {
+customersRouter.patch("/:phone", requirePermission("customers.edit"), handler(async (req, res) => {
   const b = parse(z.object({ name: z.string().min(2).max(60).optional(), email: z.string().email().nullable().optional() }), req.body);
   const phone = param(req, "phone");
   if (!(await prisma.user.findUnique({ where: { phoneNumber: phone } }))) throw new AppError(404, "Customer not found");
@@ -246,5 +246,5 @@ async function setActive(req: import("express").Request, active: boolean) {
   await audit(req, active ? "unsuspend" : "suspend", "customer", phone);
 }
 
-customersRouter.post("/:phone/suspend", requirePermission("customers.write"), handler(async (req, res) => { await setActive(req, false); send(res, null, "Customer suspended"); }));
-customersRouter.post("/:phone/unsuspend", requirePermission("customers.write"), handler(async (req, res) => { await setActive(req, true); send(res, null, "Customer reactivated"); }));
+customersRouter.post("/:phone/suspend", requirePermission("customers.suspend"), handler(async (req, res) => { await setActive(req, false); send(res, null, "Customer suspended"); }));
+customersRouter.post("/:phone/unsuspend", requirePermission("customers.suspend"), handler(async (req, res) => { await setActive(req, true); send(res, null, "Customer reactivated"); }));

@@ -10,12 +10,12 @@ import { getHourlyPricing, getHourlyRate, setSetting } from "./settings-store";
 
 export const courtsRouter = Router();
 
-courtsRouter.get("/pricing", requirePermission("courts.read"), handler(async (_req, res) => {
+courtsRouter.get("/pricing", requirePermission("courts.view"), handler(async (_req, res) => {
   send(res, { hourlyRate: await getHourlyRate(), hourlyPricing: await getHourlyPricing() });
 }));
 
 // Price per start hour. Customers see the new price at their next quote (the server recomputes it every time).
-courtsRouter.put("/pricing", requirePermission("courts.write"), handler(async (req, res) => {
+courtsRouter.put("/pricing", requirePermission("courts.price"), handler(async (req, res) => {
   const b = parse(z.object({
     hourlyRate: z.number().int().min(100, "at least Rs. 100").max(100000).optional(),
     hours: z.array(z.object({ hour: z.number().int().min(0).max(23), price: z.number().int().min(100, "at least Rs. 100").max(100000) })).max(24).optional(),
@@ -31,7 +31,7 @@ courtsRouter.put("/pricing", requirePermission("courts.write"), handler(async (r
 }));
 
 // Day view: every hour is free, booked (with who) or blocked.
-courtsRouter.get("/slots", requirePermission("bookings.read"), handler(async (req, res) => {
+courtsRouter.get("/slots", requirePermission("slots.view"), handler(async (req, res) => {
   const date = parse(dateStr, req.query.date ?? todayKey());
   const [slots, blocks] = await Promise.all([prisma.bookingSlot.findMany({ where: { date } }), prisma.slotBlock.findMany({ where: { date } })]);
   const bookings = await prisma.booking.findMany({ where: { id: { in: slots.map((s) => s.bookingId) } }, select: { id: true, code: true, customerName: true, customerPhone: true, userId: true, status: true, paymentStatus: true, startTime: true, endTime: true, duration: true, totalPrice: true, source: true, notes: true } });
@@ -46,13 +46,13 @@ courtsRouter.get("/slots", requirePermission("bookings.read"), handler(async (re
   send(res, { date, hours });
 }));
 
-courtsRouter.get("/blocks", requirePermission("courts.read"), handler(async (req, res) => {
+courtsRouter.get("/blocks", requirePermission("courts.view"), handler(async (req, res) => {
   const from = typeof req.query.from === "string" ? req.query.from : todayKey();
   send(res, await prisma.slotBlock.findMany({ where: { date: { gte: from } }, orderBy: [{ date: "asc" }, { hour: "asc" }] }));
 }));
 
 // A block is a SlotBlock row plus a BookingSlot row, so the customer app's unique (date, hour) guard stops anyone booking it.
-courtsRouter.post("/blocks", requirePermission("courts.write"), handler(async (req, res) => {
+courtsRouter.post("/blocks", requirePermission("courts.block"), handler(async (req, res) => {
   const b = parse(z.object({ date: dateStr, hours: z.array(z.number().int().min(0).max(23)).min(1).max(24), reason: z.string().min(2).max(120) }), req.body);
   if (b.date < todayKey()) throw new AppError(400, "Pick today or a later date");
   try {
@@ -73,7 +73,7 @@ courtsRouter.post("/blocks", requirePermission("courts.write"), handler(async (r
   }
 }));
 
-courtsRouter.delete("/blocks/:id", requirePermission("courts.write"), handler(async (req, res) => {
+courtsRouter.delete("/blocks/:id", requirePermission("courts.block"), handler(async (req, res) => {
   const id = param(req, "id");
   const blk = await prisma.slotBlock.findUnique({ where: { id } });
   if (!blk) throw new AppError(404, "Block not found");

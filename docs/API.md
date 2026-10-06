@@ -2,7 +2,7 @@
 
 Base URL `http://localhost:5100/api/admin`. Responses: `{ success, statusCode, message, data }`.
 Auth: `Authorization: Bearer <staff token>` from `POST /auth/login`. Customer tokens are rejected (different secret and audience).
-Every write is recorded in the audit log. Accounts: **admin** (and the original **owner**) have ALL access, including managing accounts. **Staff** accounts get only the permissions an admin ticked for them, page by page (see Staff & Roles below). Permissions live in `server/src/lib/permissions.ts`; they are re-read on every request, so a change applies to the person's very next click.
+Every write is recorded in the audit log. Accounts: the **owner** can do everything, including adding accounts and choosing what staff may do (always owner-only). An **admin** can do everything except manage accounts. A **staff** account can do only the small permissions the owner ticked, one per action (about 43, grouped like the pages). Permissions live in `server/src/lib/permissions.ts`; they are re-read on every request, so a change applies to the person's very next click.
 Dates `YYYY-MM-DD`, times `HH:00`, Nepal time, money in whole rupees. List endpoints take `page` and `limit` (max 100).
 
 | Area | Method and path | Permission | Notes |
@@ -94,18 +94,22 @@ Front desk, manager and owner can read and answer complaints; accountants cannot
 
 Change, pause and remove use `PUT` and `DELETE /customers/:phone/vip`, called only from the VIP Privilege page. The Customers page is read-only for VIP: it highlights VIP customers (`vip: {code, active}` on each list item) with a gold "VIP" tag and shows the code in the customer sheet.
 
-## Staff & Roles
-Two kinds of account: **Admin** (all access) and **Staff** (only what is ticked). Only admins can manage accounts: `staff.manage` and `settings.write` can never be given to staff.
+## Staff & Roles (owner only)
+Only the owner can use these endpoints (`staff.manage` is never given to admins or staff).
 
 | Method and path | Notes |
 |---|---|
-| `GET /staff` | every account with `accountType` (admin or staff), `permissions` (what was ticked), `effective` (what the account can really do), `legacyRole` (an older fixed role: manager, frontdesk or accountant) |
-| `GET /staff/catalog` | the 13 features an admin can tick (one per page, with a View and a Full level, and extras such as "adjust points"), the quick-start presets (Front desk, Accountant, Gamezone attendant, Manager, View only) and the list of assignable permissions |
-| `POST /staff` | `{email, name, accountType: admin|staff, password (10+), permissions?}`; permissions are ignored for admins; unknown or admin-only permissions are refused (400) |
-| `PATCH /staff/:id` | `{name?, accountType?, permissions?, isActive?, password?}`. Turning an older role into staff keeps what it could do. Admins cannot be given a list of permissions (change them to Staff first) |
+| `GET /staff` | every account: `accountType` (admin or staff), `permissions` (what was ticked), `effective` (what the account can really do), `legacyRole` (an older fixed role: manager, frontdesk or accountant) |
+| `GET /staff/catalog` | `sections` (15, one per page, each with its tick boxes `{key, label}`), `presets` (Front desk, Accountant, Gamezone attendant, Manager, View only) and `assignable` (all 43 keys) |
+| `POST /staff` | `{email, name, accountType: admin|staff, password (10+), permissions?}`; permissions are ignored for admins; unknown keys, owner-only keys and the older coarse names are refused (400) |
+| `PATCH /staff/:id` | `{name?, accountType?, permissions?, isActive?, password?}`. Turning an older role into staff keeps what it could do. Admins cannot be given a list (change them to Staff first) |
+
+### The small permissions
+One per action. Dashboard: `dashboard.view`. Bookings: `bookings.view`, `.create`, `.cancel`, `.complete`, `.noshow`, `.stats`. Slots and arrivals: `slots.view`, `arrivals.view`. Payments: `payments.view`, `.collect` (also marks a booking or order paid), `.refund`. Courts: `courts.view`, `.price`, `.block`. Promo codes: `promos.view`, `.create`, `.edit`, `.delete`. Customers: `customers.view`, `.edit`, `.suspend`. VIP: `vip.view`, `vip.manage`. Loyalty: `loyalty.view`, `.goods`, `.adjust`, `.void`. Membership: `membership.view`, `.create`, `.edit`. Teams: `teams.view`, `.resolve`, `.venuepaid`. Gamezone: `gamezone.view`, `.collect`, `.manage` (complete or cancel a session), `.catalog` (rates, consoles, games). Complaints: `complaints.view`, `.reply`. Notices: `notifications.send`. Reports and audit: `reports.view`, `audit.view`.
+
+Older accounts keep working: the older roles and the older coarse names (`bookings.read`, `payments.write`, ...) are expanded into the small permissions when read.
 
 Safety rules: only the owner can change the owner account; you cannot demote or disable yourself; one active owner must always remain. Every change is audited with the new access list, never with passwords.
 
-Permissions added for this: `courts.read` (see prices and blocked hours) and `promos.read` (see promo codes), so viewing them no longer needs booking access. A staff account with no ticks can only open the dashboard.
-
-In the portal, links and buttons follow the account's access: pages it cannot open are hidden (and a typed address shows "No access to this page"), and buttons that change things (mark paid, book, reject) are hidden for View-only access. The server still checks every request.
+### In the portal
+Everyone sees every page, like an admin. What a person may do is checked when they click: buttons and forms are there, and an action the account may not do (or a page of data it may not view) shows the message "This feature is only accessible to the Owner. Please contact him." The server refuses the request either way (HTTP 403).

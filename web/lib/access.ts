@@ -1,19 +1,18 @@
 import { currentAdmin } from "./auth";
 
-// Which permission a page needs to be opened. Pages not listed (not built yet) are for admins only.
-// This only hides links and shows a friendly message; the server checks every request again.
-export const NEEDS: Record<string, string> = {
-  bookings: "bookings.read", slots: "bookings.read", arrivals: "bookings.read",
-  payments: "payments.read", courts: "courts.read", promos: "promos.read",
-  customers: "customers.read", vip: "customers.read", loyalty: "loyalty.read", membership: "membership.read",
-  teams: "teams.read", disputes: "teams.read", gamezone: "gamezone.read", complaints: "complaints.read",
-  notifications: "notifications.write", reports: "reports.read", audit: "audit.read", staff: "staff.manage",
-};
+// Every account sees every page. What a person may DO is checked on the server for each action; the portal also checks here first,
+// so a person who is not allowed gets a clear message instead of a half-filled form that cannot be saved.
+export const DENIED_EVENT = "uf-denied";
 
-export function canSee(slug: string): boolean {
-  const a = currentAdmin();
-  if (!a) return false;
-  if (a.isAdmin) return true;
-  const need = NEEDS[slug];
-  return !!need && !!a.permissions?.includes(need);
+export const canDo = (permission: string) => !!currentAdmin()?.permissions?.includes(permission);
+
+export function showDenied() {
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(DENIED_EVENT));
+}
+
+// true when the signed-in account may do this; otherwise shows the "ask the Owner" message and returns false.
+export function guard(permission: string): boolean {
+  if (canDo(permission)) return true;
+  showDenied();
+  return false;
 }

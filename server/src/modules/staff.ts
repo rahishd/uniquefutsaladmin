@@ -4,10 +4,11 @@ import { z } from "zod";
 import { prisma } from "../db";
 import { audit } from "../lib/audit";
 import { AppError, handler, param, parse, send } from "../lib/http";
-import { ACCOUNT_TYPES, ASSIGNABLE, FEATURES, PRESETS, effectivePermissions, isAdminRole } from "../lib/permissions";
+import { ACCOUNT_TYPES, ASSIGNABLE, PRESETS, SECTIONS, effectivePermissions, isAdminRole } from "../lib/permissions";
 import { requirePermission } from "../middleware/auth";
 
-// Staff and admin accounts. Admins (and the owner) have all access and manage accounts; Staff get only what is ticked.
+// Accounts. ONLY THE OWNER can open this (the "staff.manage" permission belongs to the owner alone): add admin and staff accounts and
+// choose, one small permission at a time, what each staff member may do. Admins have every permission except this one.
 export const staffRouter = Router();
 staffRouter.use(requirePermission("staff.manage"));
 
@@ -25,8 +26,8 @@ const view = (s: { id: string; email: string; name: string; role: string; permis
   effective: effectivePermissions(s),
 });
 
-// What the form shows: the features, and the quick-start presets
-staffRouter.get("/catalog", handler(async (_req, res) => send(res, { features: FEATURES, presets: PRESETS, assignable: ASSIGNABLE })));
+// What the form shows: the permission sections with their tick boxes, and the quick-start presets
+staffRouter.get("/catalog", handler(async (_req, res) => send(res, { sections: SECTIONS, presets: PRESETS, assignable: ASSIGNABLE })));
 
 staffRouter.get("/", handler(async (_req, res) => send(res, (await prisma.staffUser.findMany({ select: pub, orderBy: { createdAt: "asc" } })).map(view))));
 

@@ -8,12 +8,12 @@ import { requirePermission } from "../middleware/auth";
 
 export const teamsRouter = Router();
 
-teamsRouter.get("/", requirePermission("teams.read"), handler(async (_req, res) => {
+teamsRouter.get("/", requirePermission("teams.view"), handler(async (_req, res) => {
   const teams = await prisma.team.findMany({ include: { members: true }, orderBy: { createdAt: "desc" } });
   send(res, teams.map((t) => ({ id: t.id, name: t.name, area: t.area, captainId: t.captainId, members: t.members.length, createdAt: t.createdAt })));
 }));
 
-teamsRouter.get("/disputes", requirePermission("teams.read"), handler(async (_req, res) => {
+teamsRouter.get("/disputes", requirePermission("teams.view"), handler(async (_req, res) => {
   const results = await prisma.challengeResult.findMany({ where: { status: "disputed" }, include: { challenge: true }, orderBy: { createdAt: "asc" } });
   const ids = [...new Set(results.flatMap((r) => [r.challenge.challengerTeamId, r.challenge.challengedTeamId]))];
   const names = new Map((await prisma.team.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } })).map((t) => [t.id, t.name]));
@@ -25,7 +25,7 @@ teamsRouter.get("/disputes", requirePermission("teams.read"), handler(async (_re
 
 // Approve a disputed score (optionally corrected) or void it. Same rules as the customer backend: the submitting team is the
 // winner or a draw; only an approved result changes records; the winning captain gets 5 points once.
-teamsRouter.post("/results/:id/resolve", requirePermission("teams.write"), handler(async (req, res) => {
+teamsRouter.post("/results/:id/resolve", requirePermission("teams.resolve"), handler(async (req, res) => {
   const b = parse(z.object({
     action: z.enum(["approve", "void"]),
     scoreSubmitter: z.number().int().min(0).max(50).optional(), scoreOther: z.number().int().min(0).max(50).optional(),
@@ -62,7 +62,7 @@ teamsRouter.post("/results/:id/resolve", requirePermission("teams.write"), handl
 }));
 
 // Who owes what at the venue for accepted challenge games. A draw is split 50/50; otherwise the loser pays loserPct.
-teamsRouter.get("/settlements", requirePermission("teams.read"), handler(async (req, res) => {
+teamsRouter.get("/settlements", requirePermission("teams.view"), handler(async (req, res) => {
   const date = typeof req.query.date === "string" ? req.query.date : undefined;
   const list = await prisma.challenge.findMany({ where: { status: "accepted", ...(date ? { date } : {}) }, orderBy: [{ date: "desc" }, { startHour: "asc" }], take: 300 });
   const teams = await prisma.team.findMany({ where: { id: { in: [...new Set(list.flatMap((c) => [c.challengerTeamId, c.challengedTeamId]))] } } });
@@ -87,7 +87,7 @@ teamsRouter.get("/settlements", requirePermission("teams.read"), handler(async (
 }));
 
 // Court money collected: marks the booking paid and asks both captains "Did you win?".
-teamsRouter.post("/challenges/:id/venue-paid", requirePermission("teams.write"), handler(async (req, res) => {
+teamsRouter.post("/challenges/:id/venue-paid", requirePermission("teams.venuepaid"), handler(async (req, res) => {
   const id = param(req, "id");
   const c = await prisma.challenge.findUnique({ where: { id } });
   if (!c) throw new AppError(404, "Challenge not found");

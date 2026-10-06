@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Phone, X } from "lucide-react";
 import { Badge } from "../bookings/Badge";
 import { ApiError } from "@/lib/api";
-import { canDo } from "@/lib/auth";
+import { guard } from "@/lib/access";
 import { CStatus, Complaint, QUICK_REPLIES, STATUS, ago, getComplaint, photoUrl, updateComplaint } from "@/lib/complaints";
 
 const ORDER: CStatus[] = ["open", "in_review", "resolved", "closed"];
@@ -17,7 +17,7 @@ export default function ComplaintSheet({ complaint, onClose, onSaved }: { compla
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
   const [zoom, setZoom] = useState<string | null>(null);
-  const editable = canDo("complaints.write");
+  const editable = true;
 
   useEffect(() => {
     let live = true;
@@ -28,6 +28,7 @@ export default function ComplaintSheet({ complaint, onClose, onSaved }: { compla
   const changed = status !== c.status || (reply.trim() !== (c.staffReply ?? "") && reply.trim() !== "");
 
   async function save() {
+    if (!guard("complaints.reply")) return;
     setBusy(true);
     setError("");
     setNote("");

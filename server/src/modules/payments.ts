@@ -11,7 +11,7 @@ export const paymentsRouter = Router();
 
 const payloadOf = (s: string) => { try { return JSON.parse(s); } catch { return {}; } };
 
-paymentsRouter.get("/", requirePermission("payments.read"), handler(async (req, res) => {
+paymentsRouter.get("/", requirePermission("payments.view"), handler(async (req, res) => {
   const q = req.query as Record<string, string | undefined>;
   const { take, skip, pageNo, limit } = page(q);
   const where: Prisma.PaymentOrderWhereInput = {
@@ -23,7 +23,7 @@ paymentsRouter.get("/", requirePermission("payments.read"), handler(async (req, 
 }));
 
 // Reconciliation: money that moved without a matching result (paid orders whose booking is not paid, and the reverse).
-paymentsRouter.get("/reconciliation", requirePermission("payments.read"), handler(async (_req, res) => {
+paymentsRouter.get("/reconciliation", requirePermission("payments.view"), handler(async (_req, res) => {
   const paid = await prisma.paymentOrder.findMany({ where: { status: "paid", purpose: "game" }, orderBy: { paidAt: "desc" }, take: 300 });
   const bookings = await prisma.booking.findMany({ where: { paymentOrderCode: { in: paid.map((o) => o.orderCode) } }, select: { paymentOrderCode: true, paymentStatus: true, status: true, code: true } });
   const byCode = new Map(bookings.map((b) => [b.paymentOrderCode, b]));
@@ -34,7 +34,7 @@ paymentsRouter.get("/reconciliation", requirePermission("payments.read"), handle
 }));
 
 // Online orders cancelled after payment: staff pay the money back, then record it here.
-paymentsRouter.get("/refunds", requirePermission("payments.read"), handler(async (req, res) => {
+paymentsRouter.get("/refunds", requirePermission("payments.view"), handler(async (req, res) => {
   const refunded = await prisma.paymentOrder.findMany({ where: { status: "refunded" }, orderBy: { updatedAt: "desc" }, take: 300 });
   const events = await prisma.paymentEvent.findMany({ where: { orderCode: { in: refunded.map((o) => o.orderCode) } }, orderBy: { receivedAt: "asc" } });
   const items = refunded.map((o) => {
@@ -45,7 +45,7 @@ paymentsRouter.get("/refunds", requirePermission("payments.read"), handler(async
   send(res, only);
 }));
 
-paymentsRouter.post("/:orderCode/refund", requirePermission("payments.write"), handler(async (req, res) => {
+paymentsRouter.post("/:orderCode/refund", requirePermission("payments.refund"), handler(async (req, res) => {
   const b = parse(z.object({ method: z.enum(["cash", "esewa", "fonepay", "bank"]), reference: z.string().max(80).optional(), note: z.string().max(200).optional() }), req.body);
   const code = param(req, "orderCode");
   const order = await prisma.paymentOrder.findUnique({ where: { orderCode: code } });
@@ -59,7 +59,7 @@ paymentsRouter.post("/:orderCode/refund", requirePermission("payments.write"), h
 }));
 
 // Mark an order paid after the money was received outside the gateway (venue counter, manual eSewa check).
-paymentsRouter.post("/:orderCode/mark-paid", requirePermission("payments.write"), handler(async (req, res) => {
+paymentsRouter.post("/:orderCode/mark-paid", requirePermission("payments.collect"), handler(async (req, res) => {
   const code = param(req, "orderCode");
   const order = await prisma.paymentOrder.findUnique({ where: { orderCode: code } });
   if (!order) throw new AppError(404, "Order not found");

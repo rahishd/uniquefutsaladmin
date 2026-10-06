@@ -5,7 +5,7 @@ import { Pencil, Plus } from "lucide-react";
 import Switch from "../Switch";
 import { rs } from "@/lib/bookings";
 import { ApiError } from "@/lib/api";
-import { canDo } from "@/lib/auth";
+import { guard } from "@/lib/access";
 import { DEFAULT_GZ_PLANS, GzCatalog, GzItem, GzPlan, addConsole, addGame, getGzCatalog, patchConsole, patchGame, saveGzPlan } from "@/lib/courts";
 
 const field = "w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-brand disabled:opacity-60";
@@ -62,7 +62,7 @@ export default function GamezoneTab() {
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [tick, setTick] = useState(0);
-  const editable = canDo("gamezone.write");
+  const editable = true;
 
   useEffect(() => {
     let live = true;
@@ -82,12 +82,14 @@ export default function GamezoneTab() {
   const bad = changed.some((p) => !rateOk(shown(p).rate) || shown(p).label.trim().length < 2);
 
   const run = async (fn: () => Promise<unknown>, ok?: string) => {
+    if (!guard("gamezone.catalog")) return;
     setError("");
     setNote("");
     try { await fn(); if (ok) setNote(ok); setTick((t) => t + 1); } catch (e) { setError(e instanceof ApiError ? e.message : "That did not save"); }
   };
 
   async function saveRates() {
+    if (!guard("gamezone.catalog")) return;
     setBusy(true);
     await run(async () => { for (const p of notSaved ? saved : changed) { const s = shown(p); await saveGzPlan({ players: p.players, label: s.label.trim(), ratePerPersonHour: Number(s.rate) }); } }, "Rates saved. New Gamezone bookings use them straight away.");
     setBusy(false);
@@ -95,7 +97,6 @@ export default function GamezoneTab() {
 
   return (
     <div className="space-y-4">
-      {!editable && <p className="rounded-xl bg-surface-2 p-3 text-sm text-muted">You can view Gamezone prices. Only staff with Gamezone access can change them.</p>}
       {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600" role="alert">{error}</p>}
       {note && <p className="rounded-xl bg-brand/10 p-3 text-sm text-brand" role="status">{note}</p>}
 

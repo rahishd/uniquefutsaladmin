@@ -10,7 +10,7 @@ import { requirePermission } from "../middleware/auth";
 
 export const overviewRouter = Router();
 
-overviewRouter.get("/dashboard", handler(async (_req, res) => {
+overviewRouter.get("/dashboard", requirePermission("dashboard.view"), handler(async (_req, res) => {
   const today = todayKey();
   const live = { status: { notIn: ["cancelled", "expired"] } };
   const [bookingsToday, paidToday, gzPaidToday, pendingPayments, disputes, refundOrders, arrivals, newCustomers] = await Promise.all([
@@ -32,7 +32,7 @@ overviewRouter.get("/dashboard", handler(async (_req, res) => {
 }));
 
 // ---- broadcast ----
-overviewRouter.post("/notifications/broadcast", requirePermission("notifications.write"), handler(async (req, res) => {
+overviewRouter.post("/notifications/broadcast", requirePermission("notifications.send"), handler(async (req, res) => {
   const b = parse(z.object({
     type: z.enum(["promo", "tournament", "general"]), title: z.string().min(2).max(60), message: z.string().min(2).max(240),
     href: z.string().regex(/^\/[a-z0-9/_-]*$/i).optional(), audience: z.enum(["all", "captains"]).default("all"),
@@ -60,7 +60,7 @@ const range = (q: Record<string, unknown>) => {
   return { from, to };
 };
 
-overviewRouter.get("/reports/revenue", requirePermission("reports.read"), handler(async (req, res) => {
+overviewRouter.get("/reports/revenue", requirePermission("reports.view"), handler(async (req, res) => {
   const { from, to } = range(req.query);
   const [bookings, gz] = await Promise.all([
     prisma.booking.findMany({ where: { date: { gte: from, lte: to }, paymentStatus: "completed", status: { notIn: ["cancelled", "expired"] } }, select: { date: true, totalPrice: true, cashAmount: true, onlineAmount: true } }),
@@ -74,7 +74,7 @@ overviewRouter.get("/reports/revenue", requirePermission("reports.read"), handle
   send(res, { from, to, rows, totals: rows.reduce((t, r) => ({ courts: t.courts + r.courts, gamezone: t.gamezone + r.gamezone, cash: t.cash + r.cash, online: t.online + r.online, total: t.total + r.total }), { courts: 0, gamezone: 0, cash: 0, online: 0, total: 0 }) });
 }));
 
-overviewRouter.get("/reports/occupancy", requirePermission("reports.read"), handler(async (req, res) => {
+overviewRouter.get("/reports/occupancy", requirePermission("reports.view"), handler(async (req, res) => {
   const { from, to } = range(req.query);
   const [slots, noShows, cancelled] = await Promise.all([
     prisma.bookingSlot.groupBy({ by: ["date"], where: { date: { gte: from, lte: to }, NOT: { bookingId: { startsWith: "block:" } } }, _count: { _all: true } }),
@@ -84,7 +84,7 @@ overviewRouter.get("/reports/occupancy", requirePermission("reports.read"), hand
   send(res, { from, to, bookedHoursByDay: slots.map((s) => ({ date: s.date, hours: s._count._all })).sort((a, b) => a.date.localeCompare(b.date)), noShows, cancelled });
 }));
 
-overviewRouter.get("/reports/loyalty-liability", requirePermission("reports.read"), handler(async (_req, res) => {
+overviewRouter.get("/reports/loyalty-liability", requirePermission("reports.view"), handler(async (_req, res) => {
   const today = todayKey();
   const earned = await prisma.loyaltyEntry.aggregate({ where: { points: { gt: 0 }, OR: [{ expiresOn: null }, { expiresOn: { gte: today } }] }, _sum: { points: true } });
   const spent = await prisma.loyaltyEntry.aggregate({ where: { points: { lt: 0 } }, _sum: { points: true } });
@@ -94,7 +94,7 @@ overviewRouter.get("/reports/loyalty-liability", requirePermission("reports.read
 }));
 
 // ---- audit log ----
-overviewRouter.get("/audit", requirePermission("audit.read"), handler(async (req, res) => {
+overviewRouter.get("/audit", requirePermission("audit.view"), handler(async (req, res) => {
   const q = req.query as Record<string, string | undefined>;
   const { take, skip, pageNo, limit } = page(q);
   const where: Prisma.AdminAuditLogWhereInput = { ...(q.entity ? { entity: q.entity } : {}), ...(q.action ? { action: q.action } : {}), ...(q.staffId ? { staffId: q.staffId } : {}), ...(q.entityId ? { entityId: q.entityId } : {}) };

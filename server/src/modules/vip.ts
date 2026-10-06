@@ -27,7 +27,7 @@ async function freshCode(): Promise<string> {
   throw new AppError(500, "Could not make a new code, try again");
 }
 
-vipRouter.get("/generate-code", requirePermission("customers.read"), handler(async (_req, res) => send(res, { code: await freshCode() })));
+vipRouter.get("/generate-code", requirePermission("vip.view"), handler(async (_req, res) => send(res, { code: await freshCode() })));
 
 type Row = Prisma.VipCodeGetPayload<object>;
 
@@ -53,7 +53,7 @@ async function enrich(rows: Row[]) {
   });
 }
 
-vipRouter.get("/", requirePermission("customers.read"), handler(async (req, res) => {
+vipRouter.get("/", requirePermission("vip.view"), handler(async (req, res) => {
   const q = req.query as Record<string, string | undefined>;
   const { take, skip, pageNo, limit } = page(q);
   const text = q.q?.trim().slice(0, 60);
@@ -88,7 +88,7 @@ const create = z.object({
   if (v.type === "flat" && v.value > 100000) ctx.addIssue({ code: "custom", path: ["value"], message: "at most Rs. 100,000" });
 });
 
-vipRouter.post("/", requirePermission("customers.write"), handler(async (req, res) => {
+vipRouter.post("/", requirePermission("vip.manage"), handler(async (req, res) => {
   const b = parse(create, req.body);
   const user = await prisma.user.findUnique({ where: { phoneNumber: b.phone }, select: { role: true, name: true } });
   if (!user) throw new AppError(404, "No registered customer with this number");

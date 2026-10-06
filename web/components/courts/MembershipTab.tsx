@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Plus, Star, X } from "lucide-react";
 import { rs } from "@/lib/bookings";
 import { ApiError } from "@/lib/api";
-import { canDo } from "@/lib/auth";
+import { guard } from "@/lib/access";
 import { M_LENGTHS, M_SHIFTS, MLength, MPlan, MPlanInput, MShift, getPlans, savePlan } from "@/lib/courts";
 
 const field = "w-full rounded-lg border border-line bg-surface px-2.5 py-2 text-sm outline-none focus:border-brand";
@@ -138,7 +138,7 @@ export default function MembershipTab() {
   const [note, setNote] = useState("");
   const [tick, setTick] = useState(0);
   const [editing, setEditing] = useState<MPlan | "new" | null>(null);
-  const editable = canDo("membership.write");
+  const editable = true;
 
   useEffect(() => {
     let live = true;
@@ -150,13 +150,12 @@ export default function MembershipTab() {
 
   return (
     <div className="space-y-4">
-      {!editable && <p className="rounded-xl bg-surface-2 p-3 text-sm text-muted">You can view membership plans. Only a manager or owner can change them.</p>}
       {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600" role="alert">{error}</p>}
       {note && <p className="rounded-xl bg-brand/10 p-3 text-sm text-brand" role="status">{note}</p>}
 
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-muted">Each plan has a price for Morning, Day and Evening, for 1, 3 and 6 months.</p>
-        {editable && <button onClick={() => setEditing("new")} className="flex shrink-0 items-center gap-1 rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white"><Plus size={16} /> New plan</button>}
+        {editable && <button onClick={() => guard("membership.create") && setEditing("new")} className="flex shrink-0 items-center gap-1 rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white"><Plus size={16} /> New plan</button>}
       </div>
 
       {!plans && !error && <p className="py-8 text-center text-sm text-muted">Loading plans…</p>}
@@ -175,7 +174,7 @@ export default function MembershipTab() {
                 {p.description && <p className="text-xs text-muted">{p.description}</p>}
                 <p className="text-xs text-muted">{p.activeSubscribers} active member{p.activeSubscribers === 1 ? "" : "s"}</p>
               </div>
-              {editable && <button onClick={() => setEditing(p)} className="shrink-0 rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold hover:bg-brand/10">Edit</button>}
+              {editable && <button onClick={() => guard("membership.edit") && setEditing(p)} className="shrink-0 rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold hover:bg-brand/10">Edit</button>}
             </div>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[19rem] text-center text-sm">
