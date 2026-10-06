@@ -249,12 +249,14 @@ export const modules: Module[] = [
   },
   {
     slug: "inventory", title: "Inventory & Goods", group: "Business", icon: "box",
-    summary: "Products sold at the venue (goods earn points).",
-    clientFeatures: ["Goods points: Rs.100 = 1 point"],
-    adminTasks: ["Products and categories", "Stock adjustments and logs", "Sell goods to a customer"],
+    summary: "Products sold at the venue: stock, restocking, counter sales and goods points.",
+    clientFeatures: ["Goods points: Rs. 100 = 1 point, kept for a year", "Bottled water is taken from stock when a booking is paid"],
+    adminTasks: ["Add categories and products with price, cost and a low-stock warning", "Restock, remove or count stock, every change is logged", "Sell goods at the counter (cash or online), optionally to a registered customer for points", "See sales and the stock log"],
     endpoints: [
-      e("GET", "/admin/inventory/products", "products", "needed"),
-      e("PATCH", "/admin/inventory/products/:id/stock", "stock", "needed"),
+      e("GET", "/admin/inventory/overview", "counts, stock value, sales today and this week"), e("GET", "/admin/inventory/categories", "categories"),
+      e("POST", "/admin/inventory/categories", "add (also PATCH, DELETE)"), e("GET", "/admin/inventory/products", "search, category, low or out of stock"),
+      e("POST", "/admin/inventory/products", "add with opening stock (also PATCH, DELETE)"), e("POST", "/admin/inventory/products/:id/stock", "add, remove or count"),
+      e("GET", "/admin/inventory/logs", "stock log"), e("POST", "/admin/inventory/sales", "counter sale, takes stock, gives points"), e("GET", "/admin/inventory/sales", "sales list"),
     ],
   },
   {

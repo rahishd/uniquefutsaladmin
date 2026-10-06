@@ -119,6 +119,22 @@ Pictures and ads shown in the customer app (customer backend `GET /content/activ
 | `PATCH /content/ads/:id` | content.ads | any field; `image` replaces the picture (the old one is deleted) |
 | `DELETE /content/ads/:id` | content.ads | also removes the picture |
 
+## Inventory & Goods
+
+Uses the venue's existing `Product`, `Category` and `InventoryLog` tables (the customer backend already takes bottled water from stock when a booking is paid) and `GoodsSale`. No new tables. Every stock change is one `InventoryLog` row, written together with the new stock under a row lock, so stock can never go below zero and two staff cannot sell the last item twice.
+
+| Route | Permission | Notes |
+|---|---|---|
+| `GET /inventory/overview` | inventory.view | products, low, out of stock, stock value (cost), sales today and last 7 days |
+| `GET /inventory/categories`, `POST`, `PATCH /:id`, `DELETE /:id` | view; products | names are unique (any case); a category with products cannot be deleted |
+| `GET /inventory/products?q&category&stock=low\|out` | inventory.view | `state` ok, low (at or below the warning level) or out; margin from cost price |
+| `POST /inventory/products` | inventory.products | `{name, categoryId, price, costPrice?, unit, lowStockThreshold, openingStock}`; opening stock is logged |
+| `PATCH /inventory/products/:id`, `DELETE` | inventory.products | stock is not editable here; a product in past orders cannot be deleted |
+| `POST /inventory/products/:id/stock` | inventory.stock | `{type: add\|remove\|set, quantity, reason?, costPrice?}`; set = the counted amount; refuses to go below 0 |
+| `GET /inventory/logs?page` | inventory.view | newest first |
+| `POST /inventory/sales` | inventory.sell | `{payment: cash\|online, phone?, items[{productId, quantity}]}`; price from the product, never the request; all-or-nothing; a registered phone earns Rs. 100 = 1 point (once); walk-ins earn none |
+| `GET /inventory/sales?page` | inventory.view | who bought, what, who sold |
+
 ## Customers page
 | Method and path | Permission | Notes |
 |---|---|---|
@@ -154,7 +170,7 @@ Only the owner can use these endpoints (`staff.manage` is never given to admins 
 | `PATCH /staff/:id` | `{name?, accountType?, permissions?, isActive?, password?}`. Turning an older role into staff keeps what it could do. Admins cannot be given a list (change them to Staff first) |
 
 ### The small permissions
-One per action. Dashboard: `dashboard.view`. Bookings: `bookings.view`, `.create`, `.cancel`, `.complete`, `.noshow`, `.stats`. Slots and arrivals: `slots.view`, `arrivals.view`. Payments: `payments.view`, `.collect` (also marks a booking or order paid), `.refund`. Courts: `courts.view`, `.price`, `.block`. Promo codes: `promos.view`, `.create`, `.edit`, `.delete`. Customers: `customers.view`, `.edit`, `.suspend`. VIP: `vip.view`, `vip.manage`. Loyalty: `loyalty.view`, `.goods`, `.adjust`, `.void`. Membership: `membership.view`, `.create`, `.edit`. Teams: `teams.view`, `.resolve`, `.venuepaid`. Gamezone: `gamezone.view`, `.collect`, `.manage` (complete or cancel a session), `.catalog` (rates, consoles, games). Complaints: `complaints.view`, `.reply`. Site Content: `content.view`, `.gallery`, `.ads`. Refer & Earn: `refer.view`, `.review`, `.adjust`, `.settings`. Children's Academy: `academy.view`, `.sessions`, `.enrollments`, `.terms`. Notices: `notifications.send`. Reports and audit: `reports.view`, `audit.view`.
+One per action. Dashboard: `dashboard.view`. Bookings: `bookings.view`, `.create`, `.cancel`, `.complete`, `.noshow`, `.stats`. Slots and arrivals: `slots.view`, `arrivals.view`. Payments: `payments.view`, `.collect` (also marks a booking or order paid), `.refund`. Courts: `courts.view`, `.price`, `.block`. Promo codes: `promos.view`, `.create`, `.edit`, `.delete`. Customers: `customers.view`, `.edit`, `.suspend`. VIP: `vip.view`, `vip.manage`. Loyalty: `loyalty.view`, `.goods`, `.adjust`, `.void`. Membership: `membership.view`, `.create`, `.edit`. Teams: `teams.view`, `.resolve`, `.venuepaid`. Gamezone: `gamezone.view`, `.collect`, `.manage` (complete or cancel a session), `.catalog` (rates, consoles, games). Complaints: `complaints.view`, `.reply`. Inventory & Goods: `inventory.view`, `.products`, `.stock`, `.sell`. Site Content: `content.view`, `.gallery`, `.ads`. Refer & Earn: `refer.view`, `.review`, `.adjust`, `.settings`. Children's Academy: `academy.view`, `.sessions`, `.enrollments`, `.terms`. Notices: `notifications.send`. Reports and audit: `reports.view`, `audit.view`.
 
 Older accounts keep working: the older roles and the older coarse names (`bookings.read`, `payments.write`, ...) are expanded into the small permissions when read.
 
