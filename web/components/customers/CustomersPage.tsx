@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Ban, ChevronLeft, ChevronRight, Phone, Search, Users } from "lucide-react";
 import { Badge } from "../bookings/Badge";
 import CustomerSheet from "./CustomerSheet";
+import VipTag from "./VipTag";
 import { rs } from "@/lib/bookings";
 import { canDo } from "@/lib/auth";
 import { CustomerList, CustomerRow, Mode, PAGE_SIZE, initials, listCustomers, setActive } from "@/lib/customers";
@@ -86,7 +87,7 @@ export default function CustomersPage() {
 
       <ul className="space-y-2">
         {data?.items.map((c) => (
-          <li key={c.phoneNumber} className="rounded-2xl bg-surface p-3 shadow-sm">
+          <li key={c.phoneNumber} className={`rounded-2xl p-3 shadow-sm ${c.vip ? "bg-amber-400/10 ring-2 ring-amber-400/70" : "bg-surface"}`}>
             <div className="flex items-center gap-3">
             <button onClick={() => setOpen(c)} className="flex min-w-0 flex-1 items-center gap-3 text-left" aria-label={`Open ${c.name ?? c.phoneNumber}`}>
               <span className="relative grid h-12 w-12 shrink-0 place-items-center rounded-full bg-brand/15 font-bold text-brand">
@@ -94,8 +95,9 @@ export default function CustomersPage() {
                 {c.mode === "captain" && <span title="Captain" className="absolute -right-1 -top-1 grid h-5 w-5 place-items-center rounded-full bg-amber-400 text-[11px] font-black text-white">C</span>}
               </span>
               <span className="min-w-0 flex-1">
-                <span className="flex items-center gap-2">
-                  <span className="truncate font-semibold">{c.name || "No name"}</span>
+                <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className="min-w-0 break-words font-semibold">{c.name || "No name"}</span>
+                  {c.vip && <VipTag />}
                   {!c.isActive && <Badge tone="bg-red-500/15 text-red-600">Suspended</Badge>}
                 </span>
                 <span className="block text-sm text-muted">{c.phoneNumber}</span>
