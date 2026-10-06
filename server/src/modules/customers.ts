@@ -61,8 +61,7 @@ customersRouter.get("/", requirePermission("customers.view"), handler(async (req
 }));
 
 // Everything staff want to know about one customer, in one call.
-customersRouter.get("/:phone/profile", requirePermission("customers.view"), handler(async (req, res) => {
-  const phone = param(req, "phone");
+export async function customerProfile(phone: string) {
   const user = await prisma.user.findUnique({ where: { phoneNumber: phone }, select: pub });
   if (!user) throw new AppError(404, "Customer not found");
   const today = todayKey();
@@ -142,7 +141,7 @@ customersRouter.get("/:phone/profile", requirePermission("customers.view"), hand
   const vipUse = vipRow
     ? await prisma.booking.aggregate({ where: { AND: [mine, { promoCode: vipRow.code }, live] }, _count: { _all: true }, _sum: { discountAmount: true } })
     : null;
-  send(res, {
+  return {
     user,
     contact: { phone, whatsapp: `https://wa.me/977${phone}` },
     profile: { mode: prefs?.mode ?? "player", position: prefs?.position ?? null, location: prefs?.location ?? null, isCaptain, team },
@@ -162,8 +161,10 @@ customersRouter.get("/:phone/profile", requirePermission("customers.view"), hand
       code: vipRow.code, type: vipRow.type, value: vipRow.value, active: vipRow.active, note: vipRow.note, claimedAt: vipRow.claimedAt, createdAt: vipRow.createdAt,
       usage: { games: vipUse?._count._all ?? 0, discountGiven: vipUse?._sum.discountAmount ?? 0 },
     },
-  });
-}));
+  };
+}
+
+customersRouter.get("/:phone/profile", requirePermission("customers.view"), handler(async (req, res) => send(res, await customerProfile(param(req, "phone")))));
 
 // VIP discount code: staff give one customer a special code (for example ADMINVIP) worth a percent or rupees off.
 // The customer types it once in the booking screen; after that the customer app applies it to every booking they make.

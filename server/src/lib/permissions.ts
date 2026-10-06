@@ -100,6 +100,10 @@ export const SECTIONS: Section[] = [
     { key: "academy.enrollments", label: "Mark Attendance / Cancel Enrolment" },
     { key: "academy.terms", label: "Edit Terms & Conditions" },
   ] },
+  { id: "digitalid", label: "Digital ID", permissions: [
+    { key: "digitalid.scan", label: "Scan / Search a Customer Digital ID" },
+    { key: "digitalid.attendance", label: "Mark Membership Attendance" },
+  ] },
   { id: "notices", label: "Notices", permissions: [{ key: "notifications.send", label: "Send Notices to Customers" }] },
   { id: "reports", label: "Reports & Audit", permissions: [
     { key: "reports.view", label: "View Reports" },
@@ -131,7 +135,7 @@ const EXPAND: Record<string, string[]> = {
 };
 const expand = (list: string[]) => [...new Set(list.flatMap((p) => EXPAND[p] ?? [p]))];
 
-const FRONT_DESK = expand(["dashboard.view", "bookings.read", "bookings.write", "payments.read", "payments.write", "customers.read", "vip.view", "courts.read", "promos.read", "loyalty.read", "loyalty.write", "teams.read", "teams.write", "gamezone.read", "gamezone.write", "membership.read", "complaints.read", "complaints.write", "inventory.view", "inventory.sell"]);
+const FRONT_DESK = expand(["dashboard.view", "bookings.read", "bookings.write", "payments.read", "payments.write", "customers.read", "vip.view", "courts.read", "promos.read", "loyalty.read", "loyalty.write", "teams.read", "teams.write", "gamezone.read", "gamezone.write", "membership.read", "complaints.read", "complaints.write", "inventory.view", "inventory.sell", "digitalid.scan", "digitalid.attendance"]);
 const ACCOUNTANT = expand(["dashboard.view", "bookings.read", "payments.read", "payments.write", "customers.read", "vip.view", "courts.read", "promos.read", "loyalty.read", "gamezone.read", "membership.read", "reports.read", "audit.read"]);
 const VIEW_ONLY = ASSIGNABLE.filter((k) => k.endsWith(".view"));
 

@@ -943,3 +943,24 @@ model FonepayQr {
 
   @@index([status, createdAt])
 }
+
+// Digital ID: the random value inside a customer's QR (same table as the customer backend, migration 20261015000001).
+model DigitalId {
+  userId    String    @id
+  token     String    @unique
+  createdAt DateTime  @default(now())
+  rotatedAt DateTime?
+}
+
+// Membership attendance: one row per member per day, recorded by staff after scanning the member's Digital ID. Admin-owned.
+model MembershipAttendance {
+  id             String   @id @default(cuid())
+  subscriptionId String
+  userId         String
+  date           String // YYYY-MM-DD, Nepal time
+  recordedBy     String
+  createdAt      DateTime @default(now())
+
+  @@unique([subscriptionId, date])
+  @@index([userId, date])
+}
