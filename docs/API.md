@@ -59,3 +59,13 @@ Membership subscriptions (requests, verifying payment, renewals), tournaments an
 
 ## 6-month memberships need a customer-app change
 `sql/002_membership_6_months.sql` adds six nullable columns to the customer table `MembershipPlan` (`price6Months{Morning,Day,Evening}`, `discount6Months{Morning,Day,Evening}`). The customer backend ignores them today (it only offers `1_month` and `3_months`). Before 6 months can be sold the customer repo must add the same columns to its Prisma schema, accept `6_months` in `POST /membership/request`, compute the end date, and award the 6-month points (`half`: 70). Until then 6-month prices are stored but not shown to customers.
+
+## Complaints (staff side)
+| Method and path | Permission | Notes |
+|---|---|---|
+| `GET /complaints?status=open|in_review|resolved|closed&category=&q=&page=&limit=` | complaints.read | newest first; `q` matches code, words in the message, phone or the customer's name; each item has `customerName`, `customerPhone`, `photos` |
+| `GET /complaints/counts` | complaints.read | `{all, open, in_review, resolved, closed}` for the tab badges |
+| `GET /complaints/:id` | complaints.read | id or code; adds `customerComplaints` (how many this customer has sent) |
+| `PATCH /complaints/:id` | complaints.write | `{status?, reply? (max 1000)}`; sets `resolvedAt` when resolved or closed, clears it on reopen; creates a `complaint` notification for the customer only when something changed; audited |
+
+Front desk, manager and owner can read and answer complaints; accountants cannot. The table `Complaint` belongs to the customer backend (migration `20261007000001_complaints`); `sql/003_complaints_mirror.sql` only creates it (IF NOT EXISTS) in a local admin database. Photos are `/uploads/complaints/...` paths served by the customer backend (the admin web reads them from `NEXT_PUBLIC_CUSTOMER_ORIGIN`) or full cloud URLs. The in-app notice is written to the shared notification table; closed-app Web Push for it is sent by the customer server only.
