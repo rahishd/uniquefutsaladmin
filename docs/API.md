@@ -70,6 +70,23 @@ Membership subscriptions (requests, verifying payment, renewals), tournaments an
 
 Front desk, manager and owner can read and answer complaints; accountants cannot. The table `Complaint` belongs to the customer backend (migration `20261007000001_complaints`); `sql/003_complaints_mirror.sql` only creates it (IF NOT EXISTS) in a local admin database. Photos are `/uploads/complaints/...` paths served by the customer backend (the admin web reads them from `NEXT_PUBLIC_CUSTOMER_ORIGIN`) or full cloud URLs. The in-app notice is written to the shared notification table; closed-app Web Push for it is sent by the customer server only.
 
+## Children's Academy (staff side)
+
+Ages 10 to 14. Staff publish class times; the customer app (`/academy` on the customer backend) shows only classes that are visible, open and not started, and enrols a guardian's child. Same tables (`AcademySession`, `AcademyEnrollment`; local mirror `sql/007_academy_mirror.sql`); the Terms live in `Settings` key `academyTerms`.
+
+| Route | Permission | Notes |
+|---|---|---|
+| `GET /academy/overview` | academy.view | upcoming classes, shown to guardians, enrolled children, children with health notes |
+| `GET /academy/sessions?scope=upcoming\|past` | academy.view | each class with `enrolled`, `seatsLeft`, `visible`, `started` |
+| `POST /academy/sessions` | academy.sessions | `{date, startTime, endTime, title?, coach?, capacity (1-100), visible, repeatWeeks (0-12)}`; future only; same start time twice is refused |
+| `PATCH /academy/sessions/:id` | academy.sessions | title, coach, capacity (not below enrolled), `visible` (show or hide from guardians); date and time only while nobody is enrolled |
+| `POST /academy/sessions/:id/cancel` | academy.sessions | `{reason?}`; cancels the enrolments and notifies each guardian (`type: "academy"`) |
+| `GET /academy/enrollments?sessionId&status&health=condition&q&page` | academy.view | child, guardian, emergency contact, address, health notes |
+| `POST /academy/enrollments/:id/attendance` | academy.enrollments | `{status: attended\|no_show\|confirmed}`; only after the class started |
+| `POST /academy/enrollments/:id/cancel` | academy.enrollments | notifies the guardian |
+| `GET /academy/terms` | academy.view | current text, version and earlier versions |
+| `PUT /academy/terms` | academy.terms | `{text}`; every change raises the version, guardians must accept the newest |
+
 ## Customers page
 | Method and path | Permission | Notes |
 |---|---|---|
@@ -105,7 +122,7 @@ Only the owner can use these endpoints (`staff.manage` is never given to admins 
 | `PATCH /staff/:id` | `{name?, accountType?, permissions?, isActive?, password?}`. Turning an older role into staff keeps what it could do. Admins cannot be given a list (change them to Staff first) |
 
 ### The small permissions
-One per action. Dashboard: `dashboard.view`. Bookings: `bookings.view`, `.create`, `.cancel`, `.complete`, `.noshow`, `.stats`. Slots and arrivals: `slots.view`, `arrivals.view`. Payments: `payments.view`, `.collect` (also marks a booking or order paid), `.refund`. Courts: `courts.view`, `.price`, `.block`. Promo codes: `promos.view`, `.create`, `.edit`, `.delete`. Customers: `customers.view`, `.edit`, `.suspend`. VIP: `vip.view`, `vip.manage`. Loyalty: `loyalty.view`, `.goods`, `.adjust`, `.void`. Membership: `membership.view`, `.create`, `.edit`. Teams: `teams.view`, `.resolve`, `.venuepaid`. Gamezone: `gamezone.view`, `.collect`, `.manage` (complete or cancel a session), `.catalog` (rates, consoles, games). Complaints: `complaints.view`, `.reply`. Notices: `notifications.send`. Reports and audit: `reports.view`, `audit.view`.
+One per action. Dashboard: `dashboard.view`. Bookings: `bookings.view`, `.create`, `.cancel`, `.complete`, `.noshow`, `.stats`. Slots and arrivals: `slots.view`, `arrivals.view`. Payments: `payments.view`, `.collect` (also marks a booking or order paid), `.refund`. Courts: `courts.view`, `.price`, `.block`. Promo codes: `promos.view`, `.create`, `.edit`, `.delete`. Customers: `customers.view`, `.edit`, `.suspend`. VIP: `vip.view`, `vip.manage`. Loyalty: `loyalty.view`, `.goods`, `.adjust`, `.void`. Membership: `membership.view`, `.create`, `.edit`. Teams: `teams.view`, `.resolve`, `.venuepaid`. Gamezone: `gamezone.view`, `.collect`, `.manage` (complete or cancel a session), `.catalog` (rates, consoles, games). Complaints: `complaints.view`, `.reply`. Children's Academy: `academy.view`, `.sessions`, `.enrollments`, `.terms`. Notices: `notifications.send`. Reports and audit: `reports.view`, `audit.view`.
 
 Older accounts keep working: the older roles and the older coarse names (`bookings.read`, `payments.write`, ...) are expanded into the small permissions when read.
 

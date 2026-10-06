@@ -712,6 +712,53 @@ model VipCode {
 }
 
 // =====================================================================
+// Children's Academy (customer backend migration 20261010000001_children_academy).
+model AcademySession {
+  id          String              @id @default(cuid())
+  title       String              @default("Children's Academy class")
+  date        String
+  startTime   String
+  endTime     String
+  capacity    Int                 @default(15)
+  coach       String?
+  visible     Boolean             @default(true)
+  status      String              @default("open") // open | cancelled
+  createdBy   String
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  enrollments AcademyEnrollment[]
+
+  @@index([date, visible])
+}
+
+model AcademyEnrollment {
+  id              String         @id @default(cuid())
+  code            String         @unique
+  sessionId       String
+  userId          String
+  guardianName    String
+  guardianPhone   String
+  emergencyPhone  String
+  address         String
+  childName       String
+  childKey        String
+  childAge        Int
+  healthStatus    String // healthy | condition
+  healthNotes     String?
+  termsVersion    Int
+  termsAcceptedAt DateTime
+  status          String         @default("confirmed") // confirmed | cancelled | attended | no_show
+  cancelledAt     DateTime?
+  cancelledBy     String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  session         AcademySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, userId, childKey])
+  @@index([userId])
+  @@index([sessionId, status])
+}
+
 // ADMIN-OWNED TABLES (created by sql/*.sql in production; `npm run db:push` builds them locally).
 // Everything above this line mirrors the customer backend's schema: keep it in sync, never edit it here.
 // =====================================================================
