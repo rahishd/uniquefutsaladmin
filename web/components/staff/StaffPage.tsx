@@ -89,7 +89,7 @@ export default function StaffPage() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
+    <div className="w-full space-y-5">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Staff &amp; Roles</h1>
@@ -105,12 +105,12 @@ export default function StaffPage() {
         <>
           <section className="space-y-2">
             <h2 className="px-1 text-sm font-bold">Admins <span className="font-normal text-muted">· everything except accounts ({admins.length})</span></h2>
-            <ul className="space-y-2">{admins.map(card)}</ul>
+            <ul className="grid items-start gap-2 xl:grid-cols-2">{admins.map(card)}</ul>
           </section>
           <section className="space-y-2">
             <h2 className="px-1 text-sm font-bold">Staff <span className="font-normal text-muted">· only what you tick ({staff.length})</span></h2>
             {staff.length === 0 && <p className="rounded-2xl bg-surface py-8 text-center text-sm text-muted shadow-sm">No staff accounts yet. Add one and tick what they may do.</p>}
-            <ul className="space-y-2">{staff.map(card)}</ul>
+            <ul className="grid items-start gap-2 xl:grid-cols-2">{staff.map(card)}</ul>
           </section>
         </>
       )}

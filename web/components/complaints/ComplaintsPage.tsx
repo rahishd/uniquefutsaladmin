@@ -47,7 +47,7 @@ export default function ComplaintsPage() {
   const input = "rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
+    <div className="w-full space-y-4">
       <div>
         <h1 className="text-2xl font-bold">Complaints</h1>
         <p className="text-sm text-muted">What customers report from the app. Reply and the customer is told in their app.</p>
@@ -82,7 +82,7 @@ export default function ComplaintsPage() {
         </div>
       )}
 
-      <ul className="space-y-2">
+      <ul className="grid items-start gap-2 xl:grid-cols-2">
         {data?.items.map((c) => {
           const st = STATUS[c.status];
           return (

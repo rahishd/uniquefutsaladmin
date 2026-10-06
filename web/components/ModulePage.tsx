@@ -16,7 +16,7 @@ export default function ModulePage({ module: m }: { module: Module }) {
   const Icon = icons[m.icon];
   const ready = m.endpoints.filter((x) => x.status === "ready").length;
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <div className="w-full space-y-6">
       <div className="flex items-start gap-4">
         <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand"><Icon size={24} /></span>
         <div>

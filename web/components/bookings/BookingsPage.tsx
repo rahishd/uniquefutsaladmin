@@ -85,7 +85,7 @@ export default function BookingsPage() {
   const pick = (fn: () => void) => { fn(); setPageNo(1); setData(null); setError(""); };
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
+    <div className="w-full space-y-4">
       <div>
         <h1 className="text-2xl font-bold">Bookings</h1>
         <p className="text-sm text-muted">Court bookings from the app and the front desk.</p>

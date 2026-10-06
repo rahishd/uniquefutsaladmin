@@ -40,7 +40,7 @@ export default function Home() {
   const val = hidden ? "XXXX.XX" : "—";
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-4 lg:space-y-6">
+    <div className="w-full space-y-4 lg:space-y-6">
       {/* green curve behind the summary card */}
       <div className="-mx-4 -mt-4 h-14 rounded-b-[2rem] bg-brand lg:hidden" />
 

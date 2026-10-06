@@ -16,7 +16,7 @@ const TABS = [
 export default function CourtsPage() {
   const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("prices");
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
+    <div className="w-full space-y-4">
       <div>
         <h1 className="text-2xl font-bold">Courts &amp; Pricing</h1>
         <p className="text-sm text-muted">Court prices, Gamezone rates, membership plans, and hours closed for booking.</p>

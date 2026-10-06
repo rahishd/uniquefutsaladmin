@@ -52,7 +52,7 @@ export default function CustomersPage() {
   const input = "rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
+    <div className="w-full space-y-4">
       <div>
         <h1 className="text-2xl font-bold">Customers</h1>
         <p className="text-sm text-muted">Everyone who has an account in the app. Tap a customer for their full history.</p>
@@ -86,7 +86,7 @@ export default function CustomersPage() {
         </div>
       )}
 
-      <ul className="space-y-2">
+      <ul className="grid items-start gap-2 xl:grid-cols-2">
         {data?.items.map((c) => (
           <li key={c.phoneNumber} className={`rounded-2xl p-3 shadow-sm ${c.vip ? "bg-amber-400/10 ring-2 ring-amber-400/70" : "bg-surface"}`}>
             <div className="flex items-center gap-3">
