@@ -7,6 +7,7 @@ import { BarChart3, Bell, CalendarDays, LayoutGrid, LayoutDashboard, LogOut, Plu
 import { icons } from "./icons";
 import { groups, modules } from "@/lib/nav";
 import DeniedDialog from "./DeniedDialog";
+import NotificationBell from "./NotificationBell";
 import { getToken } from "@/lib/api";
 import { currentAdmin, logout, refreshAdmin, type Admin } from "@/lib/auth";
 
@@ -77,14 +78,14 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-col">
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between bg-brand px-4 text-white lg:px-8">
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between bg-header px-4 text-white lg:px-8">
           <div className="flex items-center gap-3">
-            <span className="grid h-11 w-11 place-items-center rounded-xl bg-white text-brand"><User size={22} /></span>
+            <span className="grid h-11 w-11 place-items-center rounded-xl bg-white text-header"><User size={22} /></span>
             <span className="text-lg font-semibold">Hi, {firstName}</span>
           </div>
           <div className="flex items-center gap-5">
             <Link href="/customers" aria-label="Search customers"><Search size={24} /></Link>
-            <Link href="/arrivals" aria-label="Arrivals"><Bell size={24} /></Link>
+            <NotificationBell />
           </div>
         </header>
         <main className="mx-auto w-full max-w-[1400px] p-4 pb-28 lg:p-8 lg:pb-10">{children}</main>
