@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, RefreshCw, ShieldCheck, UserRound, X } from "lucide-react";
+import { Check, Copy, MessageCircle, RefreshCw, ShieldCheck, UserRound, X } from "lucide-react";
 import { guard } from "@/lib/access";
 import { ApiError } from "@/lib/api";
 import { Account, Catalog, createStaff, getCatalog, randomPassword, updateStaff } from "@/lib/staff";
+import { copyText } from "@/lib/vip";
 
 const field = "w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
 
@@ -13,6 +14,35 @@ function Box({ on }: { on: boolean }) {
     <span aria-hidden className={`grid h-6 w-6 shrink-0 place-items-center rounded-md border-2 ${on ? "border-brand bg-brand text-white" : "border-slate-400/60 bg-surface"}`}>
       {on && <Check size={15} strokeWidth={3} />}
     </span>
+  );
+}
+
+// The sign-in details of an account that was just saved: copy each one, copy everything, or send it on WhatsApp.
+function SignInDetails({ email, password }: { email: string; password?: string }) {
+  const [done, setDone] = useState("");
+  const link = typeof window === "undefined" ? "" : `${window.location.origin}/login`;
+  const message = [
+    "Unique Futsal admin portal: your sign-in details", link && `Link: ${link}`, `Email: ${email}`, password ? `Password: ${password}` : "Password: unchanged",
+    password ? "Please change your password after signing in (Settings > My password)." : "",
+  ].filter(Boolean).join("\n");
+  async function copy(what: string, text: string) { setDone((await copyText(text)) ? what : ""); setTimeout(() => setDone(""), 2000); }
+  const row = (label: string, value: string, key: string, canCopy: boolean) => (
+    <div className="flex items-center justify-between gap-3">
+      <div className="min-w-0"><p className="text-xs text-muted">{label}</p><p className="break-all font-mono font-semibold">{value}</p></div>
+      {canCopy && <button type="button" onClick={() => copy(key, value)} aria-label={`Copy ${label.toLowerCase()}`} className="flex shrink-0 items-center gap-1 rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-semibold">{done === key ? <><Check size={13} /> Copied</> : <><Copy size={13} /> Copy</>}</button>}
+    </div>
+  );
+  return (
+    <div className="space-y-3 text-left">
+      <div className="space-y-3 rounded-2xl bg-brand/10 p-4">
+        {row("Email", email, "email", true)}
+        {row("Password", password || "Unchanged", "password", !!password)}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <button type="button" onClick={() => copy("all", message)} className="flex items-center justify-center gap-1.5 rounded-xl border border-line py-2.5 text-sm font-semibold">{done === "all" ? <><Check size={15} /> Copied</> : <><Copy size={15} /> Copy all details</>}</button>
+        <a href={`https://wa.me/?text=${encodeURIComponent(message)}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-1.5 rounded-xl bg-[#25D366] py-2.5 text-sm font-semibold text-white"><MessageCircle size={15} /> Share on WhatsApp</a>
+      </div>
+    </div>
   );
 }
 
@@ -86,11 +116,8 @@ export default function AccountSheet({ edit, onClose, onSaved }: { edit: Account
 
         {saved ? (
           <div className="space-y-3 p-5 text-center">
+            <SignInDetails email={saved.email} password={saved.password} />
             <p className="text-sm text-muted">Give these sign-in details to the person. A new password is shown only now. The old email and password stop working from now on.</p>
-            <div className="space-y-1 rounded-2xl bg-brand/10 p-4 text-left">
-              <p className="text-xs text-muted">Email</p><p className="font-mono font-semibold">{saved.email}</p>
-              <p className="pt-2 text-xs text-muted">Password</p><p className="font-mono font-semibold">{saved.password || "Unchanged"}</p>
-            </div>
             <button onClick={onClose} className="w-full rounded-xl bg-brand py-3 font-semibold text-white">Done</button>
           </div>
         ) : (
