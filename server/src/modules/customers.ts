@@ -32,7 +32,7 @@ customersRouter.get("/", requirePermission("customers.read"), handler(async (req
   // Quick numbers for the rows on this page only
   const phones = rows.map((r) => r.phoneNumber);
   const mine = { AND: [NOT_LEDGER, { userId: { in: phones } }] };
-  const [played, paid, unpaid, gz, openComplaints, prefs, streaks] = await Promise.all([
+  const [played, paid, unpaid, gz, openComplaints, prefs, streaks, vips] = await Promise.all([
     prisma.booking.groupBy({ by: ["userId"], where: { AND: [...mine.AND, { status: "completed" }] }, _count: { _all: true } }),
     prisma.booking.groupBy({ by: ["userId"], where: { AND: [...mine.AND, { paymentStatus: "completed", status: { notIn: DEAD } }] }, _sum: { totalPrice: true } }),
     prisma.booking.groupBy({ by: ["userId"], where: { AND: [...mine.AND, { paymentStatus: { not: "completed" }, status: { notIn: DEAD } }] }, _sum: { totalPrice: true } }),
@@ -40,12 +40,14 @@ customersRouter.get("/", requirePermission("customers.read"), handler(async (req
     prisma.complaint.groupBy({ by: ["userId"], where: { userId: { in: phones }, status: { in: ["open", "in_review"] } }, _count: { _all: true } }),
     prisma.userPrefs.findMany({ where: { userId: { in: phones } }, select: { userId: true, mode: true } }),
     cancellationStreaks(phones),
+    prisma.vipCode.findMany({ where: { userId: { in: phones } }, select: { userId: true, code: true, active: true } }),
   ]);
   const by = <T extends { userId: string | null }>(list: T[]) => new Map(list.map((x) => [x.userId, x]));
-  const mPlayed = by(played), mPaid = by(paid), mUnpaid = by(unpaid), mGz = by(gz), mC = by(openComplaints), mMode = new Map(prefs.map((p) => [p.userId, p.mode]));
+  const mPlayed = by(played), mPaid = by(paid), mUnpaid = by(unpaid), mGz = by(gz), mC = by(openComplaints), mMode = new Map(prefs.map((p) => [p.userId, p.mode])), mVip = new Map(vips.map((v) => [v.userId, v]));
   const items = rows.map((u) => ({
     ...u,
     mode: mMode.get(u.phoneNumber) ?? "player",
+    vip: mVip.get(u.phoneNumber) ? { code: mVip.get(u.phoneNumber)!.code, active: mVip.get(u.phoneNumber)!.active } : null,
     stats: {
       gamesPlayed: mPlayed.get(u.phoneNumber)?._count._all ?? 0,
       gamezoneSessions: mGz.get(u.phoneNumber)?._count._all ?? 0,

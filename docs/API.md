@@ -84,3 +84,12 @@ Front desk, manager and owner can read and answer complaints; accountants cannot
 **VIP code.** Staff give a customer a code such as `ADMINVIP` worth a percent or rupees off. The customer types it once in the promo box when booking; the customer backend then marks it claimed and applies it automatically to every later booking (bigger of VIP and any normal promo code wins). The profile's `vip` shows whether the customer has entered it yet, and `usage` (games discounted and discount given, from bookings whose `promoCode` is the VIP code, cancelled ones excluded). The table `VipCode` belongs to the customer backend (migration `20261009000001_vip_codes`); `sql/005_vip_codes_mirror.sql` only creates it (IF NOT EXISTS) in a local admin database.
 
 "Tournaments hosted": tournaments are created by the venue; the customer app has no customer-run tournaments. The profile shows tournaments the customer entered (as team contact) and challenge matches their team hosted.
+
+## VIP Privilege page
+| Method and path | Permission | Notes |
+|---|---|---|
+| `GET /vip?status=active|paused|unclaimed&q&page&limit` | customers.read | every VIP customer: `code`, `type`, `value`, `active`, `note`, `claimedAt` (when the customer first typed it), `usage {games, discountGiven}`, `customerName`, `accountActive`; plus `totals {customers, active, paused, entered, games, discountGiven}` over all VIPs. `q` matches name, phone, code or note |
+| `GET /vip/generate-code` | customers.read | a fresh code like `VIPK7M3Q` (no 0/O/1/I) that no customer has and no normal promo code uses |
+| `POST /vip` | customers.write | `{phone, code?, type: percent|flat, value, note?}`; leave `code` out to have one made. 404 unknown customer, 409 if the customer already has a VIP code or the code equals a normal promo code. Audited (`vip-give`) |
+
+Change, pause and remove use `PUT` and `DELETE /customers/:phone/vip`. The Customers list marks who has a VIP code (`vip: {code, active}`).
