@@ -7,7 +7,8 @@
   --surface-2: #f1f3f5;
   --line: #e3e6eb;
   --muted: #6b7280;
-  --brand: #27b300;
+  --brand: #0b1f4d;
+  --header: #0b1f4d;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -18,7 +19,8 @@
     --surface-2: #1b2330;
     --line: #263041;
     --muted: #94a3b8;
-    --brand: #2bbf00;
+    --brand: #3b6fe0;
+    --header: #0b1f4d;
   }
 }
 
@@ -30,6 +32,7 @@
   --color-line: var(--line);
   --color-muted: var(--muted);
   --color-brand: var(--brand);
+  --color-header: var(--header);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
