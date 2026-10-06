@@ -209,9 +209,11 @@ export const modules: Module[] = [
     slug: "notifications", title: "Notifications", group: "Communication", icon: "megaphone",
     summary: "Bell notices, Web Push and SMS.",
     clientFeatures: ["Typed notices drive the Popular tile badges", "Web Push (needs VAPID keys)", "Promo and SMS preferences"],
-    adminTasks: ["Broadcast promo / tournament notices", "Send SMS", "Respect customer preferences"],
+    adminTasks: ["Send promo / tournament / general notices to all customers, team captains or one customer", "See how many it reaches before sending, and how many opened it after", "Send SMS (not built)", "Respect customer preferences (promo opt-outs are skipped)"],
     endpoints: [
-      e("POST", "/admin/notifications/broadcast", "promo / tournament / general notice"),
+      e("POST", "/admin/notifications/broadcast", "promo / tournament / general notice to all, captains or one customer"),
+      e("GET", "/admin/notifications/reach", "how many customers a notice would reach"),
+      e("GET", "/admin/notifications/history", "sent notices with opened counts"),
       e("POST", "/admin/notifications/sms", "SMS", "needed"),
     ],
   },

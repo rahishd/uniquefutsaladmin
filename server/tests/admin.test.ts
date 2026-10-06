@@ -273,6 +273,24 @@ describe("gamezone, teams, notices, reports", () => {
     assert.equal((await api.post("/notifications/broadcast", mgr.auth, { type: "promo", title: "x", message: "bad link", href: "https://evil.example" })).status, 400);
   });
 
+  it("notices: reach preview, one customer, and sent history with read counts", async () => {
+    await customer("9820000011"); await customer("9820000012");
+    const mgr = await staff("manager");
+    const reach = await api.get("/notifications/reach?type=general&audience=all", mgr.auth);
+    assert.ok(reach.body.data.reach >= 2);
+    assert.equal((await api.get("/notifications/reach?audience=customer&phone=9820000011", mgr.auth)).body.data.reach, 1);
+    assert.equal((await api.post("/notifications/broadcast", mgr.auth, { type: "general", title: "Hi", message: "Just you", audience: "customer" })).status, 400);
+    assert.equal((await api.post("/notifications/broadcast", mgr.auth, { type: "general", title: "Hi", message: "Just you", audience: "customer", phone: "9899999999" })).status, 404);
+    const one = await api.post("/notifications/broadcast", mgr.auth, { type: "general", title: "Hi Ram", message: "Just you", audience: "customer", phone: "9820000011" });
+    assert.equal(one.body.data.sent, 1);
+    await prisma.notification.updateMany({ where: { userId: "9820000011", title: "Hi Ram" }, data: { isRead: true } });
+    const h = await api.get("/notifications/history", mgr.auth);
+    assert.equal(h.body.data[0].title, "Hi Ram");
+    assert.equal(h.body.data[0].read, 1);
+    assert.equal(h.body.data[0].phone, "9820000011");
+    assert.equal((await api.get("/notifications/history", (await staff("staff", "nonotice@test.np")).auth)).status, 403);
+  });
+
   it("dashboard, revenue report and audit log work; the audit log never holds passwords", async () => {
     const owner = await staff("owner");
     await api.post("/bookings/walk-in", owner.auth, { date: today, startTime: "09:00", customerName: "Ram", paid: true, priceOverride: 1000 });
