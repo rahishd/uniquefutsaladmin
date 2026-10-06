@@ -198,7 +198,7 @@ export default function SlotsPage() {
         <BookSlotModal date={date} hours={hours} hour={book} past={isPast(book)} onClose={() => setBook(null)} onBooked={() => { setBook(null); refresh(); }} />
       )}
       {bulk && <BulkBookModal startDate={date} onClose={() => setBulk(false)} onBooked={refresh} />}
-      {detail && <BookingDetailSheet booking={detail} onClose={() => setDetail(null)} onChanged={refresh} />}
+      {detail && <BookingDetailSheet booking={detail} onClose={() => setDetail(null)} onChanged={refresh} billing={false} />}
     </div>
   );
 }
