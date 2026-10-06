@@ -337,6 +337,7 @@ bookingsRouter.post("/:id/mark-paid", requirePermission("payments.collect"), han
   });
   const fresh = await load(b.id);
   if (fresh.status === "completed") await awardForCompletedBooking(fresh);
+  if (fresh.userId) await notify(prisma, { userId: fresh.userId, type: "payment", title: "Payment received", message: `Rs. ${Math.round(total)} for your game on ${fresh.date} at ${fresh.startTime} was received. Thank you!`, href: "/profile", dedupeKey: `paid-${fresh.id}` });
   await audit(req, "mark-paid", "booking", b.id, { method, total });
   send(res, withCode(fresh), "Marked as paid");
 }));
