@@ -43,6 +43,17 @@ export const deleteProduct = (id: string) => api<null>(`/admin/inventory/product
 export const changeStock = (id: string, b: { type: "add" | "remove" | "set"; quantity: number; reason?: string; costPrice?: number }) =>
   api<Product>(`/admin/inventory/products/${id}/stock`, { method: "POST", body: JSON.stringify(b) });
 
+export type BillLine = { type: "game" | "goods"; label: string; quantity: number; amount: number };
+export type CustomerGame = { id: string; code: string; date: string; startTime: string; endTime: string; total: number; status: string; paid: boolean; paymentMethod: string; pointsIfCompleted: number; upcoming: boolean };
+export type CustomerBill = { customer: { phone: string; name: string | null } | null; games: CustomerGame[] };
+export type BillResult = { id: string; code: string; total: number; goodsTotal: number; gameTotal: number; lines: BillLine[]; customerName: string | null; pointsGoods: number; pointsGames: number; gamesWaitingForPoints: number };
+export type Bill = { id: string; code: string; customerPhone: string; customerName: string | null; total: number; goodsTotal: number; gameTotal: number; paymentMethod: string; lines: BillLine[]; points: number; createdAt: string };
+
+export const customerBill = (phone: string) => api<CustomerBill>(`/admin/inventory/customer-bill?phone=${phone}`);
+export const checkout = (b: { phone: string; payment: "cash" | "online"; items: { productId: string; quantity: number }[]; bookingIds: string[] }) =>
+  api<BillResult>("/admin/inventory/checkout", { method: "POST", body: JSON.stringify(b) });
+export const listBills = (page: number) => api<Paged<Bill>>(`/admin/inventory/bills?page=${page}&limit=${PAGE_SIZE}`);
+
 export const listLogs = (page: number) => api<Paged<Log>>(`/admin/inventory/logs?page=${page}&limit=${PAGE_SIZE}`);
 export const listSales = (page: number) => api<Paged<Sale>>(`/admin/inventory/sales?page=${page}&limit=${PAGE_SIZE}`);
 export const sell = (b: { payment: "cash" | "online"; phone?: string; items: { productId: string; quantity: number }[] }) =>

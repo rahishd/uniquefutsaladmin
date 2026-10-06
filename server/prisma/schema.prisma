@@ -836,6 +836,26 @@ model SiteAd {
   @@index([placement, active])
 }
 
+// Final bill made at the counter (customer backend migration 20261013000001_checkouts).
+model Checkout {
+  id            String   @id @default(cuid())
+  code          String   @unique
+  userId        String
+  paymentMethod String
+  goodsTotal    Int      @default(0)
+  gameTotal     Int      @default(0)
+  total         Int
+  lines         String
+  bookingIds    String[] @default([])
+  goodsSaleId   String?
+  pointsGoods   Decimal  @default(0) @db.Decimal(8, 1)
+  pointsGames   Decimal  @default(0) @db.Decimal(8, 1)
+  createdBy     String
+  createdAt     DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
 // ADMIN-OWNED TABLES (created by sql/*.sql in production; `npm run db:push` builds them locally).
 // Everything above this line mirrors the customer backend's schema: keep it in sync, never edit it here.
 // =====================================================================

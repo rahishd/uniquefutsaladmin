@@ -137,6 +137,79 @@ bookingsRouter.post("/walk-in", requirePermission("bookings.create"), handler(as
   }
 }));
 
+// Bulk booking: the same hour(s) on many dates at once (a weekly team slot, a month of mornings, a tournament block).
+// dryRun shows each date as free or taken with its price and changes nothing. mode "free" books the free dates and skips the taken ones;
+// mode "all" books everything or nothing.
+const bulkWalkIn = z.object({
+  dates: z.array(dateStr).min(1, "Choose at least one date").max(31, "At most 31 dates at a time"),
+  startTime: timeStr, duration: z.number().int().min(1).max(4).default(1),
+  customerName: z.string().min(2).max(60),
+  customerPhone: z.string().regex(/^9\d{9}$/, "mobile number like 98XXXXXXXX").optional(),
+  paymentMethod: z.enum(["venue", "esewa", "fonepay"]).default("venue"),
+  paid: z.boolean().default(false),
+  priceOverride: z.number().int().min(0).optional(), // per game, applied to every date
+  notes: z.string().max(300).optional(),
+  mode: z.enum(["free", "all"]).default("free"),
+  dryRun: z.boolean().default(false),
+});
+
+bookingsRouter.post("/walk-in/bulk", requirePermission("bookings.create"), handler(async (req, res) => {
+  const b = parse(bulkWalkIn, req.body);
+  const dates = [...new Set(b.dates)].sort();
+  if (dates[0] < addDaysKey(todayKey(), -60) || dates[dates.length - 1] > addDaysKey(todayKey(), 60)) throw new AppError(400, "Pick dates within 60 days of today");
+  const startHour = Number(b.startTime.slice(0, 2));
+  if (startHour + b.duration > 24) throw new AppError(400, "The booking cannot pass midnight");
+  const hours = Array.from({ length: b.duration }, (_, i) => startHour + i);
+  let basePrice = 0;
+  for (const h of hours) basePrice += await getHourPrice(h);
+  const total = b.priceOverride ?? basePrice;
+
+  const taken = await prisma.bookingSlot.findMany({ where: { date: { in: dates }, hour: { in: hours } }, select: { date: true } });
+  const busy = new Set(taken.map((t) => t.date));
+  const plan = dates.map((date) => ({ date, free: !busy.has(date), price: total }));
+  const free = plan.filter((p) => p.free);
+  const summary = { requested: dates.length, free: free.length, taken: plan.length - free.length, pricePerGame: total, totalAmount: total * free.length };
+
+  if (b.dryRun) return send(res, { plan, ...summary });
+  if (b.mode === "all" && free.length !== plan.length) throw new AppError(409, `These dates are already booked or blocked: ${plan.filter((p) => !p.free).map((p) => p.date).join(", ")}`);
+  if (free.length === 0) throw new AppError(409, "All of these dates are already booked or blocked");
+
+  const user = b.customerPhone ? await prisma.user.findUnique({ where: { phoneNumber: b.customerPhone }, select: { phoneNumber: true } }) : null;
+  const codes: string[] = [];
+  for (let i = 0; i < free.length; i++) codes.push(await uniqueCode());
+  const bulkId = codes[0];
+  let created;
+  try {
+    created = await prisma.$transaction(async (tx) => {
+      const rows = [];
+      for (const [i, p] of free.entries()) {
+        const ended = p.date < todayKey() || (p.date === todayKey() && startHour + b.duration <= currentHour());
+        const row = await tx.booking.create({
+          data: {
+            userId: user?.phoneNumber ?? null, date: p.date, startTime: b.startTime, endTime: `${String(startHour + b.duration).padStart(2, "0")}:00`, duration: b.duration,
+            customerName: b.customerName, customerPhone: b.customerPhone ?? null, basePrice, subtotal: basePrice, totalPrice: total,
+            discountAmount: Math.max(0, basePrice - total), paymentMethod: b.paymentMethod, status: ended ? "completed" : "confirmed",
+            paymentStatus: b.paid ? "completed" : "pending", amountPaidNow: b.paid ? total : 0, remainingAmount: b.paid ? 0 : total,
+            cashAmount: b.paid && b.paymentMethod === "venue" ? total : 0, onlineAmount: b.paid && b.paymentMethod !== "venue" ? total : 0,
+            notes: ["WALK_IN", `BULK ${bulkId}`, b.notes].filter(Boolean).join(" | "), code: codes[i],
+          },
+        });
+        await tx.bookingSlot.createMany({ data: hours.map((hour) => ({ date: p.date, hour, bookingId: row.id })) });
+        rows.push({ row, ended });
+      }
+      return rows;
+    });
+  } catch (e) {
+    // an hour was taken by someone else while saving: the whole batch is cancelled, nothing is half-booked
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") throw new AppError(409, "One of the hours was just booked by someone else. Check the dates again.");
+    throw e;
+  }
+  let points = 0;
+  for (const c of created) if (c.ended && (await awardForCompletedBooking(c.row))) points++;
+  await audit(req, "walk-in-bulk", "booking", bulkId, { dates: free.map((p) => p.date), skipped: plan.filter((p) => !p.free).map((p) => p.date), startTime: b.startTime, duration: b.duration, total, paid: b.paid });
+  send(res, { created: created.map((c) => withCode(c.row)), skipped: plan.filter((p) => !p.free).map((p) => p.date), pointsAwardedFor: points, ...summary }, `${created.length} booking${created.length === 1 ? "" : "s"} created`, 201);
+}));
+
 bookingsRouter.post("/:id/cancel", requirePermission("bookings.cancel"), handler(async (req, res) => {
   const { reason } = parse(z.object({ reason: z.string().max(200).optional() }), req.body ?? {});
   const b = await load(param(req, "id"));

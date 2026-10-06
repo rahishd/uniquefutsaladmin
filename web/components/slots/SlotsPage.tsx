@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CalendarDays, Clock, Lock, Plus, X } from "lucide-react";
+import { CalendarDays, CalendarPlus, Clock, Lock, Plus, X } from "lucide-react";
 import BookSlotModal from "./BookSlotModal";
+import BulkBookModal from "./BulkBookModal";
 import DatePicker from "./DatePicker";
 import BookingDetailSheet from "../bookings/BookingDetailSheet";
 import { guard } from "@/lib/access";
@@ -47,6 +48,7 @@ export default function SlotsPage() {
   const [hours, setHours] = useState<Hour[] | null>(null);
   const [error, setError] = useState("");
   const [book, setBook] = useState<number | null>(null);
+  const [bulk, setBulk] = useState(false);
   const [detail, setDetail] = useState<Booking | null>(null);
   const [tick, setTick] = useState(0);
 
@@ -92,7 +94,10 @@ export default function SlotsPage() {
           <p className="text-3xl font-black italic tracking-tight"><span>FIELD</span> <span className="text-orange-500">TIMELINE</span></p>
           <p className="text-xs text-muted">Visual occupancy grid for daily matches.</p>
         </div>
-        <DatePicker date={date} onChange={go} />
+        <div className="flex flex-wrap items-center gap-2">
+          <button onClick={() => guard("bookings.create") && setBulk(true)} className="flex items-center gap-1.5 rounded-full border border-line bg-surface px-4 py-2.5 text-sm font-semibold hover:border-brand"><CalendarPlus size={16} /> Bulk booking</button>
+          <DatePicker date={date} onChange={go} />
+        </div>
       </div>
 
       {date !== todayKey() && <button onClick={() => go(todayKey())} className="text-sm font-semibold text-brand">Back to today</button>}
@@ -150,6 +155,7 @@ export default function SlotsPage() {
       {book !== null && hours && (
         <BookSlotModal date={date} hours={hours} hour={book} past={isPast(book)} onClose={() => setBook(null)} onBooked={() => { setBook(null); refresh(); }} />
       )}
+      {bulk && <BulkBookModal startDate={date} onClose={() => setBulk(false)} onBooked={refresh} />}
       {detail && <BookingDetailSheet booking={detail} onClose={() => setDetail(null)} />}
     </div>
   );
