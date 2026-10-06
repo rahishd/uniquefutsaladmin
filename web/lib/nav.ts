@@ -107,14 +107,19 @@ export const modules: Module[] = [
   {
     slug: "membership", title: "Membership", group: "Customers", icon: "badge",
     summary: "Monthly / 3 / 6 month plans by shift (Basic, Premium).",
-    clientFeatures: ["Offers with discounted prices per shift", "Request a plan (pending until staff verify payment)", "4 PM to 8 PM never offered", "Points for 3 and 6 month plans"],
-    adminTasks: ["Plans CRUD and featured plan", "Subscriptions list, verify payment (activates)", "Manual subscription, renew, extend, suspend", "Settlement and invoice"],
+    clientFeatures: ["Membership ID (MEM-10291), status Active / Expiring soon / Expired / Suspended", "Offers with discounted prices per shift", "A fixed hour on chosen weekdays, held for the member", "4 PM to 8 PM never offered", "Points for 3 and 6 month plans", "Notices: activated, expiring, expired, renewed"],
+    adminTasks: ["Plans CRUD and featured plan (Courts > Membership)", "Members list by status with search by name, phone or Membership ID", "New member with live price and free-hour check, pay now (cash / Fonepay QR) or pay later", "Verify payment (activates)", "Renew (paid now), extend free days, suspend, resume, cancel", "WhatsApp reminder and invoice", "The member hour shows as MEMBER HOLD on Slots and cannot be booked by staff"],
     endpoints: [
       e("GET", "/admin/membership/plans", "plans with the shift x 1/3/6 month price matrix"),
       e("POST", "/admin/membership/plans", "create a plan"),
       e("PUT", "/admin/membership/plans/:id", "edit prices, perks, featured, active"),
-      e("GET", "/admin/membership/subscriptions", "subscriptions (customer backend has it today)", "needed"),
-      e("POST", "/admin/membership/verify-payment", "activate", "needed"),
+      e("GET", "/admin/membership/subscriptions", "members by status (pending, active, expiring, expired, suspended, cancelled), search, counts"),
+      e("GET", "/admin/membership/subscriptions/:id", "one member with payments and earlier memberships"),
+      e("POST", "/admin/membership/subscriptions", "new member (dryRun checks price and free hour); pay now or leave pending"),
+      e("POST", "/admin/membership/subscriptions/:id/verify", "verify payment, activate, points"),
+      e("POST", "/admin/membership/subscriptions/:id/renew", "renew, paid now"),
+      e("POST", "/admin/membership/subscriptions/:id/extend", "free extra days with a reason"),
+      e("POST", "/admin/membership/subscriptions/:id/suspend", "suspend, /resume, /cancel"),
     ],
   },
   {

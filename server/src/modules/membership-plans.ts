@@ -11,15 +11,15 @@ import { requirePermission } from "../middleware/auth";
 
 export const membershipPlansRouter = Router();
 
-const SHIFTS = ["morning", "day", "evening"] as const;
-const LENGTHS = ["1_month", "3_months", "6_months"] as const;
-type Shift = (typeof SHIFTS)[number];
-type Length = (typeof LENGTHS)[number];
+export const SHIFTS = ["morning", "day", "evening"] as const;
+export const LENGTHS = ["1_month", "3_months", "6_months"] as const;
+export type Shift = (typeof SHIFTS)[number];
+export type Length = (typeof LENGTHS)[number];
 
 const colPart = (l: Length) => (l === "1_month" ? "1Month" : l === "3_months" ? "3Months" : "6Months");
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
-const priceCol = (s: Shift, l: Length) => `price${colPart(l)}${cap(s)}`;
-const discountCol = (s: Shift, l: Length) => `discount${colPart(l)}${cap(s)}`;
+export const priceCol = (s: Shift, l: Length) => `price${colPart(l)}${cap(s)}`;
+export const discountCol = (s: Shift, l: Length) => `discount${colPart(l)}${cap(s)}`;
 
 const cell = z.object({ price: z.number().int().min(100, "at least Rs. 100").max(1_000_000).nullable(), discount: z.number().int().min(0).max(1_000_000).default(0) })
   .refine((c) => c.price === null || c.discount < c.price, { message: "the discount must be less than the price", path: ["discount"] });

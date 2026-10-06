@@ -1,3 +1,4 @@
+import { memberHolds } from "../lib/member-holds";
 import { Prisma } from "@prisma/client";
 import { Router } from "express";
 import { randomInt } from "crypto";
@@ -167,6 +168,8 @@ bookingsRouter.post("/walk-in", requirePermission("bookings.create"), handler(as
   if (b.date < addDaysKey(todayKey(), -60) || b.date > addDaysKey(todayKey(), 60)) throw new AppError(400, "Pick a date within 60 days of today");
   const startHour = Number(b.startTime.slice(0, 2));
   if (startHour + b.duration > 24) throw new AppError(400, "The booking cannot pass midnight");
+  const held = await memberHolds([b.date], Array.from({ length: b.duration }, (_, i) => startHour + i), b.customerPhone);
+  if (held.length) throw new AppError(409, `That hour is held for member ${held[0].name ?? held[0].userId} (${held[0].memberCode ?? "membership"})`);
   let basePrice = 0;
   for (let i = 0; i < b.duration; i++) basePrice += await getHourPrice(startHour + i);
   const total = b.priceOverride ?? basePrice;
@@ -228,7 +231,8 @@ bookingsRouter.post("/walk-in/bulk", requirePermission("bookings.create"), handl
   const total = b.priceOverride ?? basePrice;
 
   const taken = await prisma.bookingSlot.findMany({ where: { date: { in: dates }, hour: { in: hours } }, select: { date: true } });
-  const busy = new Set(taken.map((t) => t.date));
+  const memberHeld = await memberHolds(dates, hours, b.customerPhone);
+  const busy = new Set([...taken.map((t) => t.date), ...memberHeld.map((h) => h.date)]);
   const plan = dates.map((date) => ({ date, free: !busy.has(date), price: total }));
   const free = plan.filter((p) => p.free);
   const summary = { requested: dates.length, free: free.length, taken: plan.length - free.length, pricePerGame: total, totalAmount: total * free.length };

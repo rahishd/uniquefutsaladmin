@@ -1,3 +1,4 @@
+import { memberHolds } from "../lib/member-holds";
 import { Prisma } from "@prisma/client";
 import { Router } from "express";
 import { z } from "zod";
@@ -37,11 +38,12 @@ courtsRouter.get("/slots", requirePermission("slots.view"), handler(async (req, 
   const bookings = await prisma.booking.findMany({ where: { id: { in: slots.map((s) => s.bookingId) } }, select: { id: true, code: true, customerName: true, customerPhone: true, userId: true, status: true, paymentStatus: true, startTime: true, endTime: true, duration: true, totalPrice: true, source: true, notes: true, promoCode: true, discountAmount: true } });
   const pricing = await getHourlyPricing();
   const fallback = await getHourlyRate();
+  const held = await memberHolds([date], Array.from({ length: 24 }, (_, h) => h));
   const hours = Array.from({ length: 24 }, (_, hour) => {
     const slot = slots.find((s) => s.hour === hour);
     const block = blocks.find((x) => x.hour === hour);
     const price = pricing.find((p) => Number(p.id.slice(3)) === hour)?.price ?? fallback;
-    return { hour, price, state: block ? "blocked" : slot ? "booked" : "free", block: block ?? null, booking: slot && !block ? bookings.find((b) => b.id === slot.bookingId) ?? null : null };
+    return { hour, price, state: block ? "blocked" : slot ? "booked" : "free", block: block ?? null, booking: slot && !block ? bookings.find((b) => b.id === slot.bookingId) ?? null : null, member: held.find((h) => h.hour === hour) ?? null };
   });
   send(res, { date, hours });
 }));

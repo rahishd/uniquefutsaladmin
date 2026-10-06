@@ -20,7 +20,7 @@ export default function BookSlotModal({ date, hours, hour, past, onClose, onBook
 }) {
   // Longest booking from this hour: consecutive free hours, at most 4.
   let maxHours = 0;
-  while (maxHours < 4 && hours.find((h) => h.hour === hour + maxHours)?.state === "free") maxHours++;
+  while (maxHours < 4 && hours.find((h) => h.hour === hour + maxHours)?.state === "free" && !hours.find((h) => h.hour === hour + maxHours)?.member) maxHours++;
 
   const [duration, setDuration] = useState(1);
   const [name, setName] = useState("");
