@@ -9,7 +9,7 @@ Dates `YYYY-MM-DD`, times `HH:00`, Nepal time, money in whole rupees. List endpo
 |---|---|---|---|
 | Auth | `POST /auth/login` | none | `{email,password}` → `{token, admin{…,permissions}}`. 10 tries / 15 min / IP |
 | | `GET /auth/me`, `POST /auth/change-password` | any staff | |
-| Staff | see **Staff & Roles** below | staff.manage | owner only. Includes `PATCH /staff/:id` (name, login email, password, type, permissions, active) and `DELETE /staff/:id` (deleted at once, audit kept; not yourself) |
+| Staff | see **Staff & Roles** below | staff.manage | owner only. Includes `PATCH /staff/:id` (name, login email, password, type, permissions, active) and `DELETE /staff/:id` (deleted at once, audit kept; not yourself). A password change (by the owner, or `POST /auth/change-password`) signs that account out on every device; the self-change answers with a fresh `token` for the device in use |
 | Dashboard | `GET /dashboard` | any staff | bookings and revenue today, pending payments, disputes, refunds due, arrivals, new customers |
 | Arrivals | `GET /arrivals` | bookings.read | today's live court bookings and Gamezone sessions: `{date, nowMinutes, items[{kind,code,time,endTime,name,phone,amount,paid,method,status,checkedInAt}]}`; `checkedInAt` is set when the customer tapped "I'm coming". The page groups them: on the way, not confirmed, finished |
 | Bookings | `GET /bookings?scope=today|upcoming|previous&date&from&to&status&paymentStatus&q` | bookings.read | scope orders the list (upcoming/today oldest first, previous newest first); membership ledger rows are hidden |
