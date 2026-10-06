@@ -1,20 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { icons } from "@/components/icons";
 import { groups, modules } from "@/lib/nav";
+import { api } from "@/lib/api";
+import { canDo } from "@/lib/access";
+import { rs } from "@/lib/bookings";
+import { getOverview } from "@/lib/overview";
 
 const quick = ["slots", "bookings", "payments", "arrivals"];
 
-// Numbers stay "—" until the functional pages are connected to the API. No fake data.
-const attention = [
-  { label: "Pending payments", icon: "wallet", href: "/payments" },
-  { label: "Arrivals", icon: "bell", href: "/arrivals" },
-  { label: "Disputes", icon: "scale", href: "/disputes" },
-  { label: "Refunds due", icon: "receipt", href: "/payments" },
+type Live = { pendingPayments: number; arrivalsToday: number; disputes: number; refundsDue: number; bookingsToday: number };
+const attention: { label: string; icon: string; href: string; key: keyof Live }[] = [
+  { label: "Pending payments", icon: "wallet", href: "/payments", key: "pendingPayments" },
+  { label: "Arrivals", icon: "bell", href: "/arrivals", key: "arrivalsToday" },
+  { label: "Disputes", icon: "scale", href: "/disputes", key: "disputes" },
+  { label: "Refunds due", icon: "receipt", href: "/payments", key: "refundsDue" },
 ];
+const HIDE = "uf-hide-numbers";
+const readHidden = () => { if (typeof window === "undefined") return false; try { return localStorage.getItem(HIDE) === "1"; } catch { return false; } };
 
 function Tile({ href, label, Icon, badge }: { href: string; label: string; Icon: React.ElementType; badge?: string }) {
   return (
@@ -36,8 +42,29 @@ const Card = ({ title, children }: { title?: string; children: React.ReactNode }
 );
 
 export default function Home() {
-  const [hidden, setHidden] = useState(false);
-  const val = hidden ? "XXXX.XX" : "—";
+  // the eye hides the money and counts (for when the screen is shared); the choice is remembered on this device
+  const [hidden, setHidden] = useState(readHidden);
+  const [live, setLive] = useState<Live | null>(null);
+  const [sales, setSales] = useState<number | null>(null);
+  const allowed = canDo("dashboard.view");
+
+  const flip = () => { const next = !hidden; setHidden(next); try { localStorage.setItem(HIDE, next ? "1" : "0"); } catch { /* the choice just is not remembered */ } };
+
+  useEffect(() => {
+    if (!allowed) return;
+    let on = true;
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kathmandu" }).format(new Date());
+    const load = () => {
+      api<Live>("/admin/dashboard").then((d) => on && setLive(d)).catch(() => {});
+      getOverview(today, today).then((o) => on && setSales(o.today.total)).catch(() => {});
+    };
+    load();
+    const t = setInterval(() => document.visibilityState === "visible" && load(), 30000);
+    return () => { on = false; clearInterval(t); };
+  }, [allowed]);
+
+  const money = hidden ? "XXXX.XX" : sales === null ? "—" : rs(sales).replace("Rs. ", "");
+  const count = hidden ? "XX" : live === null ? "—" : String(live.bookingsToday);
 
   return (
     <div className="w-full space-y-4 lg:space-y-6">
@@ -48,13 +75,13 @@ export default function Home() {
         <div className="relative grid grid-cols-2 bg-surface-2 px-5 py-4 lg:px-8 lg:py-6">
           <div>
             <p className="text-xs text-muted">NPR · Revenue today</p>
-            <p className="text-xl font-bold lg:text-3xl">{val}</p>
+            <p className="text-xl font-bold lg:text-3xl">{money}</p>
           </div>
           <div className="pl-6">
             <p className="text-xs text-muted">Bookings today</p>
-            <p className="text-xl font-bold lg:text-3xl">{val}</p>
+            <p className="text-xl font-bold lg:text-3xl">{count}</p>
           </div>
-          <button onClick={() => setHidden((h) => !h)} aria-label={hidden ? "Show numbers" : "Hide numbers"} className="absolute left-1/2 top-1/2 grid h-12 w-12 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-surface shadow lg:left-auto lg:right-8 lg:translate-x-0">
+          <button onClick={flip} aria-label={hidden ? "Show numbers" : "Hide numbers"} className="absolute left-1/2 top-1/2 grid h-12 w-12 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-surface shadow lg:left-auto lg:right-8 lg:translate-x-0">
             {hidden ? <EyeOff size={22} /> : <Eye size={22} />}
           </button>
         </div>
@@ -69,7 +96,7 @@ export default function Home() {
       <Link href="/overview" className="flex items-center justify-between rounded-2xl bg-surface p-4 text-sm font-semibold shadow-sm"><span>Overview: today&apos;s sales, a week chart and what needs attention</span><span className="text-brand">Open</span></Link>
 
       <Card title="Needs attention">
-        {attention.map((a) => <Tile key={a.label} href={a.href} label={a.label} Icon={icons[a.icon]} badge="—" />)}
+        {attention.map((a) => <Tile key={a.label} href={a.href} label={a.label} Icon={icons[a.icon]} badge={live && live[a.key] > 0 ? String(live[a.key]) : undefined} />)}
       </Card>
 
       <div className="grid items-start gap-4 lg:grid-cols-2 lg:gap-6">
