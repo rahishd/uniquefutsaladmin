@@ -132,8 +132,8 @@ export default function ArrivalsPage() {
       )}
 
       {collecting && (
-        <CollectModal target={{ kind: collecting.kind, ref: collecting.ref, code: collecting.code, customer: collecting.name, amount: collecting.amount, method: collecting.method }}
-          onClose={() => setCollecting(null)} onDone={() => { setCollecting(null); setTick((t) => t + 1); }} />
+        <CollectModal target={{ kind: collecting.kind, ref: collecting.ref, code: collecting.code, customer: collecting.name, phone: collecting.phone, amount: collecting.amount, method: collecting.method }}
+          onClose={() => setCollecting(null)} onDone={() => { setTick((t) => t + 1); }} />
       )}
     </div>
   );

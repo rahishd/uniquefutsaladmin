@@ -66,7 +66,7 @@ export const paymentSummary = (f: Filters) => {
   return api<Summary>(`/admin/payments/summary?${qs}`);
 };
 
-export type CollectTarget = Pick<Row, "kind" | "ref" | "code" | "customer" | "amount" | "method">;
+export type CollectTarget = Pick<Row, "kind" | "ref" | "code" | "customer" | "amount" | "method"> & { phone?: string | null };
 
 // Court bookings are collected through the dues call (cash, Fonepay QR or both); only Gamezone sessions use this one.
 export const collectGamezone = (row: CollectTarget) => api(`/admin/gamezone/bookings/${encodeURIComponent(row.ref)}/mark-paid`, { method: "POST", body: "{}" });
