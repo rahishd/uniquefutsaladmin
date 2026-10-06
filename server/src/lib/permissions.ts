@@ -77,6 +77,12 @@ export const SECTIONS: Section[] = [
     { key: "complaints.view", label: "View Complaints" },
     { key: "complaints.reply", label: "Reply & Change Status" },
   ] },
+  { id: "academy", label: "Children's Academy", permissions: [
+    { key: "academy.view", label: "View Classes & Enrolled Children" },
+    { key: "academy.sessions", label: "Add / Edit / Cancel Classes & Show Times" },
+    { key: "academy.enrollments", label: "Mark Attendance / Cancel Enrolment" },
+    { key: "academy.terms", label: "Edit Terms & Conditions" },
+  ] },
   { id: "notices", label: "Notices", permissions: [{ key: "notifications.send", label: "Send Notices to Customers" }] },
   { id: "reports", label: "Reports & Audit", permissions: [
     { key: "reports.view", label: "View Reports" },

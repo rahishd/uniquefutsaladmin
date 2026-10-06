@@ -210,6 +210,19 @@ export const modules: Module[] = [
     ],
   },
   {
+    slug: "academy", title: "Children's Academy", group: "Communication", icon: "graduation",
+    summary: "Football classes for children aged 10 to 14: you set the times, guardians confirm.",
+    clientFeatures: ["Popular > Children's Academy", "Guardian name, contact and emergency number, address", "Child name, age (10 to 14) and health status", "Pick a class time you made visible", "Accept your Terms and Conditions", "Cancel until the class starts"],
+    adminTasks: ["Add class times (repeat weekly) and choose when guardians can see them", "See who is enrolled with guardian, emergency contact and health notes", "Call the guardian or emergency contact", "Mark attended or no-show", "Cancel a class (guardians are told)", "Edit the Terms and Conditions (new version each time)"],
+    endpoints: [
+      e("GET", "/admin/academy/overview", "counts"), e("GET", "/admin/academy/sessions", "classes, upcoming or past"),
+      e("POST", "/admin/academy/sessions", "add (optionally repeat weekly)"), e("PATCH", "/admin/academy/sessions/:id", "edit, show or hide"),
+      e("POST", "/admin/academy/sessions/:id/cancel", "cancel and tell guardians"), e("GET", "/admin/academy/enrollments", "enrolled children, filters"),
+      e("POST", "/admin/academy/enrollments/:id/attendance", "attended or no-show"), e("POST", "/admin/academy/enrollments/:id/cancel", "cancel one enrolment"),
+      e("GET", "/admin/academy/terms", "current terms and history"), e("PUT", "/admin/academy/terms", "save a new version"),
+    ],
+  },
+  {
     slug: "content", title: "Site Content", group: "Communication", icon: "image",
     summary: "Ads, gallery, contact info and help content.",
     clientFeatures: ["Home banner and ads", "Gallery", "Contact, map, WhatsApp number", "Help topics"],
