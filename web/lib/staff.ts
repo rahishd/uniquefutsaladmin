@@ -23,8 +23,10 @@ export const listStaff = () => api<Account[]>("/admin/staff");
 export const getCatalog = () => api<Catalog>("/admin/staff/catalog");
 export const createStaff = (b: { email: string; name: string; accountType: "admin" | "staff"; password: string; permissions: string[] }) =>
   api<Account>("/admin/staff", { method: "POST", body: JSON.stringify(b) });
-export const updateStaff = (id: string, b: { name?: string; accountType?: "admin" | "staff"; permissions?: string[]; isActive?: boolean; password?: string }) =>
+export const updateStaff = (id: string, b: { name?: string; email?: string; accountType?: "admin" | "staff"; permissions?: string[]; isActive?: boolean; password?: string }) =>
   api<Account>(`/admin/staff/${id}`, { method: "PATCH", body: JSON.stringify(b) });
+
+export const deleteStaff = (id: string) => api<null>(`/admin/staff/${id}`, { method: "DELETE" });
 
 export function randomPassword(): string {
   const chars = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";

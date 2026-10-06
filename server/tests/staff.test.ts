@@ -203,6 +203,49 @@ describe("owner, admin and staff accounts", () => {
     assert.equal((await prisma.staffUser.findUniqueOrThrow({ where: { id: owner.id } })).isActive, true);
   });
 
+  it("the owner can change a login email and password at any time, and delete an account", async () => {
+    const owner = await staff("owner");
+    const made = (await api.post("/staff", owner.auth, { email: "Sita@Test.np", name: "Sita", accountType: "staff", password: "long-enough-pass", permissions: ["bookings.view"] })).body.data;
+    assert.equal(made.email, "sita@test.np");
+    const login = (email: string, password: string) => request(app).post("/api/admin/auth/login").send({ email, password });
+    const first = await login("sita@test.np", "long-enough-pass");
+    assert.equal(first.status, 200);
+
+    // another account already uses that email
+    await api.post("/staff", owner.auth, { email: "ram@test.np", name: "Ram", accountType: "staff", password: "long-enough-pass" });
+    assert.equal((await api.patch(`/staff/${made.id}`, owner.auth, { email: "RAM@test.np" })).status, 409);
+    assert.equal((await api.patch(`/staff/${made.id}`, owner.auth, { email: "not-an-email" })).status, 400);
+
+    // new login email and new password: the old ones stop working, the new ones work
+    const changed = await api.patch(`/staff/${made.id}`, owner.auth, { email: "sita.new@test.np", password: "brand-new-password" });
+    assert.equal(changed.body.data.email, "sita.new@test.np");
+    assert.equal((await login("sita@test.np", "long-enough-pass")).status, 401);
+    assert.equal((await login("sita.new@test.np", "long-enough-pass")).status, 401);
+    assert.equal((await login("sita.new@test.np", "brand-new-password")).status, 200);
+    const log = await prisma.adminAuditLog.findFirst({ where: { entity: "staff", entityId: made.id, action: "update" }, orderBy: { createdAt: "desc" } });
+    assert.ok(log!.details!.includes("sita.new@test.np") && !log!.details!.includes("brand-new-password"));
+
+    // only the owner may do it
+    const adm = (await api.post("/staff", owner.auth, { email: "adm@test.np", name: "Adm", accountType: "admin", password: "long-enough-pass" })).body.data;
+    const admLogin = await login("adm@test.np", "long-enough-pass");
+    const admAuth = { Authorization: `Bearer ${admLogin.body.data.token}` };
+    assert.equal((await api.patch(`/staff/${made.id}`, admAuth, { email: "x@test.np" })).status, 403);
+    assert.equal((await request(app).delete(`/api/admin/staff/${made.id}`).set(admAuth)).status, 403);
+
+    // delete: gone for good, the signed-in session stops at once, the audit log remembers
+    const live = (await login("sita.new@test.np", "brand-new-password")).body.data.token as string;
+    assert.equal((await request(app).delete(`/api/admin/staff/${made.id}`).set(owner.auth)).status, 200);
+    assert.equal(await prisma.staffUser.count({ where: { id: made.id } }), 0);
+    assert.equal((await request(app).get("/api/admin/auth/me").set({ Authorization: `Bearer ${live}` })).status, 401);
+    assert.equal((await login("sita.new@test.np", "brand-new-password")).status, 401);
+    assert.ok(await prisma.adminAuditLog.findFirst({ where: { action: "delete", entity: "staff", entityId: made.id } }));
+    assert.equal((await request(app).delete(`/api/admin/staff/${made.id}`).set(owner.auth)).status, 404);
+
+    // you cannot delete yourself
+    assert.equal((await request(app).delete(`/api/admin/staff/${owner.id}`).set(owner.auth)).status, 400);
+    assert.equal(adm.accountType, "admin");
+  });
+
   it("records every access change in the audit log, without passwords", async () => {
     const owner = await staff("owner");
     const created = await api.post("/staff", owner.auth, { email: "aud@test.np", name: "Audited", accountType: "staff", permissions: ["bookings.view"], password: "secret-password-77" });

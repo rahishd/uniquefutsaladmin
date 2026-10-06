@@ -49,7 +49,7 @@ staffRouter.post("/", handler(async (req, res) => {
 staffRouter.patch("/:id", handler(async (req, res) => {
   const id = param(req, "id");
   const b = parse(z.object({
-    name: z.string().trim().min(2).max(60).optional(), accountType: z.enum(ACCOUNT_TYPES).optional(), permissions: permissions.optional(),
+    name: z.string().trim().min(2).max(60).optional(), email: z.string().trim().email().optional(), accountType: z.enum(ACCOUNT_TYPES).optional(), permissions: permissions.optional(),
     isActive: z.boolean().optional(), password: password.optional(),
   }), req.body);
   const target = await prisma.staffUser.findUnique({ where: { id } });
@@ -64,7 +64,9 @@ staffRouter.patch("/:id", handler(async (req, res) => {
   if (losesOwner && (await prisma.staffUser.count({ where: { role: "owner", isActive: true } })) <= 1) throw new AppError(400, "At least one active owner is required");
 
   const becomesStaff = b.accountType === "staff" || (b.accountType === undefined && !isAdminRole(target.role));
-  const data: Record<string, unknown> = { name: b.name, isActive: b.isActive };
+  const newEmail = b.email?.toLowerCase();
+  if (newEmail && newEmail !== target.email && (await prisma.staffUser.findUnique({ where: { email: newEmail } }))) throw new AppError(409, "Another account already uses this email");
+  const data: Record<string, unknown> = { name: b.name, isActive: b.isActive, ...(newEmail ? { email: newEmail } : {}) };
   if (b.accountType === "admin" && target.role !== "owner") { data.role = "admin"; data.permissions = []; }
   else if (b.accountType === "staff") { data.role = "staff"; data.permissions = b.permissions ?? (isAdminRole(target.role) ? [] : effectivePermissions(target).filter((p) => (ASSIGNABLE as string[]).includes(p))); }
   else if (b.permissions && becomesStaff) { data.role = "staff"; data.permissions = b.permissions; }
@@ -73,8 +75,24 @@ staffRouter.patch("/:id", handler(async (req, res) => {
 
   const s = await prisma.staffUser.update({ where: { id }, data, select: pub });
   await audit(req, "update", "staff", id, {
-    name: b.name, isActive: b.isActive, passwordChanged: !!b.password,
+    name: b.name, isActive: b.isActive, passwordChanged: !!b.password, ...(newEmail && newEmail !== target.email ? { email: { from: target.email, to: newEmail } } : {}),
     access: { before: effectivePermissions(target).length, after: effectivePermissions(s).length, role: s.role, permissions: s.permissions },
   });
   send(res, view(s), "Account updated");
+}));
+
+// Delete an account for good. It stops working at once (every request re-reads the account). The audit log keeps what they did.
+staffRouter.delete("/:id", handler(async (req, res) => {
+  const id = param(req, "id");
+  const target = await prisma.staffUser.findUnique({ where: { id } });
+  if (!target) throw new AppError(404, "Account not found");
+  const me = req.staff!;
+  if (id === me.id) throw new AppError(400, "You cannot delete your own account");
+  if (target.role === "owner") {
+    if (me.role !== "owner") throw new AppError(403, "Only the owner can change the owner account");
+    if (target.isActive && (await prisma.staffUser.count({ where: { role: "owner", isActive: true } })) <= 1) throw new AppError(400, "At least one active owner is required");
+  }
+  await prisma.staffUser.delete({ where: { id } });
+  await audit(req, "delete", "staff", id, { email: target.email, name: target.name, role: target.role });
+  send(res, null, "Account deleted");
 }));

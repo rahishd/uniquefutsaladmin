@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Crown, Pencil, Plus, ShieldCheck, UserRound } from "lucide-react";
+import { Crown, Pencil, Plus, ShieldCheck, Trash2, UserRound } from "lucide-react";
 import { Badge } from "../bookings/Badge";
 import Switch from "../Switch";
 import AccountSheet from "./AccountSheet";
@@ -9,7 +9,7 @@ import { ApiError } from "@/lib/api";
 import { currentAdmin } from "@/lib/auth";
 import { ago } from "@/lib/complaints";
 import { guard } from "@/lib/access";
-import { Account, Catalog, ROLE_LABEL, getCatalog, listStaff, updateStaff } from "@/lib/staff";
+import { Account, Catalog, ROLE_LABEL, deleteStaff, getCatalog, listStaff, updateStaff } from "@/lib/staff";
 
 // Short text about what an account can do, for example "12 permissions: Bookings, Payments and 2 more".
 function summary(a: Account, c: Catalog | null) {
@@ -51,6 +51,17 @@ export default function StaffPage() {
     }
   }
 
+  async function remove(a: Account) {
+    if (!guard("staff.manage")) return;
+    if (!window.confirm(`Delete ${a.name} (${a.email}) for good? They are signed out at once and cannot sign in again. Their past actions stay in the audit log. This cannot be undone.`)) return;
+    try {
+      await deleteStaff(a.id);
+      setTick((t) => t + 1);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not delete the account");
+    }
+  }
+
   const admins = accounts?.filter((a) => a.accountType === "admin") ?? [];
   const staff = accounts?.filter((a) => a.accountType === "staff") ?? [];
   const isOwner = me?.role === "owner";
@@ -79,7 +90,8 @@ export default function StaffPage() {
           <span className="text-xs text-muted">{a.lastLoginAt ? `Last signed in ${ago(a.lastLoginAt)}` : "Has not signed in yet"}</span>
           {!locked && (
             <span className="flex items-center gap-3">
-              <button onClick={() => guard("staff.manage") && setSheet(a)} className="flex items-center gap-1.5 rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold"><Pencil size={13} /> {a.accountType === "staff" ? "Permissions" : "Edit"}</button>
+              <button onClick={() => guard("staff.manage") && setSheet(a)} className="flex items-center gap-1.5 rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold"><Pencil size={13} /> Edit</button>
+              {!mine && <button onClick={() => remove(a)} aria-label={`Delete ${a.name}`} className="flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-semibold text-red-600"><Trash2 size={13} /> Delete</button>}
               {!mine && <Switch on={a.isActive} label={`${a.isActive ? "Disable" : "Enable"} ${a.name}`} onChange={() => toggle(a)} />}
             </span>
           )}
