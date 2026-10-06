@@ -151,6 +151,14 @@ Staff enter a registered customer's number in Sell goods. The bill lists their g
 
 `POST /bookings/collect-dues` (payments.collect): `{anchorId, bookingIds[], method: venue|esewa|fonepay}`. Collects those bookings in one payment (all must belong to the same customer, each only once: 409 if already paid). A registered customer gets one bill `CB-XXXXXX` in their payment history; games already played earn their points, upcoming ones earn them when completed.
 
+## Split payment and goods on credit (inventory dues)
+
+All counter collections go through one shared module (`server/src/lib/settle.ts`).
+
+- **Split payment:** `checkout`, `collect-dues` and `POST /inventory/sales` accept `payments: [{method: cash|esewa|fonepay, amount}]` (up to 3, whole rupees). The amounts must add up exactly to the total (400 otherwise, nothing changes). Each line records how much of it was cash and how much online (booking `cashAmount`/`onlineAmount`, stock log). A bill paid with several methods is stored with `paymentMethod: "split"`. A single `payment`/`method` still pays the whole total.
+- **Goods on credit:** `POST /inventory/checkout` with `payment: "due"` and only `items`: the stock leaves now, a `GoodsDue` row (admin-owned table, `sql/011_goods_dues.sql`) is put on the customer's account (registered customers only), no bill and no points yet, and it is not counted in sales. It needs only `inventory.sell`.
+- **Collecting dues:** `GET /bookings/:id/dues` also returns `goods[]` and `goodsTotal`; `POST /bookings/collect-dues` and `POST /inventory/checkout` accept `goodsDueIds[]` next to `bookingIds[]` (needs `payments.collect`). Paying a goods due makes the bill line, earns the goods points (Rs. 100 = 1) and cannot be done twice (409). `GET /inventory/customer-bill` also lists `goodsDues`; `GET /inventory/overview` has `goodsDue {amount, count}`; `GET /inventory/sales` marks each sale `credit: due|paid|null`.
+
 ## Bulk booking
 
 `POST /bookings/walk-in/bulk` (bookings.create): `{dates[1-31], startTime, duration 1-4, customerName, customerPhone?, paymentMethod, paid, priceOverride? (per game), notes?, mode: free or all, dryRun}`. The same hour(s) on every date. `dryRun: true` returns each date as free or taken (a blocked hour counts as taken) with the price and the total, and changes nothing. `mode: "free"` books the free dates and skips the taken ones; `"all"` books everything or nothing (409 listing the taken dates). Dates must be within 60 days of today. Each booking has its own code; the notes carry `BULK <first code>` so a batch can be found. One audit entry for the batch.

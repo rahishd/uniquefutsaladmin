@@ -49,9 +49,10 @@ export const bookingCounts = () => api<Record<Scope, number>>("/admin/bookings/c
 export const bookingDetail = (id: string) => api<BookingDetail>(`/admin/bookings/${encodeURIComponent(id)}`);
 
 export type DueRow = { id: string; code: string; date: string; startTime: string; endTime: string; total: number; status: string; promoCode: string | null };
-export type DuesInfo = { customer: { name: string | null; phone: string | null; registered: boolean; known: boolean }; current: DueRow & { owed: boolean }; past: DueRow[]; today: DueRow[]; upcoming: DueRow[]; pastTotal: number };
+export type GoodsDueRow = { id: string; items: string; amount: number; createdAt: string };
+export type DuesInfo = { goods: GoodsDueRow[]; goodsTotal: number; customer: { name: string | null; phone: string | null; registered: boolean; known: boolean }; current: DueRow & { owed: boolean }; past: DueRow[]; today: DueRow[]; upcoming: DueRow[]; pastTotal: number };
 export const getDues = (id: string) => api<DuesInfo>(`/admin/bookings/${encodeURIComponent(id)}/dues`);
-export const collectDues = (b: { anchorId: string; bookingIds: string[]; method: "venue" | "esewa" | "fonepay" }) =>
+export const collectDues = (b: { anchorId: string; bookingIds: string[]; goodsDueIds: string[]; method?: "venue" | "esewa" | "fonepay"; payments?: { method: "cash" | "esewa" | "fonepay"; amount: number }[] }) =>
   api<{ count: number; total: number; billCode: string | null; points: number }>("/admin/bookings/collect-dues", { method: "POST", body: JSON.stringify(b) });
 
 // ---- display helpers ----

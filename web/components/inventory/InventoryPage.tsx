@@ -27,11 +27,12 @@ export default function InventoryPage() {
         <p className="text-sm text-muted">Products sold at the venue: stock, restocking, counter sales and loyalty points for registered customers.</p>
       </div>
       {ov && (
-        <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-2 lg:grid-cols-6">
           {([
             ["Products", String(ov.products), ""],
             ["Low or out of stock", String(ov.lowStock + ov.outOfStock), ov.lowStock + ov.outOfStock > 0 ? "ring-2 ring-amber-500/50" : ""],
             ["Stock value (cost)", rs(ov.stockCostValue), ""],
+            ["Goods on credit (unpaid)", `${rs(ov.goodsDue.amount)} · ${ov.goodsDue.count}`, ov.goodsDue.count > 0 ? "ring-2 ring-red-500/40" : ""],
             ["Sales today", `${rs(ov.salesToday.amount)} · ${ov.salesToday.count}`, ""],
             ["Sales, last 7 days", `${rs(ov.salesWeek.amount)} · ${ov.salesWeek.count}`, ""],
           ] as const).map(([l, n, ring]) => <div key={l} className={`rounded-2xl bg-surface p-3 shadow-sm ${ring}`}><p className="text-lg font-bold sm:text-xl">{n}</p><p className="text-xs text-muted">{l}</p></div>)}
