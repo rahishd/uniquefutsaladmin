@@ -25,6 +25,7 @@ export default function BulkBookModal({ startDate, onClose, onBooked }: { startD
   const [from, setFrom] = useState(startDate < todayKey() ? todayKey() : startDate);
   const [count, setCount] = useState("8");
   const [picked, setPicked] = useState<string[]>([]);
+  const [weekDays, setWeekDays] = useState<number[]>([]); // days of the week for "Every week"; empty = the weekday of the first date
   const [pick, setPick] = useState("");
   const [hour, setHour] = useState(18);
   const [duration, setDuration] = useState(1);
@@ -41,7 +42,11 @@ export default function BulkBookModal({ startDate, onClose, onBooked }: { startD
   const [done, setDone] = useState<{ made: number; skipped: string[] } | null>(null);
 
   const n = Math.max(0, Math.min(31, Number(count) || 0));
-  const dates = pattern === "weekly" ? Array.from({ length: n }, (_, i) => shiftDate(from, i * 7)) : pattern === "daily" ? Array.from({ length: n }, (_, i) => shiftDate(from, i)) : [...picked].sort();
+  const firstWeekday = from ? new Date(`${from}T00:00:00Z`).getUTCDay() : 0;
+  const chosenDays = weekDays.length ? weekDays : [firstWeekday];
+  // every chosen weekday in each of the next n weeks, starting from the first date, at most 31 dates
+  const weekly = from ? Array.from({ length: n * 7 }, (_, i) => shiftDate(from, i)).filter((d) => chosenDays.includes(new Date(`${d}T00:00:00Z`).getUTCDay())) : [];
+  const dates = pattern === "weekly" ? weekly.slice(0, 31) : pattern === "daily" ? Array.from({ length: n }, (_, i) => shiftDate(from, i)) : [...picked].sort();
   const phoneOk = /^9\d{9}$/.test(phone);
   const stamp = JSON.stringify([dates, hour, duration, price]);
   const stale = !plan || plan.stamp !== stamp;
@@ -124,7 +129,24 @@ export default function BulkBookModal({ startDate, onClose, onBooked }: { startD
                 <div className="mt-3 grid grid-cols-2 gap-3">
                   <label className={lab}>First date<input type="date" min={shiftDate(todayKey(), -60)} max={shiftDate(todayKey(), 60)} value={from} onChange={(e) => setFrom(e.target.value)} className={`${input} mt-1`} /></label>
                   <label className={lab}>{pattern === "weekly" ? "Number of weeks" : "Number of days"} (up to 31)<input inputMode="numeric" value={count} onChange={(e) => setCount(e.target.value.replace(/\D/g, "").slice(0, 2))} className={`${input} mt-1`} /></label>
-                  {pattern === "weekly" && from && <p className="col-span-2 text-xs text-muted">Every {WEEKDAYS[new Date(`${from}T00:00:00Z`).getUTCDay()]}, starting {dayName(from)}.</p>}
+                  {pattern === "weekly" && from && (
+                    <div className="col-span-2 space-y-2">
+                      <p className="text-sm font-medium">Which days of the week?</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {WEEKDAYS.map((d, i) => {
+                          const on = chosenDays.includes(i);
+                          return (
+                            <button type="button" key={d} aria-pressed={on} onClick={() => setWeekDays(on ? chosenDays.filter((x) => x !== i) : [...chosenDays, i])}
+                              className={`rounded-full px-4 py-2 text-sm font-semibold ${on ? "bg-brand text-white" : "bg-surface-2 text-muted"}`}>{d}</button>
+                          );
+                        })}
+                      </div>
+                      <p className="text-xs text-muted">
+                        {dates.length === 0 ? "Choose at least one day." : `${dates.length} date${dates.length === 1 ? "" : "s"}: every ${chosenDays.slice().sort().map((i) => WEEKDAYS[i]).join(", ")} for ${n} week${n === 1 ? "" : "s"}, from ${dayName(from)}.`}
+                        {n * chosenDays.length > 31 ? " Only the first 31 dates are used." : ""}
+                      </p>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="mt-3 space-y-2">

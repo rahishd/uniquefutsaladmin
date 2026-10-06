@@ -23,7 +23,7 @@ export const modules: Module[] = [
     slug: "slots", title: "Slots", group: "Operations", icon: "clock",
     summary: "Day timeline of every hour: who is playing, open hours, and manual booking.",
     clientFeatures: ["Free hours listed per date", "Pay at venue or online", "Guest vs registered customers", "Free cancellation until start"],
-    adminTasks: ["See a whole day at once (booked, completed, open, blocked)", "Tap + to book a customer by hand (walk-in or phone)", "Bulk booking: the same hour on many dates (weekly, daily or picked dates), checked before it is booked", "Log a game that already happened", "Reject (cancel) a booking"],
+    adminTasks: ["See a whole day at once (booked, completed, open, blocked)", "Tap + to book a customer by hand (walk-in or phone)", "Bulk booking: the same hour on many dates (chosen weekdays such as Tue, Thu, Sun for N weeks, every day, or picked dates), checked before it is booked", "Log a game that already happened", "Reject (cancel) a booking"],
     endpoints: [
       e("GET", "/admin/courts/slots", "all hours of a date with who booked them"), e("POST", "/admin/bookings/walk-in", "manual booking"), e("POST", "/admin/bookings/walk-in/bulk", "bulk booking: the same hour on many dates, with a preview"),
       e("POST", "/admin/bookings/:id/cancel", "reject a booking"), e("GET", "/admin/customers", "find a registered customer"),
