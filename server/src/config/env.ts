@@ -43,6 +43,10 @@ export const env = {
   FONEPAY_SECRET: process.env.FONEPAY_SECRET || "",
   FONEPAY_BASE_URL: process.env.FONEPAY_BASE_URL || "",
   FONEPAY_QR_TTL_MINUTES: Number(process.env.FONEPAY_QR_TTL_MINUTES) || 10,
+  // Web Push for staff notices. Must be the SAME key pair as the customer backend, or customers' saved devices reject the alert.
+  VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY || "",
+  VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY || "",
+  VAPID_SUBJECT: process.env.VAPID_SUBJECT || "mailto:admin@example.com",
   NODE_ENV,
   PORT: Number(process.env.PORT) || 5100,
   DATABASE_URL,

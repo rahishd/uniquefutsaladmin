@@ -7,6 +7,7 @@ import { audit } from "../lib/audit";
 import { addDaysKey, todayKey } from "../lib/dates";
 import { AppError, dateStr, handler, page, parse, send } from "../lib/http";
 import { requirePermission } from "../middleware/auth";
+import { pushEnabled, pushToUsers } from "../lib/push";
 import { buildReport } from "./inventory-report";
 
 export const overviewRouter = Router();
@@ -104,7 +105,7 @@ overviewRouter.get("/notifications/history", requirePermission("notifications.se
     let d: Record<string, unknown> = {};
     try { d = JSON.parse(r.details ?? "{}"); } catch { /* keep empty */ }
     const read = r.entityId ? await prisma.notification.count({ where: { dedupeKey: { startsWith: `${r.entityId}-` }, isRead: true } }) : 0;
-    return { id: r.id, at: r.createdAt, by: r.staffName, type: d.type ?? "general", title: d.title ?? "", message: d.message ?? "", href: d.href ?? null, audience: d.audience ?? "all", phone: d.phone ?? null, sent: Number(d.sent ?? 0), read };
+    return { id: r.id, at: r.createdAt, by: r.staffName, type: d.type ?? "general", title: d.title ?? "", message: d.message ?? "", href: d.href ?? null, audience: d.audience ?? "all", phone: d.phone ?? null, sent: Number(d.sent ?? 0), pushed: Number(d.pushed ?? 0), read };
   }));
   send(res, items);
 }));
@@ -121,8 +122,9 @@ overviewRouter.post("/notifications/broadcast", requirePermission("notifications
     data: targets.map((userId) => ({ userId, type: b.type, title: b.title, message: b.message, href: b.href ?? null, dedupeKey: `${batch}-${userId}` })),
     skipDuplicates: true,
   });
-  await audit(req, "broadcast", "notification", batch, { ...b, sent: made.count });
-  send(res, { sent: made.count, skippedOptOut: optedOut }, "Notice sent", 201);
+  const pushed = await pushToUsers(targets, { title: b.title, body: b.message, href: b.href, tag: batch });
+  await audit(req, "broadcast", "notification", batch, { ...b, sent: made.count, pushed: pushed.customers });
+  send(res, { sent: made.count, skippedOptOut: optedOut, pushed: pushed.customers, pushEnabled: pushEnabled() }, "Notice sent", 201);
 }));
 
 // ---- reports ----
@@ -167,11 +169,45 @@ overviewRouter.get("/reports/loyalty-liability", requirePermission("reports.view
   send(res, { unexpiredEarnedPoints: Number(earned._sum.points ?? 0), spentPoints: Number(spent._sum.points ?? 0), unusedVouchers: vouchers, note: "Indicative upper bound" });
 }));
 
-// ---- audit log ----
+// ---- audit log: who did what, to which record, when (every staff write leaves a row, see lib/audit.ts) ----
+// Filters: entity, action, staffId, entityId, from / to (Nepal dates), q (staff name, record id or words in the details).
+const auditWhere = (q: Record<string, unknown>): Prisma.AdminAuditLogWhereInput => {
+  const str = (k: string) => (typeof q[k] === "string" && (q[k] as string).trim() ? (q[k] as string).trim() : undefined);
+  const from = str("from");
+  const to = str("to");
+  if ((from && !/^\d{4}-\d{2}-\d{2}$/.test(from)) || (to && !/^\d{4}-\d{2}-\d{2}$/.test(to))) throw new AppError(400, "Dates must look like 2026-10-07");
+  if (from && to && from > to) throw new AppError(400, "The From date must not be after the To date");
+  const text = str("q");
+  return {
+    ...(str("entity") ? { entity: str("entity") } : {}), ...(str("action") ? { action: str("action") } : {}), ...(str("staffId") ? { staffId: str("staffId") } : {}), ...(str("entityId") ? { entityId: str("entityId") } : {}),
+    ...(from || to ? { createdAt: { ...(from ? { gte: new Date(`${from}T00:00:00+05:45`) } : {}), ...(to ? { lt: new Date(new Date(`${to}T00:00:00+05:45`).getTime() + 86_400_000) } : {}) } } : {}),
+    ...(text ? { OR: [{ staffName: { contains: text, mode: "insensitive" } }, { entityId: { contains: text, mode: "insensitive" } }, { details: { contains: text, mode: "insensitive" } }, { action: { contains: text, mode: "insensitive" } }, { entity: { contains: text, mode: "insensitive" } }] } : {}),
+  };
+};
+
 overviewRouter.get("/audit", requirePermission("audit.view"), handler(async (req, res) => {
-  const q = req.query as Record<string, string | undefined>;
-  const { take, skip, pageNo, limit } = page(q);
-  const where: Prisma.AdminAuditLogWhereInput = { ...(q.entity ? { entity: q.entity } : {}), ...(q.action ? { action: q.action } : {}), ...(q.staffId ? { staffId: q.staffId } : {}), ...(q.entityId ? { entityId: q.entityId } : {}) };
+  const { take, skip, pageNo, limit } = page(req.query as Record<string, unknown>);
+  const where = auditWhere(req.query as Record<string, unknown>);
   const [items, total] = await Promise.all([prisma.adminAuditLog.findMany({ where, orderBy: { createdAt: "desc" }, take, skip }), prisma.adminAuditLog.count({ where })]);
   send(res, { items, total, page: pageNo, limit });
 }));
+
+// What can be filtered on, with how often each appears, plus a few counts for the top of the page.
+overviewRouter.get("/audit/filters", requirePermission("audit.view"), handler(async (_req, res) => {
+  const dayStart = new Date(`${todayKey()}T00:00:00+05:45`);
+  const [entities, actions, staff, today, week, total] = await Promise.all([
+    prisma.adminAuditLog.groupBy({ by: ["entity"], _count: { _all: true }, orderBy: { entity: "asc" } }),
+    prisma.adminAuditLog.groupBy({ by: ["action"], _count: { _all: true }, orderBy: { action: "asc" } }),
+    prisma.adminAuditLog.groupBy({ by: ["staffId", "staffName"], _count: { _all: true }, orderBy: { staffName: "asc" } }),
+    prisma.adminAuditLog.count({ where: { createdAt: { gte: dayStart } } }),
+    prisma.adminAuditLog.count({ where: { createdAt: { gte: new Date(dayStart.getTime() - 6 * 86_400_000) } } }),
+    prisma.adminAuditLog.count(),
+  ]);
+  const people = new Map<string, { id: string; name: string; count: number }>();
+  for (const s of staff) { const p = people.get(s.staffId) ?? { id: s.staffId, name: s.staffName, count: 0 }; p.count += s._count._all; people.set(s.staffId, p); }
+  send(res, {
+    entities: entities.map((e) => ({ name: e.entity, count: e._count._all })), actions: actions.map((x) => ({ name: x.action, count: x._count._all })),
+    staff: [...people.values()], summary: { total, today, week },
+  });
+}));
+

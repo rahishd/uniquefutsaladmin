@@ -30,7 +30,7 @@ export type Draft = { type: NoticeType; audience: Audience; phone: string; title
 
 export type Sent = {
   id: string; at: string; by: string; type: NoticeType; title: string; message: string; href: string | null;
-  audience: Audience; phone: string | null; sent: number; read: number;
+  audience: Audience; phone: string | null; sent: number; pushed: number; read: number;
 };
 
 export const reach = (d: Pick<Draft, "type" | "audience" | "phone">) => {
@@ -40,7 +40,7 @@ export const reach = (d: Pick<Draft, "type" | "audience" | "phone">) => {
 };
 
 export const sendNotice = (d: Draft) =>
-  api<{ sent: number; skippedOptOut: number }>("/admin/notifications/broadcast", {
+  api<{ sent: number; skippedOptOut: number; pushed: number; pushEnabled: boolean }>("/admin/notifications/broadcast", {
     method: "POST",
     body: JSON.stringify({ type: d.type, audience: d.audience, title: d.title.trim(), message: d.message.trim(), ...(d.href ? { href: d.href } : {}), ...(d.audience === "customer" ? { phone: d.phone } : {}) }),
   });

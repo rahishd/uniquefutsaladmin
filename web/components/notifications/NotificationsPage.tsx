@@ -51,7 +51,7 @@ export default function NotificationsPage() {
     setBusy(true); setError(""); setDone("");
     try {
       const r = await sendNotice(d);
-      setDone(`Sent to ${r.sent} ${r.sent === 1 ? "customer" : "customers"}${r.skippedOptOut ? ` (${r.skippedOptOut} skipped: promo notices off)` : ""}.`);
+      setDone(`Sent to ${r.sent} ${r.sent === 1 ? "customer" : "customers"}${r.skippedOptOut ? ` (${r.skippedOptOut} skipped: promo notices off)` : ""}. ${r.pushEnabled ? `Phone alert delivered to ${r.pushed}.` : "Phone alerts are not set up on the server yet, so it shows in the bell only."}`);
       setD((x) => ({ ...EMPTY, type: x.type, audience: x.audience }));
       setTick((t) => t + 1);
     } catch (err) {
@@ -148,7 +148,7 @@ export default function NotificationsPage() {
                   </div>
                   <p className="break-words font-semibold">{s.title}</p>
                   <p className="break-words text-sm text-muted">{s.message}</p>
-                  <p className="text-xs text-muted">{who(s)} · sent to <strong className="text-foreground">{s.sent}</strong> · opened by <strong className="text-foreground">{s.read}</strong>{s.sent ? ` (${Math.round((s.read / s.sent) * 100)}%)` : ""}</p>
+                  <p className="text-xs text-muted">{who(s)} · sent to <strong className="text-foreground">{s.sent}</strong> · phone alert to <strong className="text-foreground">{s.pushed}</strong> · opened by <strong className="text-foreground">{s.read}</strong>{s.sent ? ` (${Math.round((s.read / s.sent) * 100)}%)` : ""}</p>
                 </li>
               ))}
             </ul>
