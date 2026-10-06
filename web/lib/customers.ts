@@ -9,7 +9,7 @@ export type CustomerRow = {
   isActive: boolean;
   createdAt: string;
   mode: Mode;
-  stats: { gamesPlayed: number; gamezoneSessions: number; paidTotal: number; unpaidTotal: number; openComplaints: number };
+  stats: { gamesPlayed: number; gamezoneSessions: number; paidTotal: number; unpaidTotal: number; openComplaints: number; cancelStreak: number };
 };
 export type CustomerList = { items: CustomerRow[]; total: number; page: number; limit: number };
 
@@ -37,8 +37,14 @@ export type Profile = {
     entered: { id: string; teamName: string; tournament: string; startDate: string; status: string }[];
     challengesHosted: { count: number; recent: { id: string; date: string; startHour: number; status: string; opponent: string | null }[] };
   };
-  promos: { allOff: boolean; codes: { code: string; label: string; active: boolean; expiryDate: string | null; enabled: boolean }[] };
+  cancellations: {
+    streak: number; total: number; last30: number; lateCount: number;
+    recent: { kind: "court" | "gamezone"; code: string; date: string; time: string; amount: number; cancelledAt: string | null; hoursBefore: number | null; wasPaid: boolean }[];
+  };
+  vip: null | { code: string; type: "percent" | "flat"; value: number; active: boolean; note: string | null; claimedAt: string | null; createdAt: string; usage: { games: number; discountGiven: number } };
 };
+
+export type VipInput = { code: string; type: "percent" | "flat"; value: number; active: boolean; note?: string | null };
 
 export const PAGE_SIZE = 20;
 
@@ -51,8 +57,8 @@ export const listCustomers = (p: { q: string; mode: Mode | ""; status: "" | "act
 };
 
 export const getProfile = (phone: string) => api<Profile>(`/admin/customers/${encodeURIComponent(phone)}/profile`);
-export const setPromo = (phone: string, code: string, enabled: boolean) =>
-  api<{ disabled: string[] }>(`/admin/customers/${encodeURIComponent(phone)}/promos`, { method: "PUT", body: JSON.stringify({ code, enabled }) });
+export const saveVip = (phone: string, v: VipInput) => api(`/admin/customers/${encodeURIComponent(phone)}/vip`, { method: "PUT", body: JSON.stringify(v) });
+export const removeVip = (phone: string) => api(`/admin/customers/${encodeURIComponent(phone)}/vip`, { method: "DELETE" });
 export const setActive = (phone: string, active: boolean) => api(`/admin/customers/${encodeURIComponent(phone)}/${active ? "unsuspend" : "suspend"}`, { method: "POST", body: "{}" });
 
 export const initials = (name: string | null, phone: string) =>

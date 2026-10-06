@@ -4,13 +4,14 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { MessageCircle, Phone, ShieldCheck, ShieldOff, X } from "lucide-react";
 import { Badge } from "../bookings/Badge";
-import Switch from "../Switch";
+import CancellationsSection from "./CancellationsSection";
+import VipSection from "./VipSection";
 import { ApiError } from "@/lib/api";
 import { canDo } from "@/lib/auth";
 import { prettyDate, rs, STATUS as BOOKING_STATUS } from "@/lib/bookings";
 import { STATUS as COMPLAINT_STATUS, ago } from "@/lib/complaints";
 import { METHOD_LABEL } from "@/lib/payments";
-import { CustomerRow, Profile, getProfile, initials, setActive, setPromo } from "@/lib/customers";
+import { CustomerRow, Profile, getProfile, initials, setActive } from "@/lib/customers";
 
 function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
   return (
@@ -39,7 +40,6 @@ const PAY_TONE = { paid: "bg-brand/15 text-brand", unpaid: "bg-amber-500/15 text
 export default function CustomerSheet({ customer, onClose, onChanged }: { customer: CustomerRow; onClose: () => void; onChanged: () => void }) {
   const [p, setP] = useState<Profile | null>(null);
   const [error, setError] = useState("");
-  const [note, setNote] = useState("");
   const [busy, setBusy] = useState("");
   const canWrite = canDo("customers.write");
 
@@ -50,26 +50,6 @@ export default function CustomerSheet({ customer, onClose, onChanged }: { custom
       .catch((e) => { if (live) setError(e instanceof Error ? e.message : "Could not load this customer"); });
     return () => { live = false; };
   }, [customer.phoneNumber]);
-
-  async function togglePromo(code: string, enabled: boolean) {
-    if (!p) return;
-    setBusy(code);
-    setError("");
-    setNote("");
-    // show the change at once; put it back if the server refuses
-    const before = p;
-    setP({ ...p, promos: { allOff: code === "*" ? !enabled : p.promos.allOff, codes: p.promos.codes.map((c) => (c.code === code ? { ...c, enabled } : c)) } });
-    try {
-      await setPromo(p.user.phoneNumber, code, enabled);
-      setP(await getProfile(p.user.phoneNumber)); // codes can also change shape (removed codes), so re-read
-      setNote(enabled ? "Switched on. It is remembered for their next booking." : "Switched off. It is remembered and applies from their next booking.");
-    } catch (e) {
-      setP(before);
-      setError(e instanceof ApiError ? e.message : "Could not save");
-    } finally {
-      setBusy("");
-    }
-  }
 
   async function toggleActive() {
     if (!p) return;
@@ -117,7 +97,6 @@ export default function CustomerSheet({ customer, onClose, onChanged }: { custom
         </div>
 
         {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600" role="alert">{error}</p>}
-        {note && <p className="rounded-xl bg-brand/10 p-3 text-sm text-brand" role="status">{note}</p>}
         {!p && !error && <p className="py-8 text-center text-sm text-muted">Loading the customer&apos;s history…</p>}
 
         {p && (
@@ -197,28 +176,9 @@ export default function CustomerSheet({ customer, onClose, onChanged }: { custom
               )}
             </Section>
 
-            <Section title="Promo codes" hint="On means the customer can use the code. Your choice is remembered and checked at every later booking.">
-              {p.promos.codes.length === 0 ? <Empty>There are no promo codes right now.</Empty> : (
-                <ul className="divide-y divide-line">
-                  <li className="flex items-center gap-3 py-2.5">
-                    <div className="min-w-0 flex-1"><p className="font-semibold">All promo codes</p><p className="text-xs text-muted">Switch off to block every code for this customer</p></div>
-                    <Switch on={!p.promos.allOff} disabled={!canWrite || busy === "*"} label="All promo codes" onChange={() => togglePromo("*", p.promos.allOff)} />
-                  </li>
-                  {p.promos.codes.map((c) => (
-                    <li key={c.code} className="flex items-center gap-3 py-2.5">
-                      <div className="min-w-0 flex-1">
-                        <p className="font-mono font-semibold">{c.code}</p>
-                        <p className="truncate text-xs text-muted">{c.label}{!c.active ? " · code is paused" : ""}{c.expiryDate ? ` · until ${c.expiryDate.slice(0, 10)}` : ""}</p>
-                      </div>
-                      <Switch on={c.enabled} disabled={!canWrite || busy === c.code} label={`Promo code ${c.code}`}
-                        onChange={() => togglePromo(c.code, !c.enabled)} />
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {p.promos.allOff && <p className="rounded-xl bg-amber-500/10 p-2.5 text-xs text-amber-700">All codes are off for this customer, whatever the switches below show.</p>}
-              {!canWrite && <p className="text-xs text-muted">Only a manager or owner can change this.</p>}
-            </Section>
+            <CancellationsSection p={p} canWrite={canWrite} busy={busy === "active"} onToggleActive={toggleActive} />
+
+            <VipSection p={p} canWrite={canWrite} onChanged={async () => setP(await getProfile(p.user.phoneNumber))} />
 
             <Section title="Complaints">
               <p className="text-sm">{p.complaints.total} sent{p.complaints.open > 0 ? <> · <strong className="text-amber-600">{p.complaints.open} still open</strong></> : ""}</p>

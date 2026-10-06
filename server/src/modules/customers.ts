@@ -7,6 +7,7 @@ import { todayKey } from "../lib/dates";
 import { AppError, handler, page, param, parse, send } from "../lib/http";
 import { requirePermission } from "../middleware/auth";
 import { NOT_LEDGER } from "./bookings";
+import { cancellationProfile, cancellationStreaks } from "./cancellations";
 import { CATEGORIES } from "./complaints";
 import { getPromoCodes } from "./settings-store";
 
@@ -31,13 +32,14 @@ customersRouter.get("/", requirePermission("customers.read"), handler(async (req
   // Quick numbers for the rows on this page only
   const phones = rows.map((r) => r.phoneNumber);
   const mine = { AND: [NOT_LEDGER, { userId: { in: phones } }] };
-  const [played, paid, unpaid, gz, openComplaints, prefs] = await Promise.all([
+  const [played, paid, unpaid, gz, openComplaints, prefs, streaks] = await Promise.all([
     prisma.booking.groupBy({ by: ["userId"], where: { AND: [...mine.AND, { status: "completed" }] }, _count: { _all: true } }),
     prisma.booking.groupBy({ by: ["userId"], where: { AND: [...mine.AND, { paymentStatus: "completed", status: { notIn: DEAD } }] }, _sum: { totalPrice: true } }),
     prisma.booking.groupBy({ by: ["userId"], where: { AND: [...mine.AND, { paymentStatus: { not: "completed" }, status: { notIn: DEAD } }] }, _sum: { totalPrice: true } }),
     prisma.gzBooking.groupBy({ by: ["userId"], where: { userId: { in: phones }, status: "completed" }, _count: { _all: true } }),
     prisma.complaint.groupBy({ by: ["userId"], where: { userId: { in: phones }, status: { in: ["open", "in_review"] } }, _count: { _all: true } }),
     prisma.userPrefs.findMany({ where: { userId: { in: phones } }, select: { userId: true, mode: true } }),
+    cancellationStreaks(phones),
   ]);
   const by = <T extends { userId: string | null }>(list: T[]) => new Map(list.map((x) => [x.userId, x]));
   const mPlayed = by(played), mPaid = by(paid), mUnpaid = by(unpaid), mGz = by(gz), mC = by(openComplaints), mMode = new Map(prefs.map((p) => [p.userId, p.mode]));
@@ -50,6 +52,7 @@ customersRouter.get("/", requirePermission("customers.read"), handler(async (req
       paidTotal: mPaid.get(u.phoneNumber)?._sum.totalPrice ?? 0,
       unpaidTotal: mUnpaid.get(u.phoneNumber)?._sum.totalPrice ?? 0,
       openComplaints: mC.get(u.phoneNumber)?._count._all ?? 0,
+      cancelStreak: streaks.get(u.phoneNumber) ?? 0,
     },
   }));
   send(res, { items, total, page: pageNo, limit });
@@ -65,7 +68,7 @@ customersRouter.get("/:phone/profile", requirePermission("customers.read"), hand
   const live = { status: { notIn: DEAD } };
 
   const [prefs, played, upcoming, cancelled, noShows, gzDone, first, last, recent, paidRows, unpaidAgg, gzPaid, gzUnpaid, recentGz,
-    goodsAgg, goods, cTotal, cOpen, cRecent, regs, member, rules, promos] = await Promise.all([
+    goodsAgg, goods, cTotal, cOpen, cRecent, regs, member, vipRow, cancellations] = await Promise.all([
     prisma.userPrefs.findUnique({ where: { userId: phone } }),
     prisma.booking.count({ where: { AND: [mine, { status: "completed" }] } }),
     prisma.booking.count({ where: { AND: [mine, { status: { in: ["pending", "confirmed"] }, date: { gte: today } }] } }),
@@ -87,8 +90,8 @@ customersRouter.get("/:phone/profile", requirePermission("customers.read"), hand
     prisma.complaint.findMany({ where: { userId: phone }, orderBy: { createdAt: "desc" }, take: 5 }),
     prisma.registration.findMany({ where: { contactPhone: phone }, include: { tournament: { select: { name: true, startDate: true, endDate: true } } }, orderBy: { createdAt: "desc" }, take: 10 }),
     prisma.teamMember.findUnique({ where: { userId: phone }, include: { team: true } }),
-    prisma.customerPromoRule.findMany({ where: { userId: phone } }),
-    getPromoCodes(),
+    prisma.vipCode.findUnique({ where: { userId: phone } }),
+    cancellationProfile(phone),
   ]);
 
   // ---- payments (court + Gamezone) ----
@@ -133,9 +136,10 @@ customersRouter.get("/:phone/profile", requirePermission("customers.read"), hand
     }
   }
 
-  // ---- promo codes: all on unless staff switched them off ----
-  const blocked = new Set(rules.map((r) => r.code));
-  const known = new Set(promos.map((p) => p.code.trim().toUpperCase()));
+  // ---- VIP code: how much it has been used on real (not cancelled) bookings ----
+  const vipUse = vipRow
+    ? await prisma.booking.aggregate({ where: { AND: [mine, { promoCode: vipRow.code }, live] }, _count: { _all: true }, _sum: { discountAmount: true } })
+    : null;
   send(res, {
     user,
     contact: { phone, whatsapp: `https://wa.me/977${phone}` },
@@ -151,33 +155,54 @@ customersRouter.get("/:phone/profile", requirePermission("customers.read"), hand
       entered: regs.map((r) => ({ id: r.id, teamName: r.teamName, tournament: r.tournament.name, startDate: r.tournament.startDate, status: r.status })),
       challengesHosted: { count: hostedCount, recent: hosted },
     },
-    promos: {
-      allOff: blocked.has("*"),
-      codes: [
-        ...promos.map((p) => ({ code: p.code, label: p.label, active: p.isActive !== false, expiryDate: p.expiryDate ?? null, enabled: !blocked.has("*") && !blocked.has(p.code.trim().toUpperCase()) })),
-        // switched off earlier but since removed from the promo list: still shown so staff can clear them
-        ...[...blocked].filter((c) => c !== "*" && !known.has(c)).map((c) => ({ code: c, label: "(removed code)", active: false, expiryDate: null, enabled: false })),
-      ],
+    cancellations,
+    vip: vipRow && {
+      code: vipRow.code, type: vipRow.type, value: vipRow.value, active: vipRow.active, note: vipRow.note, claimedAt: vipRow.claimedAt, createdAt: vipRow.createdAt,
+      usage: { games: vipUse?._count._all ?? 0, discountGiven: vipUse?._sum.discountAmount ?? 0 },
     },
   });
 }));
 
-// Switch one promo code (or all, code "*") on or off for a customer. Remembered: the customer app checks it at every later booking.
-customersRouter.put("/:phone/promos", requirePermission("customers.write"), handler(async (req, res) => {
-  const b = parse(z.object({ code: z.string().trim().min(1).max(20).regex(/^(\*|[A-Za-z0-9]+)$/, "a promo code or *").transform((s) => s.toUpperCase()), enabled: z.boolean() }), req.body);
+// VIP discount code: staff give one customer a special code (for example ADMINVIP) worth a percent or rupees off.
+// The customer types it once in the booking screen; after that the customer app applies it to every booking they make.
+const vipBody = z.object({
+  code: z.string().trim().min(3).max(20).regex(/^[A-Za-z0-9]+$/, "letters and numbers only").transform((c) => c.toUpperCase()),
+  type: z.enum(["percent", "flat"]),
+  value: z.number().int().min(1, "at least 1"),
+  active: z.boolean().default(true),
+  note: z.string().trim().max(120).nullable().optional(),
+}).superRefine((v, ctx) => {
+  if (v.type === "percent" && v.value > 100) ctx.addIssue({ code: "custom", path: ["value"], message: "a percent cannot be more than 100" });
+  if (v.type === "flat" && v.value > 100000) ctx.addIssue({ code: "custom", path: ["value"], message: "at most Rs. 100,000" });
+});
+
+customersRouter.put("/:phone/vip", requirePermission("customers.write"), handler(async (req, res) => {
+  const b = parse(vipBody, req.body);
   const phone = param(req, "phone");
   const u = await prisma.user.findUnique({ where: { phoneNumber: phone }, select: { role: true } });
   if (!u) throw new AppError(404, "Customer not found");
-  if (u.role !== "user") throw new AppError(403, "Only customers have promo settings");
-  if (b.code !== "*") {
-    const exists = (await getPromoCodes()).some((p) => p.code.trim().toUpperCase() === b.code) || !!(await prisma.customerPromoRule.findFirst({ where: { userId: phone, code: b.code } }));
-    if (!exists) throw new AppError(404, "That promo code does not exist");
-  }
-  if (b.enabled) await prisma.customerPromoRule.deleteMany({ where: { userId: phone, code: b.code } });
-  else await prisma.customerPromoRule.upsert({ where: { userId_code: { userId: phone, code: b.code } }, update: {}, create: { userId: phone, code: b.code, createdBy: req.staff!.id } });
-  await audit(req, b.enabled ? "promo-enable" : "promo-disable", "customer", phone, { code: b.code });
-  const rules = await prisma.customerPromoRule.findMany({ where: { userId: phone }, select: { code: true } });
-  send(res, { disabled: rules.map((r) => r.code) }, b.enabled ? "Promo code switched on for this customer" : "Promo code switched off for this customer");
+  if (u.role !== "user") throw new AppError(403, "Only customers can have a VIP code");
+  // a VIP code must not look like a normal promo code, or the app could not tell them apart
+  if ((await getPromoCodes()).some((p) => p.code.trim().toUpperCase() === b.code)) throw new AppError(409, "That is already a normal promo code. Choose a different VIP code.");
+  const old = await prisma.vipCode.findUnique({ where: { userId: phone } });
+  // a changed code has to be typed by the customer again
+  const claimedAt = old && old.code === b.code ? old.claimedAt : null;
+  const row = await prisma.vipCode.upsert({
+    where: { userId: phone },
+    update: { code: b.code, type: b.type, value: b.value, active: b.active, note: b.note ?? null, claimedAt },
+    create: { userId: phone, code: b.code, type: b.type, value: b.value, active: b.active, note: b.note ?? null, createdBy: req.staff!.id },
+  });
+  await audit(req, old ? "vip-update" : "vip-give", "customer", phone, { code: b.code, type: b.type, value: b.value, active: b.active });
+  send(res, { code: row.code, type: row.type, value: row.value, active: row.active, note: row.note, claimedAt: row.claimedAt }, old ? "VIP code saved" : "VIP code given", old ? 200 : 201);
+}));
+
+customersRouter.delete("/:phone/vip", requirePermission("customers.write"), handler(async (req, res) => {
+  const phone = param(req, "phone");
+  const old = await prisma.vipCode.findUnique({ where: { userId: phone } });
+  if (!old) throw new AppError(404, "This customer has no VIP code");
+  await prisma.vipCode.delete({ where: { userId: phone } });
+  await audit(req, "vip-remove", "customer", phone, { code: old.code });
+  send(res, null, "VIP code removed");
 }));
 
 customersRouter.get("/:phone", requirePermission("customers.read"), handler(async (req, res) => {
