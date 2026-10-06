@@ -102,6 +102,23 @@ A customer books a game for another team and files it in the app (customer backe
 | `POST /refer/:id/adjust` | refer.adjust | `{referrerPoints, friendPoints, reason}` totals for an approved referral; the difference is added or taken from each person |
 | `GET /refer/settings`, `PUT /refer/settings` | refer.view, refer.settings | `{enabled, referrerPoints, friendPoints}` |
 
+## Site Content: gallery and ads (staff side)
+
+Pictures and ads shown in the customer app (customer backend `GET /content/active`, `/content/media/:id`). Pictures are decoded, stripped of location data, shrunk to 1600px JPEG and stored in the database (`ContentMedia`); tables `SiteGallery`, `SiteAd` (local mirror `sql/009_site_content_mirror.sql`). This router accepts bodies up to 14 MB (after the staff sign-in check); the rest of the API stays at 100 KB.
+
+| Route | Permission | Notes |
+|---|---|---|
+| `GET /content/overview` | content.view | photos, live ads (by place), views, clicks |
+| `GET /content/gallery` | content.view | all photos, in display order |
+| `POST /content/gallery` | content.gallery | `{title, caption?, image: data URL}`; JPG, PNG or WebP up to 8 MB; orientation detected; max 100 |
+| `PATCH /content/gallery/:id` | content.gallery | title, caption, `visible` |
+| `POST /content/gallery/reorder` | content.gallery | `{ids: [all ids in order]}` |
+| `DELETE /content/gallery/:id` | content.gallery | also removes the picture |
+| `GET /content/ads` | content.view | each ad has `status`: live, waiting (inside its dates but not in today's hours or weekday), scheduled, ended, paused; views, clicks |
+| `POST /content/ads` | content.ads | `{title, image, placement: header\|footer\|inline\|popup, linkUrl? (/path or https://), displaySeconds (3-60; popup 0-60, 0 = stays), popupDelaySeconds, popupFrequency: session\|day\|always, startDate?, endDate?, dailyStart?+dailyEnd? (HH:mm, Nepal time, may pass midnight), days[] (0 = Sunday), priority, active}`; max 100 |
+| `PATCH /content/ads/:id` | content.ads | any field; `image` replaces the picture (the old one is deleted) |
+| `DELETE /content/ads/:id` | content.ads | also removes the picture |
+
 ## Customers page
 | Method and path | Permission | Notes |
 |---|---|---|
@@ -137,7 +154,7 @@ Only the owner can use these endpoints (`staff.manage` is never given to admins 
 | `PATCH /staff/:id` | `{name?, accountType?, permissions?, isActive?, password?}`. Turning an older role into staff keeps what it could do. Admins cannot be given a list (change them to Staff first) |
 
 ### The small permissions
-One per action. Dashboard: `dashboard.view`. Bookings: `bookings.view`, `.create`, `.cancel`, `.complete`, `.noshow`, `.stats`. Slots and arrivals: `slots.view`, `arrivals.view`. Payments: `payments.view`, `.collect` (also marks a booking or order paid), `.refund`. Courts: `courts.view`, `.price`, `.block`. Promo codes: `promos.view`, `.create`, `.edit`, `.delete`. Customers: `customers.view`, `.edit`, `.suspend`. VIP: `vip.view`, `vip.manage`. Loyalty: `loyalty.view`, `.goods`, `.adjust`, `.void`. Membership: `membership.view`, `.create`, `.edit`. Teams: `teams.view`, `.resolve`, `.venuepaid`. Gamezone: `gamezone.view`, `.collect`, `.manage` (complete or cancel a session), `.catalog` (rates, consoles, games). Complaints: `complaints.view`, `.reply`. Refer & Earn: `refer.view`, `.review`, `.adjust`, `.settings`. Children's Academy: `academy.view`, `.sessions`, `.enrollments`, `.terms`. Notices: `notifications.send`. Reports and audit: `reports.view`, `audit.view`.
+One per action. Dashboard: `dashboard.view`. Bookings: `bookings.view`, `.create`, `.cancel`, `.complete`, `.noshow`, `.stats`. Slots and arrivals: `slots.view`, `arrivals.view`. Payments: `payments.view`, `.collect` (also marks a booking or order paid), `.refund`. Courts: `courts.view`, `.price`, `.block`. Promo codes: `promos.view`, `.create`, `.edit`, `.delete`. Customers: `customers.view`, `.edit`, `.suspend`. VIP: `vip.view`, `vip.manage`. Loyalty: `loyalty.view`, `.goods`, `.adjust`, `.void`. Membership: `membership.view`, `.create`, `.edit`. Teams: `teams.view`, `.resolve`, `.venuepaid`. Gamezone: `gamezone.view`, `.collect`, `.manage` (complete or cancel a session), `.catalog` (rates, consoles, games). Complaints: `complaints.view`, `.reply`. Site Content: `content.view`, `.gallery`, `.ads`. Refer & Earn: `refer.view`, `.review`, `.adjust`, `.settings`. Children's Academy: `academy.view`, `.sessions`, `.enrollments`, `.terms`. Notices: `notifications.send`. Reports and audit: `reports.view`, `audit.view`.
 
 Older accounts keep working: the older roles and the older coarse names (`bookings.read`, `payments.write`, ...) are expanded into the small permissions when read.
 

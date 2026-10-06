@@ -236,13 +236,15 @@ export const modules: Module[] = [
   },
   {
     slug: "content", title: "Site Content", group: "Communication", icon: "image",
-    summary: "Ads, gallery, contact info and help content.",
-    clientFeatures: ["Home banner and ads", "Gallery", "Contact, map, WhatsApp number", "Help topics"],
-    adminTasks: ["Ads and gallery CRUD", "Edit contact details", "Venue Wi-Fi"],
+    summary: "Gallery photos and ads: header, footer, in-page and pop-up, looping and time-targeted.",
+    clientFeatures: ["Gallery on Home (landscape and portrait)", "Header, footer and in-page ad banners that loop", "Pop-up ads with a delay and a frequency", "Ads that run only at set hours, dates or weekdays"],
+    adminTasks: ["Upload gallery photos, rename, reorder, hide or delete", "Add ads with a picture, link, place and seconds per ad", "Target an ad by hours (for example 6:00 to 7:00 AM for one hour), dates and weekdays", "Pause, edit or delete an ad", "See views and clicks"],
     endpoints: [
-      e("GET", "/admin/content/ads", "ads", "needed"),
-      e("GET", "/admin/content/gallery", "gallery", "needed"),
-      e("PATCH", "/admin/content/site", "contact details", "needed"),
+      e("GET", "/admin/content/overview", "photos, live ads, views, clicks"), e("GET", "/admin/content/gallery", "all photos"),
+      e("POST", "/admin/content/gallery", "upload a photo"), e("PATCH", "/admin/content/gallery/:id", "title, caption, show or hide"),
+      e("POST", "/admin/content/gallery/reorder", "save the order"), e("DELETE", "/admin/content/gallery/:id", "delete a photo"),
+      e("GET", "/admin/content/ads", "all ads with live status"), e("POST", "/admin/content/ads", "add an ad"),
+      e("PATCH", "/admin/content/ads/:id", "edit, pause, replace the picture"), e("DELETE", "/admin/content/ads/:id", "delete an ad"),
     ],
   },
   {

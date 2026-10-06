@@ -784,6 +784,58 @@ model Referral {
   @@index([status, createdAt])
 }
 
+// Site content: gallery photos and ads (customer backend migration 20261012000001_site_content).
+model ContentMedia {
+  id        String   @id @default(cuid())
+  mime      String
+  data      Bytes
+  width     Int
+  height    Int
+  bytes     Int
+  createdBy String
+  createdAt DateTime @default(now())
+}
+
+model SiteGallery {
+  id          String   @id @default(cuid())
+  title       String
+  caption     String?
+  mediaId     String   @unique
+  orientation String
+  sortOrder   Int      @default(0)
+  visible     Boolean  @default(true)
+  createdBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([visible, sortOrder])
+}
+
+model SiteAd {
+  id                String   @id @default(cuid())
+  title             String
+  mediaId           String   @unique
+  linkUrl           String?
+  placement         String // header | footer | popup | inline
+  displaySeconds    Int      @default(6)
+  popupDelaySeconds Int      @default(3)
+  popupFrequency    String   @default("day")
+  startDate         String?
+  endDate           String?
+  dailyStart        String?
+  dailyEnd          String?
+  days              Int[]    @default([])
+  priority          Int      @default(0)
+  active            Boolean  @default(true)
+  impressions       Int      @default(0)
+  clicks            Int      @default(0)
+  createdBy         String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([placement, active])
+}
+
 // ADMIN-OWNED TABLES (created by sql/*.sql in production; `npm run db:push` builds them locally).
 // Everything above this line mirrors the customer backend's schema: keep it in sync, never edit it here.
 // =====================================================================

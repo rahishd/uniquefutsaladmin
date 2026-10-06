@@ -77,6 +77,11 @@ export const SECTIONS: Section[] = [
     { key: "complaints.view", label: "View Complaints" },
     { key: "complaints.reply", label: "Reply & Change Status" },
   ] },
+  { id: "content", label: "Site Content", permissions: [
+    { key: "content.view", label: "View Gallery & Ads" },
+    { key: "content.gallery", label: "Add / Edit / Delete Gallery Photos" },
+    { key: "content.ads", label: "Add / Edit / Pause / Delete Ads" },
+  ] },
   { id: "refer", label: "Refer & Earn", permissions: [
     { key: "refer.view", label: "View Referrals" },
     { key: "refer.review", label: "Approve / Reject Referrals" },
