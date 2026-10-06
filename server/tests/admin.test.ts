@@ -339,6 +339,10 @@ describe("gamezone, teams, notices, reports", () => {
     await api.put("/settings/wifi", owner.auth, { ssid: "Unique Futsal Public WiFi", password: "goal-2026", visible: false });
     assert.equal((await prisma.settings.findUniqueOrThrow({ where: { key: "wifiVisible" } })).value, "false");
     assert.equal((await api.get("/settings", owner.auth)).body.data.wifi.visible, false);
+    assert.equal((await api.get("/settings", owner.auth)).body.data.wifi.access, "booked", "only customers at the venue by default");
+    await api.put("/settings/wifi", owner.auth, { ssid: "Unique Futsal Public WiFi", password: "goal-2026", visible: true, access: "all" });
+    assert.equal((await prisma.settings.findUniqueOrThrow({ where: { key: "wifiAccess" } })).value, "all");
+    assert.equal((await api.put("/settings/wifi", owner.auth, { ssid: "x", password: "", access: "nobody" })).status, 400);
     const log = await prisma.adminAuditLog.findFirst({ where: { action: "update-wifi" }, orderBy: { createdAt: "desc" } });
     assert.ok(!log!.details!.includes("goal-2026"), "the password is never logged");
   });
