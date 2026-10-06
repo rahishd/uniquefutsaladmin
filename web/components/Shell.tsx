@@ -51,7 +51,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const firstName = admin?.name?.split(" ")[0] ?? "Admin";
 
   return (
-    <div className="min-h-screen lg:grid lg:grid-cols-[264px_1fr]">
+    <div className="min-h-screen lg:grid lg:grid-cols-[264px_minmax(0,1fr)]">
       {open && <div className="fixed inset-0 z-40 bg-black/40 lg:hidden" onClick={() => setOpen(false)} />}
       <aside className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-line bg-surface p-4 transition-transform lg:sticky lg:top-0 lg:h-screen lg:w-auto lg:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="mb-4 flex items-center justify-between">
@@ -86,7 +86,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             <Link href="/arrivals" aria-label="Arrivals"><Bell size={24} /></Link>
           </div>
         </header>
-        <main className="p-4 pb-28 lg:p-8">{children}</main>
+        <main className="mx-auto w-full max-w-[1400px] p-4 pb-28 lg:p-8 lg:pb-10">{children}</main>
         <DeniedDialog />
       </div>
 
