@@ -331,6 +331,18 @@ describe("gamezone, teams, notices, reports", () => {
     await prisma.siteVisit.deleteMany({});
   });
 
+  it("Wi-Fi: the on/off switch is saved and shown", async () => {
+    const owner = await staff("owner");
+    const on = await api.put("/settings/wifi", owner.auth, { ssid: "Unique Futsal Public WiFi", password: "goal-2026" });
+    assert.equal(on.body.data.visible, true, "on by default");
+    assert.equal((await prisma.settings.findUniqueOrThrow({ where: { key: "wifiVisible" } })).value, "true");
+    await api.put("/settings/wifi", owner.auth, { ssid: "Unique Futsal Public WiFi", password: "goal-2026", visible: false });
+    assert.equal((await prisma.settings.findUniqueOrThrow({ where: { key: "wifiVisible" } })).value, "false");
+    assert.equal((await api.get("/settings", owner.auth)).body.data.wifi.visible, false);
+    const log = await prisma.adminAuditLog.findFirst({ where: { action: "update-wifi" }, orderBy: { createdAt: "desc" } });
+    assert.ok(!log!.details!.includes("goal-2026"), "the password is never logged");
+  });
+
   it("dashboard, revenue report and audit log work; the audit log never holds passwords", async () => {
     const owner = await staff("owner");
     await api.post("/bookings/walk-in", owner.auth, { date: today, startTime: "09:00", customerName: "Ram", paid: true, priceOverride: 1000 });
