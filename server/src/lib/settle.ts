@@ -179,7 +179,7 @@ export async function settle(inp: SettleInput) {
         gameTotal += l.amount;
         bill.push({ type: "game", label: gameLabel(g), quantity: 1, amount: l.amount });
       } else if (l.kind === "due") {
-        const claimed = await tx.goodsDue.updateMany({ where: { id: l.row.id, status: "due" }, data: { status: "paid", paidAt: new Date(), paidBy: inp.staffId, checkoutCode: code } });
+        const claimed = await tx.goodsDue.updateMany({ where: { id: l.row.id, status: "due" }, data: { status: "paid", paidAt: new Date(), paidBy: inp.staffId, checkoutCode: code, cashAmount: s.cash, onlineAmount: online(s) } });
         if (claimed.count === 0) throw new AppError(409, `The goods on credit (${l.row.items}) are already paid`);
         dueTotal += l.amount;
         dueSales.push({ saleId: l.row.saleId, amount: l.amount });
