@@ -35,7 +35,7 @@ authRouter.post("/login", loginLimiter, handler(async (req, res) => {
   await prisma.staffUser.update({ where: { id: s.id }, data: { lastLoginAt: new Date() } });
   req.staff = { id: s.id, email: s.email, name: s.name, role: s.role, permissions: effectivePermissions(s) };
   await audit(req, "login", "staff", s.id);
-  send(res, { token: signStaffToken(req.staff), admin: view(s) }, "Signed in");
+  send(res, { token: signStaffToken({ ...req.staff, sessionVersion: s.sessionVersion }), admin: view(s) }, "Signed in");
 }));
 
 authRouter.get("/me", requireStaff, handler(async (req, res) => send(res, view({ ...req.staff!, permissions: req.staff!.permissions }))));
@@ -44,7 +44,8 @@ authRouter.post("/change-password", requireStaff, handler(async (req, res) => {
   const { current, next } = parse(z.object({ current: z.string(), next: z.string().min(10, "at least 10 characters") }), req.body);
   const s = await prisma.staffUser.findUniqueOrThrow({ where: { id: req.staff!.id } });
   if (!(await bcrypt.compare(current, s.passwordHash))) throw new AppError(400, "Current password is wrong");
-  await prisma.staffUser.update({ where: { id: s.id }, data: { passwordHash: await bcrypt.hash(next, 12) } });
+  const updated = await prisma.staffUser.update({ where: { id: s.id }, data: { passwordHash: await bcrypt.hash(next, 12), sessionVersion: { increment: 1 } } });
   await audit(req, "change-password", "staff", s.id);
-  send(res, null, "Password changed");
+  // every other device is signed out; this one gets a fresh token so the person stays signed in here
+  send(res, { token: signStaffToken({ ...req.staff!, sessionVersion: updated.sessionVersion }) }, "Password changed");
 }));

@@ -246,6 +246,36 @@ describe("owner, admin and staff accounts", () => {
     assert.equal(adm.accountType, "admin");
   });
 
+  it("a password change signs the person out everywhere (the owner changing it, or the person changing their own)", async () => {
+    const owner = await staff("owner");
+    const login = async (email: string, password: string) => (await request(app).post("/api/admin/auth/login").send({ email, password })).body.data.token as string;
+    const me = (t: string) => request(app).get("/api/admin/auth/me").set({ Authorization: `Bearer ${t}` });
+    const made = (await api.post("/staff", owner.auth, { email: "pw@test.np", name: "Pw", accountType: "staff", password: "long-enough-pass", permissions: ["bookings.view"] })).body.data;
+
+    // the owner resets it: both of their devices are signed out at once, even in the same second
+    const phone = await login("pw@test.np", "long-enough-pass");
+    const laptop = await login("pw@test.np", "long-enough-pass");
+    assert.equal((await me(phone)).status, 200);
+    await api.patch(`/staff/${made.id}`, owner.auth, { password: "reset-by-the-owner" });
+    assert.equal((await me(phone)).status, 401);
+    assert.equal((await me(laptop)).status, 401);
+    assert.equal((await api.patch(`/staff/${made.id}`, owner.auth, { name: "Pw Renamed" })).status, 200);
+    const fresh = await login("pw@test.np", "reset-by-the-owner");
+    assert.equal((await me(fresh)).status, 200, "signing in again works");
+
+    // a name or permission change does not sign anyone out
+    await api.patch(`/staff/${made.id}`, owner.auth, { permissions: ["bookings.view", "slots.view"] });
+    assert.equal((await me(fresh)).status, 200);
+
+    // changing your own password: other devices go, this one stays signed in with the new token it is given
+    const other = await login("pw@test.np", "reset-by-the-owner");
+    const change = await request(app).post("/api/admin/auth/change-password").set({ Authorization: `Bearer ${fresh}` }).send({ current: "reset-by-the-owner", next: "my-own-new-password" });
+    assert.equal(change.status, 200);
+    assert.equal((await me(other)).status, 401);
+    assert.equal((await me(fresh)).status, 401, "the old token of this device is replaced");
+    assert.equal((await me(change.body.data.token)).status, 200);
+  });
+
   it("records every access change in the audit log, without passwords", async () => {
     const owner = await staff("owner");
     const created = await api.post("/staff", owner.auth, { email: "aud@test.np", name: "Audited", accountType: "staff", permissions: ["bookings.view"], password: "secret-password-77" });

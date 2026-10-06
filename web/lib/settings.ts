@@ -1,4 +1,4 @@
-import { api } from "./api";
+import { api, setToken } from "./api";
 
 export type Venue = { name: string; phone: string; whatsapp: string; email: string; address: string; facebook: string; tiktok: string; mapEmbed: string };
 export type SettingsData = {
@@ -19,4 +19,8 @@ export const getSettings = () => api<SettingsData>("/admin/settings");
 export const saveVenue = (v: Venue) => api<Venue>("/admin/settings/venue", { method: "PUT", body: JSON.stringify(v) });
 export const saveWifi = (w: { ssid: string; password: string; visible: boolean; access: "booked" | "all" }) => api<{ ssid: string; password: string; visible: boolean; access: "booked" | "all" }>("/admin/settings/wifi", { method: "PUT", body: JSON.stringify(w) });
 export const saveBooking = (b: { advanceDeposit: number }) => api<{ advanceDeposit: number }>("/admin/settings/booking", { method: "PUT", body: JSON.stringify(b) });
-export const changePassword = (current: string, next: string) => api<null>("/admin/auth/change-password", { method: "POST", body: JSON.stringify({ current, next }) });
+// Changing your password signs out your other devices; the server hands back a new token for this one.
+export const changePassword = async (current: string, next: string) => {
+  const r = await api<{ token?: string } | null>("/admin/auth/change-password", { method: "POST", body: JSON.stringify({ current, next }) });
+  if (r?.token) setToken(r.token);
+};

@@ -71,7 +71,7 @@ staffRouter.patch("/:id", handler(async (req, res) => {
   else if (b.accountType === "staff") { data.role = "staff"; data.permissions = b.permissions ?? (isAdminRole(target.role) ? [] : effectivePermissions(target).filter((p) => (ASSIGNABLE as string[]).includes(p))); }
   else if (b.permissions && becomesStaff) { data.role = "staff"; data.permissions = b.permissions; }
   else if (b.permissions && isAdminRole(target.role)) throw new AppError(400, "Admins already have all access. Change the account to Staff to choose what they can do.");
-  if (b.password) data.passwordHash = await bcrypt.hash(b.password, 12);
+  if (b.password) { data.passwordHash = await bcrypt.hash(b.password, 12); data.sessionVersion = { increment: 1 }; } // signs them out everywhere
 
   const s = await prisma.staffUser.update({ where: { id }, data, select: pub });
   await audit(req, "update", "staff", id, {
