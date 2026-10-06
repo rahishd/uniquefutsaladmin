@@ -67,10 +67,13 @@ type Split = { cash: number; fonepay: number };
 export type Report = {
   from: string; to: string;
   totals: { cash: number; fonepay: number; total: number; bySource: { games: Split; goods: Split; gamezone: Split } };
-  games: { count: number; paidCount: number; amount: number; items: { id: string; code: string | null; date: string; startTime: string; team: string; phone: string | null; rate: number; promoCode: string | null; discount: number; paid: boolean; payment: string }[] };
+  games: { count: number; paidCount: number; amount: number; items: { id: string; code: string | null; date: string; startTime: string; endTime: string; team: string; phone: string | null; rate: number; promoCode: string | null; discount: number; paid: boolean; payment: string }[] };
   purchases: { total: number; paidLaterTotal: number; customers: { phone: string | null; name: string; total: number; sales: { id: string; time: string; items: { name: string; qty: number; price: number; amount: number }[]; amount: number; payment: string; credit: boolean }[] }[] };
   gamezone: { count: number; amount: number; items: { code: string; date: string; startHour: number; customer: string; phone: string | null; console: string; game: string; players: number; hours: number; extraHours: number; total: number; paid: boolean; payment: string; status: string }[] };
-  memberships: { count: number; amount: number; items: { id: string; memberCode: string | null; customer: string; phone: string; plan: string; length: string | null; timeSlot: string | null; days: string[]; startDate: string; endDate: string; amount: number; status: string; paymentStatus: string }[] };
+  memberships: { count: number; amount: number; received: number; due: number; items: { paid: number; due: number; daysLeft: number; id: string; memberCode: string | null; customer: string; phone: string; plan: string; length: string | null; timeSlot: string | null; days: string[]; startDate: string; endDate: string; amount: number; status: string; paymentStatus: string }[] };
   itemsSold: { name: string; qty: number; amount: number }[];
+  tournaments: { count: number; amount: number; items: { id: string; name: string; startDate: string; endDate: string; amount: number; paid: boolean; status: string }[] };
+  stock: { costValue: number; retailValue: number; items: { name: string; left: number; state: "ok" | "low" | "out" }[]; added: { name: string; qty: number }[] };
+  dues: { count: number; amount: number; items: { kind: string; team: string; phone: string | null; amount: number; date: string; detail: string }[] };
 };
 export const getReport = (from: string, to: string) => api<Report>(`/admin/inventory/report?from=${from}&to=${to}`);

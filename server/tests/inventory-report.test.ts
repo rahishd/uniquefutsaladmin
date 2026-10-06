@@ -99,4 +99,21 @@ describe("Inventory report", () => {
     assert.equal(r.body.data.attention.unpaidGamesToday, 1);
     assert.equal(r.body.data.games.count, 2);
   });
+
+  it("lists dues from before today, memberships still owing, stock to refill and what was added", async () => {
+    const mgr = await staff("admin");
+    await customer("9860000004", "Hari Hamal");
+    await game(null, { date: addDaysKey(today, -3), customerName: "Tuna FC" }); // unpaid, from before today
+    const plan = await prisma.membershipPlan.create({ data: { name: "Premium", price: 2000, perks: "[]" } });
+    await prisma.membershipSubscription.create({ data: { planId: plan.id, userId: "9860000004", startDate: new Date(`${addDaysKey(today, -40)}T00:00:00Z`), endDate: new Date(`${addDaysKey(today, 50)}T00:00:00Z`), status: "pending", paymentStatus: "pending", timeSlot: "07:00-08:00", chosenDuration: "3_months", totalPrice: 8000, chosenDays: [], memberCode: "MEM-10009" } });
+    const cat = (await api.post("/inventory/categories", mgr.auth, { name: "Drinks" })).body.data;
+    await api.post("/inventory/products", mgr.auth, { name: "Frooti", price: 40, costPrice: 25, categoryId: cat.id, openingStock: 3, lowStockThreshold: 5 });
+    const r = (await api.get(`/inventory/report?from=${today}&to=${today}`, mgr.auth)).body.data;
+    assert.equal(r.dues.items[0].team, "Tuna FC");
+    assert.equal(r.dues.amount, 1500);
+    assert.equal(r.memberships.due, 8000);
+    assert.equal(r.memberships.items[0].daysLeft, 50);
+    assert.deepEqual(r.stock.items[0], { name: "Frooti", left: 3, state: "low" });
+    assert.deepEqual(r.stock.added, [{ name: "Frooti", qty: 3 }]);
+  });
 });

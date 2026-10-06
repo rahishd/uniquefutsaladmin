@@ -50,7 +50,7 @@ export async function buildReport(from: string, to: string) {
     if (paid && split.cash + split.fonepay === 0) split = ONLINE.test(b.paymentMethod) ? { cash: 0, fonepay: Math.round(b.totalPrice) } : { cash: Math.round(b.totalPrice), fonepay: 0 };
     if (!paid) split = zero();
     add(gameMoney, split);
-    return { id: b.id, code: b.code, date: b.date, startTime: b.startTime, team: b.customerName ?? b.customerPhone ?? "Guest", phone: b.customerPhone ?? b.userId, rate: Math.round(b.totalPrice), promoCode: b.promoCode, discount: Math.round(b.discountAmount), paid, payment: paid ? label(split) : "Not paid" };
+    return { id: b.id, code: b.code, date: b.date, startTime: b.startTime, endTime: b.endTime, team: b.customerName ?? b.customerPhone ?? "Guest", phone: b.customerPhone ?? b.userId, rate: Math.round(b.totalPrice), promoCode: b.promoCode, discount: Math.round(b.discountAmount), paid, payment: paid ? label(split) : "Not paid" };
   });
 
   // ----- goods -----
@@ -104,13 +104,43 @@ export async function buildReport(from: string, to: string) {
 
   // ----- memberships paid or started in this period -----
   const subs = await prisma.membershipSubscription.findMany({
-    where: { OR: [{ createdAt: { gte: start, lt: end } }, { paymentVerifiedAt: { gte: start, lt: end } }] },
+    where: { OR: [{ createdAt: { gte: start, lt: end } }, { paymentVerifiedAt: { gte: start, lt: end } }, { status: "pending" }] },
     include: { plan: { select: { name: true } }, user: { select: { name: true } } }, orderBy: { createdAt: "asc" },
   });
   const memberships = subs.map((s) => ({
     id: s.id, memberCode: s.memberCode, customer: s.user.name ?? s.userId, phone: s.userId, plan: s.plan.name, length: s.chosenDuration, timeSlot: s.timeSlot, days: s.chosenDays,
     startDate: s.startDate.toISOString().slice(0, 10), endDate: s.endDate.toISOString().slice(0, 10), amount: Math.round(s.totalPrice ?? 0), status: s.status, paymentStatus: s.paymentStatus,
+    paid: s.paymentStatus === "verified" ? Math.round(s.totalPrice ?? 0) : 0, due: s.paymentStatus === "verified" ? 0 : Math.round(s.totalPrice ?? 0),
+    daysLeft: Math.round((new Date(`${s.endDate.toISOString().slice(0, 10)}T00:00:00Z`).getTime() - new Date(`${todayKey()}T00:00:00Z`).getTime()) / 86_400_000),
   }));
+
+  // ----- tournaments running in this period -----
+  const tours = await prisma.tournament.findMany({ where: { startDate: { lte: to }, endDate: { gte: from }, isActive: true }, orderBy: { startDate: "asc" } });
+  const tournaments = tours.map((x) => ({ id: x.id, name: x.name, startDate: x.startDate, endDate: x.endDate, amount: Math.round(x.totalAmount), paid: x.paymentStatus === "paid", status: x.status }));
+
+  // ----- stock now, and what was added in the period -----
+  const products = await prisma.product.findMany({ select: { name: true, inventory: true, lowStockThreshold: true, costPrice: true, price: true }, orderBy: { name: "asc" } });
+  const added = new Map<string, number>();
+  for (const l of await prisma.inventoryLog.findMany({ where: { createdAt: { gte: start, lt: end }, change: { gt: 0 } }, include: { product: { select: { name: true } } } })) added.set(l.product.name, (added.get(l.product.name) ?? 0) + l.change);
+  const stock = {
+    costValue: Math.round(products.reduce((t, p) => t + p.inventory * (p.costPrice ?? 0), 0)), retailValue: Math.round(products.reduce((t, p) => t + p.inventory * p.price, 0)),
+    items: products.map((p) => ({ name: p.name, left: p.inventory, state: p.inventory <= 0 ? "out" : p.inventory <= p.lowStockThreshold ? "low" : "ok" })),
+    added: [...added].map(([name, qty]) => ({ name, qty })),
+  };
+
+  // ----- dues still to collect: games before today and goods on credit -----
+  const today = todayKey();
+  const oldGames = await prisma.booking.findMany({
+    where: { date: { lt: today }, paymentStatus: { not: "completed" }, status: { notIn: DEAD }, AND: [{ OR: [{ notes: null }, { notes: { not: { contains: "MEMBERSHIP_PAYMENT" } } }] }, { paymentMethod: { not: "membership" } }] },
+    orderBy: { date: "asc" }, select: { id: true, code: true, date: true, startTime: true, customerName: true, customerPhone: true, userId: true, totalPrice: true },
+  });
+  const creditGoods = await prisma.goodsDue.findMany({ where: { status: "due" }, orderBy: { createdAt: "asc" } });
+  const dueNames = new Map((await prisma.user.findMany({ where: { phoneNumber: { in: creditGoods.map((g) => g.userId) } }, select: { phoneNumber: true, name: true } })).map((u) => [u.phoneNumber, u.name]));
+  const dueItems = [
+    ...oldGames.map((g) => ({ kind: "Game", team: g.customerName ?? g.customerPhone ?? "Guest", phone: g.customerPhone ?? g.userId, amount: Math.round(g.totalPrice), date: g.date, detail: `${g.code ?? ""} ${g.startTime}`.trim() })),
+    ...creditGoods.map((g) => ({ kind: "Goods", team: dueNames.get(g.userId) ?? g.userId, phone: g.userId, amount: g.amount, date: g.createdAt.toISOString().slice(0, 10), detail: g.items })),
+  ].sort((a, b) => a.date.localeCompare(b.date));
+  const outstanding = { count: dueItems.length, amount: dueItems.reduce((t, d) => t + d.amount, 0), items: dueItems };
 
   const totals = { cash: gameMoney.cash + goodsMoney.cash + gzMoney.cash, fonepay: gameMoney.fonepay + goodsMoney.fonepay + gzMoney.fonepay };
   return {
@@ -119,7 +149,9 @@ export async function buildReport(from: string, to: string) {
     games: { count: games.length, paidCount: games.filter((g) => g.paid).length, amount: games.reduce((t, g) => t + g.rate, 0), items: games },
     purchases: { customers: [...purchases.values()].sort((a, b) => b.total - a.total), total: sales.reduce((t, s) => t + s.amount, 0), paidLaterTotal },
     gamezone: { count: gamezone.length, amount: gamezone.reduce((t, g) => t + g.total, 0), items: gamezone },
-    memberships: { count: memberships.length, amount: memberships.reduce((t, m) => t + m.amount, 0), items: memberships },
+    memberships: { count: memberships.length, amount: memberships.reduce((t, m) => t + m.amount, 0), received: memberships.reduce((t, m) => t + m.paid, 0), due: memberships.reduce((t, m) => t + m.due, 0), items: memberships },
+    tournaments: { count: tournaments.length, amount: tournaments.reduce((t, x) => t + x.amount, 0), items: tournaments },
+    stock, dues: outstanding,
     itemsSold: [...itemTotals.values()].sort((a, b) => b.amount - a.amount),
   };
 }
