@@ -45,7 +45,7 @@ export default function Home() {
   // the eye hides the money and counts (for when the screen is shared); the choice is remembered on this device
   const [hidden, setHidden] = useState(readHidden);
   const [live, setLive] = useState<Live | null>(null);
-  const [sales, setSales] = useState<number | null>(null);
+  const [sales, setSales] = useState<{ total: number; games: number; goods: number; gamezone: number } | null>(null);
   const allowed = canDo("dashboard.view");
 
   const flip = () => { const next = !hidden; setHidden(next); try { localStorage.setItem(HIDE, next ? "1" : "0"); } catch { /* the choice just is not remembered */ } };
@@ -56,14 +56,15 @@ export default function Home() {
     const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kathmandu" }).format(new Date());
     const load = () => {
       api<Live>("/admin/dashboard").then((d) => on && setLive(d)).catch(() => {});
-      getOverview(today, today).then((o) => on && setSales(o.today.total)).catch(() => {});
+      getOverview(today, today).then((o) => on && setSales({ total: o.today.total, games: o.bySource.games.cash + o.bySource.games.fonepay, goods: o.bySource.goods.cash + o.bySource.goods.fonepay, gamezone: o.bySource.gamezone.cash + o.bySource.gamezone.fonepay })).catch(() => {});
     };
     load();
     const t = setInterval(() => document.visibilityState === "visible" && load(), 30000);
     return () => { on = false; clearInterval(t); };
   }, [allowed]);
 
-  const money = hidden ? "XXXX.XX" : sales === null ? "—" : rs(sales).replace("Rs. ", "");
+  const money = hidden ? "XXXX.XX" : sales === null ? "—" : rs(sales.total).replace("Rs. ", "");
+  const split = hidden || !sales ? "" : `Games ${rs(sales.games)} · Goods ${rs(sales.goods)} · Gamezone ${rs(sales.gamezone)}`;
   const count = hidden ? "XX" : live === null ? "—" : String(live.bookingsToday);
 
   return (
@@ -73,14 +74,17 @@ export default function Home() {
 
       <section className="-mt-12 overflow-hidden rounded-2xl bg-surface shadow-sm lg:mt-0">
         <div className="relative grid grid-cols-2 bg-surface-2 px-5 py-4 lg:px-8 lg:py-6">
-          <div>
+          <Link href="/overview" aria-label="Revenue today: open the Overview" className="block min-w-0 rounded-xl pr-6 hover:bg-black/5">
             <p className="text-xs text-muted">NPR · Revenue today</p>
             <p className="text-xl font-bold lg:text-3xl">{money}</p>
-          </div>
-          <div className="pl-6">
+            <p className="mt-0.5 truncate text-[11px] text-muted">{split || (hidden ? "All sales: games, goods and Gamezone" : "")}</p>
+            <p className="text-[11px] font-semibold text-brand">See more in Overview</p>
+          </Link>
+          <Link href="/bookings" aria-label="Bookings today: open the Bookings page" className="block min-w-0 rounded-xl pl-6 hover:bg-black/5">
             <p className="text-xs text-muted">Bookings today</p>
             <p className="text-xl font-bold lg:text-3xl">{count}</p>
-          </div>
+            <p className="text-[11px] font-semibold text-brand">Open Bookings</p>
+          </Link>
           <button onClick={flip} aria-label={hidden ? "Show numbers" : "Hide numbers"} className="absolute left-1/2 top-1/2 grid h-12 w-12 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-surface shadow lg:left-auto lg:right-8 lg:translate-x-0">
             {hidden ? <EyeOff size={22} /> : <Eye size={22} />}
           </button>
