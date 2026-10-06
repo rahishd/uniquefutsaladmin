@@ -69,7 +69,7 @@ function VenueCard({ initial, canEdit }: { initial: Venue; canEdit: boolean }) {
   );
 }
 
-function WifiCard({ initial, canEdit }: { initial: { ssid: string; password: string; visible: boolean }; canEdit: boolean }) {
+function WifiCard({ initial, canEdit }: { initial: { ssid: string; password: string; visible: boolean; access: "booked" | "all" }; canEdit: boolean }) {
   const [w, setW] = useState(initial);
   const [show, setShow] = useState(false);
   const s = useSave(saveWifi, "settings.edit");
@@ -89,6 +89,12 @@ function WifiCard({ initial, canEdit }: { initial: { ssid: string; password: str
           <span className="text-sm font-medium">Show the Wi-Fi button in the customer app<span className="block text-xs font-normal text-muted">{w.visible ? "Customers can see the name and password." : "The button is hidden."}</span></span>
           <Switch on={w.visible} label="Show the Wi-Fi button in the customer app" disabled={!canEdit} onChange={() => { setW({ ...w, visible: !w.visible }); s.reset(); }} />
         </div>
+        <label className="mt-3 block text-sm font-medium">Who can see the password
+          <select className={`${input} mt-1`} value={w.access} disabled={!canEdit || !w.visible} onChange={(e) => { setW({ ...w, access: e.target.value as "booked" | "all" }); s.reset(); }}>
+            <option value="booked">Only customers at the venue (booked game, Gamezone or membership from 1 hour before to 30 minutes after)</option>
+            <option value="all">Every signed-in customer, any time</option>
+          </select>
+        </label>
         {canEdit && <SaveRow busy={s.busy} saved={s.saved} error={s.error} />}
       </form>
     </Card>

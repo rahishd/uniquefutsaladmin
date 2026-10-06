@@ -38,19 +38,19 @@ const venueBody = z.object({
   mapEmbed: url("The map link"),
 });
 
-const wifiBody = z.object({ ssid: z.string().trim().max(32, "At most 32 characters"), password: z.string().max(63, "At most 63 characters"), visible: z.boolean().default(true) })
+const wifiBody = z.object({ ssid: z.string().trim().max(32, "At most 32 characters"), password: z.string().max(63, "At most 63 characters"), visible: z.boolean().default(true), access: z.enum(["booked", "all"]).default("booked") })
   .refine((b) => b.ssid !== "" || b.password === "", { message: "Enter the Wi-Fi name too", path: ["ssid"] });
 const bookingBody = z.object({ advanceDeposit: z.number().int("Whole rupees only").min(0).max(100_000) });
 
 settingsPageRouter.get("/", requirePermission("settings.view"), handler(async (req, res) => {
   const canEdit = !!req.staff!.permissions?.includes("settings.edit");
-  const [venue, ssid, password, visible, deposit, db] = await Promise.all([
-    loadVenue(), getSetting("wifiSSID"), getSetting("wifiPassword"), getSetting("wifiVisible"), getSetting("advanceDeposit"),
+  const [venue, ssid, password, visible, access, deposit, db] = await Promise.all([
+    loadVenue(), getSetting("wifiSSID"), getSetting("wifiPassword"), getSetting("wifiVisible"), getSetting("wifiAccess"), getSetting("advanceDeposit"),
     prisma.$queryRaw`SELECT 1`.then(() => true, () => false),
   ]);
   send(res, {
     venue,
-    wifi: { ssid: ssid ?? "", password: canEdit ? password ?? "" : password ? "(set)" : "", visible: visible !== "false" },
+    wifi: { ssid: ssid ?? "", password: canEdit ? password ?? "" : password ? "(set)" : "", visible: visible !== "false", access: access === "all" ? "all" : "booked" },
     booking: { advanceDeposit: Number(deposit ?? 0) || 0 },
     integrations: {
       fonepay: { mode: env.FONEPAY_MODE, configured: !!(env.FONEPAY_MERCHANT_CODE && env.FONEPAY_SECRET && env.FONEPAY_BASE_URL), note: env.FONEPAY_MODE === "test" ? "Test mode: QR codes are fake and staff use the Simulate button. Real payments need live keys." : "Live" },
@@ -75,9 +75,10 @@ settingsPageRouter.put("/wifi", requirePermission("settings.edit"), handler(asyn
   const b = parse(wifiBody, req.body);
   await setSetting("wifiSSID", b.ssid);
   await setSetting("wifiPassword", b.password);
+  await setSetting("wifiAccess", b.access);
   await setSetting("wifiVisible", String(b.visible)); // the customer app shows its Wi-Fi button only while this is on
-  await audit(req, "update-wifi", "settings", "wifi", { name: b.ssid, visible: b.visible, passwordChanged: true }); // the password itself is never written to the log
-  send(res, { ssid: b.ssid, password: b.password, visible: b.visible }, "Wi-Fi saved");
+  await audit(req, "update-wifi", "settings", "wifi", { name: b.ssid, visible: b.visible, access: b.access, passwordChanged: true }); // the password itself is never written to the log
+  send(res, { ssid: b.ssid, password: b.password, visible: b.visible, access: b.access }, "Wi-Fi saved");
 }));
 
 settingsPageRouter.put("/booking", requirePermission("settings.edit"), handler(async (req, res) => {
