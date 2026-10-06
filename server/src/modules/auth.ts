@@ -5,7 +5,7 @@ import { z } from "zod";
 import { prisma } from "../db";
 import { audit } from "../lib/audit";
 import { AppError, handler, parse, send } from "../lib/http";
-import { ROLE_PERMISSIONS } from "../lib/permissions";
+import { effectivePermissions, isAdminRole } from "../lib/permissions";
 import { requireStaff, signStaffToken } from "../middleware/auth";
 
 export const authRouter = Router();
@@ -22,9 +22,9 @@ const loginLimiter = rateLimit({
   handler: (_req, res) => { res.status(429).json({ success: false, statusCode: 429, message: "Too many sign-in attempts. Try again in 15 minutes." }); },
 });
 
-const view = (s: { id: string; email: string; name: string; role: string }) => ({
-  id: s.id, email: s.email, name: s.name, role: s.role,
-  permissions: ROLE_PERMISSIONS[s.role as keyof typeof ROLE_PERMISSIONS] ?? [],
+const view = (s: { id: string; email: string; name: string; role: string; permissions: string[] }) => ({
+  id: s.id, email: s.email, name: s.name, role: s.role, isAdmin: isAdminRole(s.role),
+  permissions: effectivePermissions(s),
 });
 
 authRouter.post("/login", loginLimiter, handler(async (req, res) => {
@@ -33,12 +33,12 @@ authRouter.post("/login", loginLimiter, handler(async (req, res) => {
   const ok = await bcrypt.compare(password, s?.passwordHash ?? DUMMY_HASH);
   if (!s || !ok || !s.isActive) throw new AppError(401, "Invalid email or password");
   await prisma.staffUser.update({ where: { id: s.id }, data: { lastLoginAt: new Date() } });
-  req.staff = { id: s.id, email: s.email, name: s.name, role: s.role };
+  req.staff = { id: s.id, email: s.email, name: s.name, role: s.role, permissions: effectivePermissions(s) };
   await audit(req, "login", "staff", s.id);
   send(res, { token: signStaffToken(req.staff), admin: view(s) }, "Signed in");
 }));
 
-authRouter.get("/me", requireStaff, handler(async (req, res) => send(res, view(req.staff!))));
+authRouter.get("/me", requireStaff, handler(async (req, res) => send(res, view({ ...req.staff!, permissions: req.staff!.permissions }))));
 
 authRouter.post("/change-password", requireStaff, handler(async (req, res) => {
   const { current, next } = parse(z.object({ current: z.string(), next: z.string().min(10, "at least 10 characters") }), req.body);

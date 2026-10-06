@@ -10,7 +10,7 @@ import { getHourlyPricing, getHourlyRate, setSetting } from "./settings-store";
 
 export const courtsRouter = Router();
 
-courtsRouter.get("/pricing", requirePermission("bookings.read"), handler(async (_req, res) => {
+courtsRouter.get("/pricing", requirePermission("courts.read"), handler(async (_req, res) => {
   send(res, { hourlyRate: await getHourlyRate(), hourlyPricing: await getHourlyPricing() });
 }));
 
@@ -46,7 +46,7 @@ courtsRouter.get("/slots", requirePermission("bookings.read"), handler(async (re
   send(res, { date, hours });
 }));
 
-courtsRouter.get("/blocks", requirePermission("bookings.read"), handler(async (req, res) => {
+courtsRouter.get("/blocks", requirePermission("courts.read"), handler(async (req, res) => {
   const from = typeof req.query.from === "string" ? req.query.from : todayKey();
   send(res, await prisma.slotBlock.findMany({ where: { date: { gte: from } }, orderBy: [{ date: "asc" }, { hour: "asc" }] }));
 }));

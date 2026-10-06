@@ -50,13 +50,13 @@ describe("auth and access", () => {
 
   it("protects the last owner and your own account", async () => {
     const owner = await staff("owner");
-    assert.equal((await api.patch(`/staff/${owner.id}`, owner.auth, { role: "manager" })).status, 400);
+    assert.equal((await api.patch(`/staff/${owner.id}`, owner.auth, { accountType: "staff" })).status, 400);
     assert.equal((await api.patch(`/staff/${owner.id}`, owner.auth, { isActive: false })).status, 400);
-    const made = await api.post("/staff", owner.auth, { email: "m@test.np", name: "Mina", role: "manager", password: "another-long-pass" });
+    const made = await api.post("/staff", owner.auth, { email: "m@test.np", name: "Mina", accountType: "admin", password: "another-long-pass" });
     assert.equal(made.status, 201);
     assert.equal(made.body.data.passwordHash, undefined);
-    assert.equal((await api.post("/staff", owner.auth, { email: "m@test.np", name: "Mina", role: "manager", password: "another-long-pass" })).status, 409);
-    assert.equal((await api.post("/staff", owner.auth, { email: "x@test.np", name: "Xi", role: "manager", password: "short" })).status, 400);
+    assert.equal((await api.post("/staff", owner.auth, { email: "m@test.np", name: "Mina", accountType: "admin", password: "another-long-pass" })).status, 409);
+    assert.equal((await api.post("/staff", owner.auth, { email: "x@test.np", name: "Xi", accountType: "staff", password: "short" })).status, 400);
   });
 });
 
@@ -282,7 +282,7 @@ describe("gamezone, teams, notices, reports", () => {
     const rev = await api.get(`/reports/revenue?from=${today}&to=${today}`, owner.auth);
     assert.equal(rev.body.data.totals.cash, 1000);
     assert.equal((await api.get(`/reports/revenue?from=2020-01-01&to=${today}`, owner.auth)).status, 400);
-    await api.post("/staff", owner.auth, { email: "n@test.np", name: "Nima", role: "frontdesk", password: "secret-password-1" });
+    await api.post("/staff", owner.auth, { email: "n@test.np", name: "Nima", accountType: "staff", permissions: ["bookings.read"], password: "secret-password-1" });
     const log = await api.get("/audit?entity=staff", owner.auth);
     assert.ok(log.body.data.total >= 2);
     assert.equal(JSON.stringify(log.body).includes("secret-password-1"), false);

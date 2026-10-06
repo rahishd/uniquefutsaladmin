@@ -1,6 +1,6 @@
 import { api, setToken } from "./api";
 
-export type Admin = { id: string; email: string; name: string; role: string; permissions?: string[] };
+export type Admin = { id: string; email: string; name: string; role: string; isAdmin?: boolean; permissions?: string[] };
 const ADMIN_KEY = "uf_admin_user";
 
 export async function login(email: string, password: string) {

@@ -2,14 +2,14 @@
 
 Base URL `http://localhost:5100/api/admin`. Responses: `{ success, statusCode, message, data }`.
 Auth: `Authorization: Bearer <staff token>` from `POST /auth/login`. Customer tokens are rejected (different secret and audience).
-Every write is recorded in the audit log. Roles: **owner** (all), **manager** (all except staff), **frontdesk** (day-to-day), **accountant** (payments, reports, audit, read-only elsewhere). Permissions live in `server/src/lib/permissions.ts`.
+Every write is recorded in the audit log. Accounts: **admin** (and the original **owner**) have ALL access, including managing accounts. **Staff** accounts get only the permissions an admin ticked for them, page by page (see Staff & Roles below). Permissions live in `server/src/lib/permissions.ts`; they are re-read on every request, so a change applies to the person's very next click.
 Dates `YYYY-MM-DD`, times `HH:00`, Nepal time, money in whole rupees. List endpoints take `page` and `limit` (max 100).
 
 | Area | Method and path | Permission | Notes |
 |---|---|---|---|
 | Auth | `POST /auth/login` | none | `{email,password}` → `{token, admin{…,permissions}}`. 10 tries / 15 min / IP |
 | | `GET /auth/me`, `POST /auth/change-password` | any staff | |
-| Staff | `GET /staff`, `POST /staff`, `PATCH /staff/:id` | staff.manage | cannot disable or demote yourself; one active owner always remains |
+| Staff | see **Staff & Roles** below | staff.manage | admins only |
 | Dashboard | `GET /dashboard` | any staff | bookings and revenue today, pending payments, disputes, refunds due, arrivals, new customers |
 | Arrivals | `GET /arrivals` | bookings.read | today's live court bookings and Gamezone sessions: `{date, nowMinutes, items[{kind,code,time,endTime,name,phone,amount,paid,method,status,checkedInAt}]}`; `checkedInAt` is set when the customer tapped "I'm coming". The page groups them: on the way, not confirmed, finished |
 | Bookings | `GET /bookings?scope=today|upcoming|previous&date&from&to&status&paymentStatus&q` | bookings.read | scope orders the list (upcoming/today oldest first, previous newest first); membership ledger rows are hidden |
@@ -93,3 +93,19 @@ Front desk, manager and owner can read and answer complaints; accountants cannot
 | `POST /vip` | customers.write | `{phone, code?, type: percent|flat, value, note?}`; leave `code` out to have one made. 404 unknown customer, 409 if the customer already has a VIP code or the code equals a normal promo code. Audited (`vip-give`) |
 
 Change, pause and remove use `PUT` and `DELETE /customers/:phone/vip`, called only from the VIP Privilege page. The Customers page is read-only for VIP: it highlights VIP customers (`vip: {code, active}` on each list item) with a gold "VIP" tag and shows the code in the customer sheet.
+
+## Staff & Roles
+Two kinds of account: **Admin** (all access) and **Staff** (only what is ticked). Only admins can manage accounts: `staff.manage` and `settings.write` can never be given to staff.
+
+| Method and path | Notes |
+|---|---|
+| `GET /staff` | every account with `accountType` (admin or staff), `permissions` (what was ticked), `effective` (what the account can really do), `legacyRole` (an older fixed role: manager, frontdesk or accountant) |
+| `GET /staff/catalog` | the 13 features an admin can tick (one per page, with a View and a Full level, and extras such as "adjust points"), the quick-start presets (Front desk, Accountant, Gamezone attendant, Manager, View only) and the list of assignable permissions |
+| `POST /staff` | `{email, name, accountType: admin|staff, password (10+), permissions?}`; permissions are ignored for admins; unknown or admin-only permissions are refused (400) |
+| `PATCH /staff/:id` | `{name?, accountType?, permissions?, isActive?, password?}`. Turning an older role into staff keeps what it could do. Admins cannot be given a list of permissions (change them to Staff first) |
+
+Safety rules: only the owner can change the owner account; you cannot demote or disable yourself; one active owner must always remain. Every change is audited with the new access list, never with passwords.
+
+Permissions added for this: `courts.read` (see prices and blocked hours) and `promos.read` (see promo codes), so viewing them no longer needs booking access. A staff account with no ticks can only open the dashboard.
+
+In the portal, links and buttons follow the account's access: pages it cannot open are hidden (and a typed address shows "No access to this page"), and buttons that change things (mark paid, book, reject) are hidden for View-only access. The server still checks every request.

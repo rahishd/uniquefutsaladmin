@@ -24,7 +24,7 @@ const promo = z.object({
 }).refine((p) => p.type !== "percent" || p.value <= 100, { message: "A percent discount cannot be more than 100", path: ["value"] });
 
 // The customer app reads promo codes from Settings and validates again at checkout, so this only stores them.
-promosRouter.get("/", requirePermission("bookings.read"), handler(async (_req, res) => send(res, await getPromoCodes())));
+promosRouter.get("/", requirePermission("promos.read"), handler(async (_req, res) => send(res, await getPromoCodes())));
 
 promosRouter.post("/", requirePermission("promos.write"), handler(async (req, res) => {
   const p = parse(promo, req.body) as PromoCode;

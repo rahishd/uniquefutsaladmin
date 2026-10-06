@@ -3,18 +3,18 @@ import jwt from "jsonwebtoken";
 import env from "../config/env";
 import { prisma } from "../db";
 import { AppError } from "../lib/http";
-import { Permission, can } from "../lib/permissions";
+import { Permission, effectivePermissions } from "../lib/permissions";
 
-export interface Staff { id: string; email: string; name: string; role: string }
+export interface Staff { id: string; email: string; name: string; role: string; permissions: Permission[] }
 declare module "express-serve-static-core" {
   interface Request { staff?: Staff }
 }
 
-export const signStaffToken = (s: Staff) =>
+export const signStaffToken = (s: { id: string; role: string }) =>
   jwt.sign({ id: s.id, role: s.role, aud: "admin" }, env.ADMIN_JWT_SECRET, { expiresIn: env.ADMIN_JWT_EXPIRE as jwt.SignOptions["expiresIn"] });
 
 // A valid ADMIN token is required. Customer tokens (different secret and audience) never pass.
-// The account is re-read on every request, so disabling a staff member takes effect immediately.
+// The account is re-read on every request, so disabling a staff member or changing what they may do takes effect immediately.
 export async function requireStaff(req: Request, _res: Response, next: NextFunction) {
   try {
     const token = req.headers.authorization?.replace(/^Bearer /, "");
@@ -27,7 +27,7 @@ export async function requireStaff(req: Request, _res: Response, next: NextFunct
     }
     const s = await prisma.staffUser.findUnique({ where: { id } });
     if (!s || !s.isActive) throw new AppError(401, "Account disabled");
-    req.staff = { id: s.id, email: s.email, name: s.name, role: s.role };
+    req.staff = { id: s.id, email: s.email, name: s.name, role: s.role, permissions: effectivePermissions(s) };
     next();
   } catch (e) {
     next(e);
@@ -35,4 +35,4 @@ export async function requireStaff(req: Request, _res: Response, next: NextFunct
 }
 
 export const requirePermission = (p: Permission) => (req: Request, _res: Response, next: NextFunction) =>
-  req.staff && can(req.staff.role, p) ? next() : next(new AppError(403, "You do not have permission for this"));
+  req.staff && req.staff.permissions.includes(p) ? next() : next(new AppError(403, "You do not have permission for this"));

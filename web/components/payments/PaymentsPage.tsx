@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { Badge } from "../bookings/Badge";
 import CollectModal from "./CollectModal";
+import { canDo } from "@/lib/auth";
 import { prettyDate, rs } from "@/lib/bookings";
 import { Filters, Kind, Ledger, METHOD_LABEL, Mode, PAGE_SIZE, PayStatus, Period, Row, Summary, listPayments, paymentSummary } from "@/lib/payments";
 
@@ -139,7 +140,7 @@ export default function PaymentsPage() {
               </div>
               <div className="shrink-0 space-y-2 text-right">
                 <p className={`font-bold ${r.status === "cancelled" ? "text-muted line-through" : ""}`}>{rs(r.amount)}</p>
-                {r.status === "unpaid" && (
+                {r.status === "unpaid" && canDo("payments.write") && (
                   <button onClick={() => setCollecting(r)} className="rounded-full bg-brand px-3 py-1.5 text-xs font-semibold text-white">Mark paid</button>
                 )}
               </div>
