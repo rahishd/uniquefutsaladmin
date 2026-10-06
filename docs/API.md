@@ -228,3 +228,17 @@ Safety rules: only the owner can change the owner account; you cannot demote or 
 
 ### In the portal
 Everyone sees every page, like an admin. What a person may do is checked when they click: buttons and forms are there, and an action the account may not do (or a page of data it may not view) shows the message "This feature is only accessible to the Owner. Please contact him." The server refuses the request either way (HTTP 403).
+
+## Digital ID (QR scan, staff)
+
+The customer's QR holds only `UFID1.` + a random 192-bit token (customer app `GET /me/digital-id`), no personal data. Only staff can resolve it.
+
+| Method | Path | Permission | Notes |
+|---|---|---|---|
+| POST | `/admin/digital-id/resolve` | `digitalid.scan` | `{code}` (the QR text) -> `{phone, name}`. 422 not a Unique Futsal ID / bad format, 404 unknown or replaced. Audited (`digitalid-scan`) |
+| GET | `/admin/digital-id/search?q=` | `digitalid.scan` | fallback: name or number, 2+ characters, 10 results |
+| GET | `/admin/digital-id/:phone` | `digitalid.scan` | `{profile, extras}`: the full customer profile (same as `/customers/:phone/profile`) plus upcoming bookings with paid flag, add-ons, Gamezone, loyalty points and vouchers, referrals, membership with attendance, and `spent` (games + goods) |
+| GET | `/admin/digital-id/:phone/card` | `digitalid.scan` | `{name, phone, payload, whatsapp}` for the card picture; makes the customer's Digital ID if they never opened theirs |
+| POST | `/admin/digital-id/:phone/attendance` | `digitalid.attendance` | marks today's attendance on the active membership, once per day (409 no active membership) |
+
+Tables: `DigitalId` (shared, customer migration `20261015000001_digital_id`; here `sql/015_digital_id.sql`), `MembershipAttendance` (admin-owned).

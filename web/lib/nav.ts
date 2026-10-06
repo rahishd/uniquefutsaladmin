@@ -82,6 +82,17 @@ export const modules: Module[] = [
     ],
   },
   {
+    slug: "digital-id", title: "Digital ID", group: "Customers", icon: "scan",
+    summary: "Scan a customer's QR with the camera to open their profile and activity. Also marks membership attendance.",
+    clientFeatures: ["Personal Digital ID card with a private QR", "Download the card or open it from the header", "QR holds no personal data and only works inside Unique Futsal"],
+    adminTasks: ["Scan the QR with a phone or tablet camera", "Search by name or number if the camera fails", "See bookings, points, referrals, Gamezone, add-ons and total spent", "Mark membership attendance", "Send the ID card to a customer on WhatsApp"],
+    endpoints: [
+      e("POST", "/admin/digital-id/resolve", "QR text to customer"), e("GET", "/admin/digital-id/search", "manual search"),
+      e("GET", "/admin/digital-id/:phone", "profile and extras"), e("GET", "/admin/digital-id/:phone/card", "card data for download or WhatsApp"),
+      e("POST", "/admin/digital-id/:phone/attendance", "mark membership attendance for today"),
+    ],
+  },
+  {
     slug: "customers", title: "Customers", group: "Customers", icon: "users",
     summary: "Registered players (phone + password, Google link for reset).",
     clientFeatures: ["Profile, location, position", "Preferences (SMS, promo, pop-up)", "Player / Captain mode", "Booking and payment history", "Gameplay stats"],
