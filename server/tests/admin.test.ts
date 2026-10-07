@@ -228,6 +228,25 @@ describe("gamezone, teams, notices, reports", () => {
     assert.equal((await api.get("/payments/refunds?status=due", fd.auth)).body.data.length, 1);
   });
 
+  it("gamezone: the day board names consoles and customers and adds up the money", async () => {
+    const fd = await staff("frontdesk");
+    await customer("9810000077");
+    const c = await prisma.gzConsole.create({ data: { name: "PS5 Station 9" } });
+    const base = { consoleId: c.id, gameTitle: "FIFA 26", date: tomorrow, hours: 1, players: 2, total: 400, paymentMethod: "venue" };
+    await prisma.gzBooking.create({ data: { ...base, code: "GZ-D1", userId: "9810000077", startHour: 12, paymentStatus: "pay_at_venue" } });
+    await prisma.gzBooking.create({ data: { ...base, code: "GZ-D2", guestName: "Sita", guestPhone: "9877000001", startHour: 13, paymentStatus: "paid" } });
+    await prisma.gzBooking.create({ data: { ...base, code: "GZ-D3", guestName: "Ram", guestPhone: "9877000002", startHour: 14, status: "cancelled" } });
+    const day = (await api.get(`/gamezone/day?date=${tomorrow}`, fd.auth)).body.data;
+    assert.deepEqual(day.totals, { sessions: 2, hours: 2, cancelled: 1, paid: 400, owed: 400 });
+    const d1 = day.items.find((i: { code: string }) => i.code === "GZ-D1");
+    assert.equal(d1.consoleName, "PS5 Station 9");
+    assert.equal(d1.customerPhone, "9810000077");
+    assert.equal(d1.registered, true);
+    assert.equal((await api.get("/gamezone/day?date=nope", fd.auth)).status, 400);
+    const unpaid = (await api.get("/gamezone/bookings?unpaid=1&scope=upcoming", fd.auth)).body.data;
+    assert.deepEqual(unpaid.items.map((i: { code: string }) => i.code), ["GZ-D1"]);
+  });
+
   it("gamezone catalog: duplicate names refused, plans only for 1, 2 or 4 players", async () => {
     const mgr = await staff("manager");
     assert.equal((await api.post("/gamezone/consoles", mgr.auth, { name: "PS5 Station 1" })).status, 201);

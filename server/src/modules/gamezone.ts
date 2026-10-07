@@ -4,20 +4,67 @@ import { z } from "zod";
 import { prisma } from "../db";
 import { audit } from "../lib/audit";
 import { notify } from "../lib/customer-effects";
-import { AppError, handler, page, param, parse, send } from "../lib/http";
+import { todayKey } from "../lib/dates";
+import { AppError, dateStr, handler, page, param, parse, send } from "../lib/http";
 import { requirePermission } from "../middleware/auth";
 
 export const gamezoneRouter = Router();
 
+// Adds what the screens need next to each session: the console's name, who booked it and whether they tapped "I'm coming".
+async function enrich<T extends { code: string; consoleId: string; userId: string | null; guestName: string | null; guestPhone: string | null }>(rows: T[]) {
+  const [consoles, users, checkins] = await Promise.all([
+    prisma.gzConsole.findMany({ select: { id: true, name: true } }),
+    prisma.user.findMany({ where: { phoneNumber: { in: rows.flatMap((r) => (r.userId ? [r.userId] : [])) } }, select: { phoneNumber: true, name: true } }),
+    prisma.arrivalCheckin.findMany({ where: { refId: { in: rows.map((r) => r.code) } }, select: { refId: true, confirmedAt: true } }),
+  ]);
+  const cn = new Map(consoles.map((c) => [c.id, c.name]));
+  const un = new Map(users.map((u) => [u.phoneNumber, u.name]));
+  const ck = new Map(checkins.map((c) => [c.refId, c.confirmedAt]));
+  return rows.map((r) => ({
+    ...r,
+    consoleName: cn.get(r.consoleId) ?? "Console",
+    customerName: r.guestName ?? (r.userId ? un.get(r.userId) ?? null : null),
+    customerPhone: r.guestPhone ?? r.userId,
+    registered: Boolean(r.userId),
+    checkedInAt: ck.get(r.code) ?? null,
+  }));
+}
+
 gamezoneRouter.get("/bookings", requirePermission("gamezone.view"), handler(async (req, res) => {
   const q = req.query as Record<string, string | undefined>;
   const { take, skip, pageNo, limit } = page(q);
+  const today = todayKey();
   const where: Prisma.GzBookingWhereInput = {
     ...(q.date ? { date: q.date } : {}), ...(q.status ? { status: q.status } : {}), ...(q.paymentStatus ? { paymentStatus: q.paymentStatus } : {}),
+    ...(q.scope === "today" ? { date: today } : q.scope === "upcoming" ? { date: { gt: today } } : q.scope === "previous" ? { date: { lt: today } } : {}),
+    ...(q.unpaid === "1" ? { status: { in: ["confirmed", "completed"] }, paymentStatus: { in: ["pending", "pay_at_venue"] } } : {}),
     ...(q.q ? { OR: [{ code: { contains: q.q, mode: "insensitive" } }, { guestName: { contains: q.q, mode: "insensitive" } }, { guestPhone: { contains: q.q } }, { userId: { contains: q.q } }] } : {}),
   };
-  const [items, total] = await Promise.all([prisma.gzBooking.findMany({ where, orderBy: [{ date: "desc" }, { startHour: "desc" }], take, skip }), prisma.gzBooking.count({ where })]);
-  send(res, { items, total, page: pageNo, limit });
+  const asc = q.scope === "upcoming";
+  const [rows, total] = await Promise.all([
+    prisma.gzBooking.findMany({ where, orderBy: asc ? [{ date: "asc" }, { startHour: "asc" }] : [{ date: "desc" }, { startHour: "desc" }], take, skip }),
+    prisma.gzBooking.count({ where }),
+  ]);
+  send(res, { items: await enrich(rows), total, page: pageNo, limit });
+}));
+
+// One day on one screen: every console with its sessions, plus the money for that day.
+gamezoneRouter.get("/day", requirePermission("gamezone.view"), handler(async (req, res) => {
+  const date = parse(dateStr, (req.query as Record<string, string | undefined>).date ?? todayKey());
+  const [consoles, rows] = await Promise.all([
+    prisma.gzConsole.findMany({ orderBy: { name: "asc" } }),
+    prisma.gzBooking.findMany({ where: { date, status: { not: "expired" } }, orderBy: { startHour: "asc" } }),
+  ]);
+  const items = await enrich(rows);
+  const live = items.filter((i) => i.status !== "cancelled");
+  const sum = (xs: typeof live) => xs.reduce((n, x) => n + x.total, 0);
+  send(res, {
+    date, consoles, items,
+    totals: {
+      sessions: live.length, hours: live.reduce((n, x) => n + x.hours, 0), cancelled: items.length - live.length,
+      paid: sum(live.filter((i) => i.paymentStatus === "paid")), owed: sum(live.filter((i) => i.paymentStatus === "pending" || i.paymentStatus === "pay_at_venue")),
+    },
+  });
 }));
 
 const load = async (code: string) => {
