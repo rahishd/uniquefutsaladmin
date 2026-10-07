@@ -633,8 +633,48 @@ model TournamentMatch {
   startsAt  DateTime?
   venue     String?
   round     TournamentRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  goals     MatchGoal[]
+  follows   MatchFollow[]
 
   @@index([roundId])
+}
+
+// Owned by the customer backend (migration 20261017000001_match_follow): customers who asked for live updates of a match.
+model MatchFollow {
+  id        String          @id @default(cuid())
+  userId    String
+  matchId   String
+  createdAt DateTime        @default(now())
+  match     TournamentMatch @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, matchId])
+  @@index([matchId])
+}
+
+// One goal of a match: which side, the minute and the scorer (both optional). The match score follows the goals staff or the host add.
+model MatchGoal {
+  id        String          @id @default(cuid())
+  matchId   String
+  side      String // home | away
+  minute    Int?
+  scorer    String?
+  createdBy String?
+  createdAt DateTime        @default(now())
+  match     TournamentMatch @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@index([matchId])
+}
+
+// The private link a match-day host opens (no staff sign-in) to follow goals and update the tie-sheet of ONE tournament.
+model TournamentHostLink {
+  id           String    @id @default(cuid())
+  tournamentId String    @unique
+  token        String    @unique
+  active       Boolean   @default(true)
+  expiresAt    DateTime?
+  createdBy    String?
+  lastUsedAt   DateTime?
+  createdAt    DateTime  @default(now())
 }
 
 // One row per booked hour. The unique (date, hour) is the final guard against two bookings taking the same hour.

@@ -104,6 +104,11 @@ export const SECTIONS: Section[] = [
     { key: "digitalid.scan", label: "Scan / Search a Customer Digital ID" },
     { key: "digitalid.attendance", label: "Mark Membership Attendance" },
   ] },
+  { id: "tournaments", label: "Tournaments", permissions: [
+    { key: "tournaments.view", label: "View Tournaments & Tie-sheet" },
+    { key: "tournaments.edit", label: "Edit Tie-sheet, Live Scores & Goals" },
+    { key: "tournaments.share", label: "Create / Revoke the Host Link" },
+  ] },
   { id: "notices", label: "Notices", permissions: [{ key: "notifications.send", label: "Send Notices to Customers" }] },
   { id: "reports", label: "Reports & Audit", permissions: [
     { key: "reports.view", label: "View Reports" },
