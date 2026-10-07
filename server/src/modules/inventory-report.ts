@@ -116,7 +116,16 @@ export async function buildReport(from: string, to: string) {
 
   // ----- tournaments running in this period -----
   const tours = await prisma.tournament.findMany({ where: { startDate: { lte: to }, endDate: { gte: from }, isActive: true }, orderBy: { startDate: "asc" } });
-  const tournaments = tours.map((x) => ({ id: x.id, name: x.name, startDate: x.startDate, endDate: x.endDate, amount: Math.round(x.totalAmount), paid: x.paymentStatus === "paid", status: x.status }));
+  // money received for hosted tournaments in this period (by the day it was received), and what each event has received so far
+  const tpays = await prisma.tournamentPayment.findMany({ where: { createdAt: { gte: start, lt: end } }, select: { cash: true, fonepay: true } });
+  const tourMoney: Split = { cash: tpays.reduce((t, p) => t + p.cash, 0), fonepay: tpays.reduce((t, p) => t + p.fonepay, 0) };
+  const got = new Map<string, number>();
+  for (const p of await prisma.tournamentPayment.findMany({ where: { tournamentId: { in: tours.map((x) => x.id) } }, select: { tournamentId: true, cash: true, fonepay: true } })) got.set(p.tournamentId, (got.get(p.tournamentId) ?? 0) + p.cash + p.fonepay);
+  const tournaments = tours.map((x) => {
+    const amount = Math.round(x.totalAmount);
+    const received = got.get(x.id) ?? 0;
+    return { id: x.id, name: x.name, startDate: x.startDate, endDate: x.endDate, amount, received, due: x.hostedEvent ? Math.max(0, amount - received) : 0, hosted: x.hostedEvent, hostName: x.hostName, paid: x.hostedEvent ? amount > 0 && received >= amount : x.paymentStatus === "paid", status: x.status };
+  });
 
   // ----- stock now, and what was added in the period -----
   const products = await prisma.product.findMany({ select: { name: true, inventory: true, lowStockThreshold: true, costPrice: true, price: true }, orderBy: { name: "asc" } });
@@ -142,15 +151,15 @@ export async function buildReport(from: string, to: string) {
   ].sort((a, b) => a.date.localeCompare(b.date));
   const outstanding = { count: dueItems.length, amount: dueItems.reduce((t, d) => t + d.amount, 0), items: dueItems };
 
-  const totals = { cash: gameMoney.cash + goodsMoney.cash + gzMoney.cash, fonepay: gameMoney.fonepay + goodsMoney.fonepay + gzMoney.fonepay };
+  const totals = { cash: gameMoney.cash + goodsMoney.cash + gzMoney.cash + tourMoney.cash, fonepay: gameMoney.fonepay + goodsMoney.fonepay + gzMoney.fonepay + tourMoney.fonepay };
   return {
     from, to,
-    totals: { ...totals, total: totals.cash + totals.fonepay, bySource: { games: gameMoney, goods: goodsMoney, gamezone: gzMoney } },
+    totals: { ...totals, total: totals.cash + totals.fonepay, bySource: { games: gameMoney, goods: goodsMoney, gamezone: gzMoney, tournaments: tourMoney } },
     games: { count: games.length, paidCount: games.filter((g) => g.paid).length, amount: games.reduce((t, g) => t + g.rate, 0), items: games },
     purchases: { customers: [...purchases.values()].sort((a, b) => b.total - a.total), total: sales.reduce((t, s) => t + s.amount, 0), paidLaterTotal },
     gamezone: { count: gamezone.length, amount: gamezone.reduce((t, g) => t + g.total, 0), items: gamezone },
     memberships: { count: memberships.length, amount: memberships.reduce((t, m) => t + m.amount, 0), received: memberships.reduce((t, m) => t + m.paid, 0), due: memberships.reduce((t, m) => t + m.due, 0), items: memberships },
-    tournaments: { count: tournaments.length, amount: tournaments.reduce((t, x) => t + x.amount, 0), items: tournaments },
+    tournaments: { count: tournaments.length, amount: tournaments.reduce((t, x) => t + x.amount, 0), received: tournaments.reduce((t, x) => t + x.received, 0), due: tournaments.reduce((t, x) => t + x.due, 0), items: tournaments },
     stock, dues: outstanding,
     itemsSold: [...itemTotals.values()].sort((a, b) => b.amount - a.amount),
   };

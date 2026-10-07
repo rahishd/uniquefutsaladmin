@@ -22,6 +22,7 @@ const linkView = (l: { token: string; active: boolean; expiresAt: Date | null; l
 
 tournamentsRouter.get("/", requirePermission("tournaments.view"), handler(async (_req, res) => {
   const rows = await prisma.tournament.findMany({
+    where: { status: { not: "cancelled" } },
     orderBy: [{ startDate: "desc" }],
     take: 100,
     include: { _count: { select: { registrations: true } } },
@@ -35,7 +36,7 @@ tournamentsRouter.get("/", requirePermission("tournaments.view"), handler(async 
   }
   send(res, rows.map((t) => ({
     id: t.id, name: t.name, startDate: t.startDate, endDate: t.endDate, state: stateOf(t), prizePool: t.prizePool, minTeams: t.minTeams, maxTeams: t.maxTeams,
-    registrations: t._count.registrations, isActive: t.isActive, ...(sheet.get(t.id) ?? { matches: 0, live: 0, finished: 0 }),
+    registrations: t._count.registrations, isActive: t.isActive, hostedEvent: t.hostedEvent, hostName: t.hostName, ...(sheet.get(t.id) ?? { matches: 0, live: 0, finished: 0 }),
   })));
 }));
 
@@ -45,7 +46,7 @@ tournamentsRouter.get("/:id", requirePermission("tournaments.view"), handler(asy
   const canShare = !!req.staff!.permissions.includes("tournaments.share");
   const link = canShare ? await prisma.tournamentHostLink.findUnique({ where: { tournamentId: t.id } }) : null;
   send(res, {
-    tournament: { id: t.id, name: t.name, startDate: t.startDate, endDate: t.endDate, state: stateOf(t), prizePool: t.prizePool, registrations: t._count.registrations },
+    tournament: { id: t.id, name: t.name, startDate: t.startDate, endDate: t.endDate, state: stateOf(t), prizePool: t.prizePool, registrations: t._count.registrations, hostedEvent: t.hostedEvent, hostName: t.hostName },
     rounds: await loadSheet(t.id),
     hostLink: linkView(link),
     canShare,

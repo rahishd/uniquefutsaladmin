@@ -104,7 +104,7 @@ export default function ReportsPage() {
               </details>
             </Card>
             <Card title="Where sales come from">
-              <Line l="Games" v={rs(shown.totals.games)} /><Line l="Goods" v={rs(shown.totals.goods)} /><Line l="Gamezone" v={rs(shown.totals.gamezone)} />
+              <Line l="Games" v={rs(shown.totals.games)} /><Line l="Goods" v={rs(shown.totals.goods)} /><Line l="Gamezone" v={rs(shown.totals.gamezone)} />{!!shown.totals.tournaments && <Line l="Tournaments" v={rs(shown.totals.tournaments)} />}
               <div className="mt-1 border-t border-line pt-1"><Line l="Total" v={rs(shown.totals.total)} strong /></div>
               <p className="mt-2 text-xs text-muted">Memberships are in their own card and not added here.</p>
             </Card>

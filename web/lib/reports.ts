@@ -4,7 +4,7 @@ import { rs } from "./bookings";
 type Money = { cash: number; fonepay: number; total: number };
 export type Summary = {
   from: string; to: string; days: number;
-  totals: Money & { games: number; goods: number; gamezone: number }; previous: Money & { games: number; goods: number; gamezone: number };
+  totals: Money & { games: number; goods: number; gamezone: number; tournaments?: number }; previous: Money & { games: number; goods: number; gamezone: number; tournaments?: number };
   byDay: (Money & { date: string; games: number; goods: number; gamezone: number })[];
   games: { count: number; paid: number; unpaid: number; unpaidAmount: number; averageRate: number; cancelled: number; noShows: number; source: { app: number; staff: number; challenge: number } };
   occupancy: { bookedHours: number; perDay: number; peakHours: { hour: number; games: number }[]; weekdays: { day: string; hours: number }[] };

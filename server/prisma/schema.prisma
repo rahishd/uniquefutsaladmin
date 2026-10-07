@@ -248,7 +248,57 @@ model Tournament {
   paymentStatus String         @default("unpaid")
   status        String         @default("active")
   totalAmount   Float          @default(0)
+  hostedEvent   Boolean        @default(false)
+  hostName      String?
+  hostPhone     String?
+  minRate       Int?
+  billClosedAt  DateTime?
+  createdBy     String?
+  days          TournamentDay[]
   registrations Registration[]
+  billLines     TournamentBillLine[]
+  payments      TournamentPayment[]
+}
+
+model TournamentDay {
+  id           String     @id @default(cuid())
+  tournamentId String
+  date         String
+  startHour    Int
+  endHour      Int
+  blockIds     String[]
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, date])
+}
+
+model TournamentBillLine {
+  id           String     @id @default(cuid())
+  tournamentId String
+  kind         String // goods | extra | discount
+  label        String
+  productId    String?
+  quantity     Int        @default(1)
+  unitPrice    Int        @default(0)
+  amount       Int // a discount is negative
+  createdBy    String
+  createdAt    DateTime   @default(now())
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  @@index([tournamentId])
+}
+
+model TournamentPayment {
+  id           String     @id @default(cuid())
+  tournamentId String
+  cash         Int        @default(0)
+  fonepay      Int        @default(0)
+  note         String?
+  receivedBy   String
+  createdAt    DateTime   @default(now())
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  @@index([tournamentId])
 }
 
 model Registration {

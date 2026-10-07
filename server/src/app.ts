@@ -16,6 +16,7 @@ import { customersRouter } from "./modules/customers";
 import { digitalIdRouter } from "./modules/digital-id";
 import { fonepayRouter, fonepayWebhookRouter } from "./modules/fonepay";
 import { tournamentsRouter } from "./modules/tournaments";
+import { tournamentEventsRouter } from "./modules/tournament-events";
 import { tournamentHostRouter } from "./modules/tournament-host";
 import { gamezoneRouter } from "./modules/gamezone";
 import { inventoryRouter } from "./modules/inventory";
@@ -86,6 +87,7 @@ admin.use("/settings", settingsPageRouter);
 admin.use("/inventory", inventoryReportRouter);
 admin.use("/gamezone", gamezoneRouter);
 admin.use("/teams", teamsRouter);
+admin.use("/tournaments", tournamentEventsRouter); // hosted events first, so /hosted is not read as an id
 admin.use("/tournaments", tournamentsRouter);
 admin.use("/vip", vipRouter);
 admin.use("/", overviewRouter);

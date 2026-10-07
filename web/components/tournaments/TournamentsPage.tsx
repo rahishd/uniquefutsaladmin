@@ -2,8 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { CalendarDays, ChevronRight, Radio, Trophy, Users } from "lucide-react";
+import { CalendarDays, ChevronRight, Plus, Radio, Trophy, Users } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { guard } from "@/lib/access";
 import { Badge } from "../bookings/Badge";
+import RegisterTournament from "./RegisterTournament";
 import { prettyDate, rs } from "@/lib/bookings";
 import { TournamentItem, listTournaments } from "@/lib/tournaments";
 
@@ -13,6 +16,8 @@ const LABEL = { live: "Running", upcoming: "Coming up", completed: "Finished" } 
 export default function TournamentsPage() {
   const [items, setItems] = useState<TournamentItem[] | null>(null);
   const [error, setError] = useState("");
+  const [registering, setRegistering] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     let live = true;
@@ -24,9 +29,12 @@ export default function TournamentsPage() {
 
   return (
     <div className="w-full space-y-4">
-      <div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+       <div className="min-w-0">
         <h1 className="flex items-center gap-2 text-2xl font-bold"><Trophy className="text-amber-500" /> Tournaments</h1>
         <p className="text-sm text-muted">Open a tournament to edit its tie-sheet, score goals live and share a private link with the match-day host. Customers see every change in the app.</p>
+       </div>
+       <button onClick={() => guard("tournaments.create") && setRegistering(true)} className="flex shrink-0 items-center gap-1.5 rounded-full bg-brand px-4 py-2.5 text-sm font-semibold text-white"><Plus size={16} /> Register tournament</button>
       </div>
 
       {error && <p role="alert" className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600">{error}</p>}
@@ -35,7 +43,7 @@ export default function TournamentsPage() {
         <div className="grid place-items-center gap-3 rounded-2xl bg-surface py-14 text-center text-muted shadow-sm"><Trophy size={34} strokeWidth={1.5} /><p>No tournaments yet.</p></div>
       )}
 
-      <ul className="grid items-start gap-3 xl:grid-cols-2">
+      <ul className="grid grid-cols-[minmax(0,1fr)] items-start gap-3 xl:grid-cols-2">
         {items?.map((t) => (
           <li key={t.id}>
             <Link href={`/tournaments/${t.id}`} className="block space-y-3 rounded-2xl bg-surface p-4 shadow-sm transition hover:shadow-md">
@@ -48,8 +56,14 @@ export default function TournamentsPage() {
                 <ChevronRight size={18} className="mt-1 shrink-0 text-muted" />
               </div>
               <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm">
-                <span className="flex items-center gap-1.5 text-muted"><Users size={14} /> <strong className="text-foreground">{t.registrations}</strong> of {t.maxTeams} teams registered</span>
-                <span className="text-muted">Prize pool <strong className="text-foreground">{rs(t.prizePool)}</strong></span>
+                {t.hostedEvent ? (
+                  <span className="flex items-center gap-1.5 text-muted"><Users size={14} /> Hosted by <strong className="text-foreground">{t.hostName ?? "a manager"}</strong>. Open it for the bill and payments.</span>
+                ) : (
+                  <>
+                    <span className="flex items-center gap-1.5 text-muted"><Users size={14} /> <strong className="text-foreground">{t.registrations}</strong> of {t.maxTeams} teams registered</span>
+                    <span className="text-muted">Prize pool <strong className="text-foreground">{rs(t.prizePool)}</strong></span>
+                  </>
+                )}
                 <span className="text-muted">{t.matches} {t.matches === 1 ? "match" : "matches"}, {t.finished} played</span>
                 {t.live > 0 && <span className="flex items-center gap-1 font-semibold text-rose-600"><Radio size={13} /> {t.live} live now</span>}
               </div>
@@ -57,6 +71,7 @@ export default function TournamentsPage() {
           </li>
         ))}
       </ul>
+      {registering && <RegisterTournament onClose={() => setRegistering(false)} onCreated={(id) => router.push(`/tournaments/${id}`)} />}
     </div>
   );
 }
