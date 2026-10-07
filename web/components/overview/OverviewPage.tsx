@@ -136,9 +136,9 @@ export default function OverviewPage() {
               ))} />
             </Section>
 
-            <Section n={5} title="Tournament" total={`Total: ${rs(d.tournaments.amount)}`}>
+            <Section n={5} title="Tournament" total={<span>Total: {rs(d.tournaments.amount)}{d.tournaments.received !== undefined && <><br />Received: {rs(d.tournaments.received)}<br />Due: {rs(d.tournaments.due ?? 0)}</>}</span>}>
               <Rows empty="No tournaments in this period." rows={d.tournaments.items.map((x) => (
-                <span key={x.id}><strong>{x.name}</strong> - {prettyDate(x.startDate)}{x.startDate !== x.endDate ? ` to ${prettyDate(x.endDate)}` : ""} - {rs(x.amount)}<span className={`ml-2 rounded-full px-2 py-0.5 text-xs font-medium ${x.paid ? "bg-green-500/15 text-green-700" : "bg-red-500/15 text-red-700"}`}>{x.paid ? "Paid" : "Unpaid"}</span></span>
+                <span key={x.id}><strong>{x.name}</strong> - {prettyDate(x.startDate)}{x.startDate !== x.endDate ? ` to ${prettyDate(x.endDate)}` : ""} - {rs(x.amount)}{x.hosted && <span className="text-xs text-muted"> (host {x.hostName ?? ""}: received {rs(x.received ?? 0)}, due {rs(x.due ?? 0)})</span>}<span className={`ml-2 rounded-full px-2 py-0.5 text-xs font-medium ${x.paid ? "bg-green-500/15 text-green-700" : "bg-red-500/15 text-red-700"}`}>{x.paid ? "Paid" : "Unpaid"}</span></span>
               ))} />
             </Section>
 

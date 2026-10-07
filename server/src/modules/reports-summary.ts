@@ -24,9 +24,9 @@ const query = z.object({ from: dateStr.optional(), to: dateStr.optional() });
 async function period(from: string, to: string) {
   const start = at(from);
   const end = at(addDaysKey(to, 1));
-  const days = new Map<string, { date: string; games: number; goods: number; gamezone: number; cash: number; fonepay: number; total: number }>();
-  const day = (d: string) => days.get(d) ?? days.set(d, { date: d, games: 0, goods: 0, gamezone: 0, cash: 0, fonepay: 0, total: 0 }).get(d)!;
-  const put = (d: string, kind: "games" | "goods" | "gamezone", s: Split) => { const r = day(d); r[kind] += s.cash + s.fonepay; r.cash += s.cash; r.fonepay += s.fonepay; r.total += s.cash + s.fonepay; };
+  const days = new Map<string, { date: string; games: number; goods: number; gamezone: number; tournaments: number; cash: number; fonepay: number; total: number }>();
+  const day = (d: string) => days.get(d) ?? days.set(d, { date: d, games: 0, goods: 0, gamezone: 0, tournaments: 0, cash: 0, fonepay: 0, total: 0 }).get(d)!;
+  const put = (d: string, kind: "games" | "goods" | "gamezone" | "tournaments", s: Split) => { const r = day(d); r[kind] += s.cash + s.fonepay; r.cash += s.cash; r.fonepay += s.fonepay; r.total += s.cash + s.fonepay; };
 
   // games
   const bookings = await prisma.booking.findMany({ where: { date: { gte: from, lte: to }, status: { notIn: DEAD }, ...NOT_LEDGER }, orderBy: { date: "asc" } });
@@ -44,10 +44,13 @@ async function period(from: string, to: string) {
   const gz = await prisma.gzBooking.findMany({ where: { date: { gte: from, lte: to }, paymentStatus: "paid", status: { notIn: ["cancelled", "expired"] } }, select: { date: true, total: true, paymentMethod: true } });
   for (const g of gz) put(g.date, "gamezone", ONLINE.test(g.paymentMethod) ? { cash: 0, fonepay: g.total } : { cash: g.total, fonepay: 0 });
 
+  // hosted tournaments: money received that day
+  for (const p of await prisma.tournamentPayment.findMany({ where: { createdAt: { gte: start, lt: end } }, select: { createdAt: true, cash: true, fonepay: true } })) put(dayOf(p.createdAt), "tournaments", { cash: p.cash, fonepay: p.fonepay });
+
   const byDay: ReturnType<typeof day>[] = [];
-  for (let d = from; d <= to; d = addDaysKey(d, 1)) byDay.push(days.get(d) ?? { date: d, games: 0, goods: 0, gamezone: 0, cash: 0, fonepay: 0, total: 0 });
-  const sum = (k: "games" | "goods" | "gamezone" | "cash" | "fonepay" | "total") => byDay.reduce((t, r) => t + r[k], 0);
-  return { bookings, byDay, totals: { cash: sum("cash"), fonepay: sum("fonepay"), total: sum("total"), games: sum("games"), goods: sum("goods"), gamezone: sum("gamezone") } };
+  for (let d = from; d <= to; d = addDaysKey(d, 1)) byDay.push(days.get(d) ?? { date: d, games: 0, goods: 0, gamezone: 0, tournaments: 0, cash: 0, fonepay: 0, total: 0 });
+  const sum = (k: "games" | "goods" | "gamezone" | "tournaments" | "cash" | "fonepay" | "total") => byDay.reduce((t, r) => t + r[k], 0);
+  return { bookings, byDay, totals: { cash: sum("cash"), fonepay: sum("fonepay"), total: sum("total"), games: sum("games"), goods: sum("goods"), gamezone: sum("gamezone"), tournaments: sum("tournaments") } };
 }
 
 reportsSummaryRouter.get("/summary", requirePermission("reports.view"), handler(async (req, res) => {

@@ -12,10 +12,11 @@ export type Round = { id: string; name: string; matches: Match[] };
 export type TournamentItem = {
   id: string; name: string; startDate: string; endDate: string; state: "upcoming" | "live" | "completed"; prizePool: number;
   minTeams: number; maxTeams: number; registrations: number; isActive: boolean; matches: number; live: number; finished: number;
+  hostedEvent?: boolean; hostName?: string | null;
 };
 export type HostLink = { token: string; active: boolean; expired: boolean; expiresAt: string | null; lastUsedAt: string | null; createdAt: string };
 export type TournamentDetail = {
-  tournament: { id: string; name: string; startDate: string; endDate: string; state: TournamentItem["state"]; prizePool: number; registrations: number };
+  tournament: { id: string; name: string; startDate: string; endDate: string; state: TournamentItem["state"]; prizePool: number; registrations: number; hostedEvent?: boolean; hostName?: string | null };
   rounds: Round[]; hostLink: HostLink | null; canShare: boolean;
 };
 

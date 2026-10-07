@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronLeft } from "lucide-react";
 import { Badge } from "../bookings/Badge";
+import BillingPanel from "./BillingPanel";
 import HostLinkCard from "./HostLinkCard";
 import TieSheetEditor from "./TieSheetEditor";
 import { canDo } from "@/lib/access";
@@ -39,10 +40,12 @@ export default function TournamentDetail({ id }: { id: string }) {
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
               <h1 className="text-2xl font-bold">{data.tournament.name}</h1>
-              <p className="text-sm text-muted">{prettyDate(data.tournament.startDate)} to {prettyDate(data.tournament.endDate)} · {data.tournament.registrations} teams registered · prize pool {rs(data.tournament.prizePool)}</p>
+              <p className="text-sm text-muted">{prettyDate(data.tournament.startDate)} to {prettyDate(data.tournament.endDate)} · {data.tournament.hostedEvent ? `hosted by ${data.tournament.hostName ?? "a manager"}` : `${data.tournament.registrations} teams registered`} · prize pool {rs(data.tournament.prizePool)}</p>
             </div>
             <Badge tone={TONE[data.tournament.state]}>{LABEL[data.tournament.state]}</Badge>
           </div>
+
+          {data.tournament.hostedEvent && <BillingPanel id={id} canBill={canDo("tournaments.bill")} />}
 
           {data.canShare && <HostLinkCard tournamentId={id} name={data.tournament.name} link={data.hostLink} onChanged={reload} />}
 
