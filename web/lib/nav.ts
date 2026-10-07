@@ -186,10 +186,14 @@ export const modules: Module[] = [
     slug: "tournaments", title: "Tournaments", group: "Community", icon: "trophy",
     summary: "Tournaments, registrations and the tie-sheet shown in the app.",
     clientFeatures: ["Current tournament and tie-sheet", "Tournament Popular tile and notices"],
-    adminTasks: ["Create and edit tournaments", "Registrations", "Edit rounds and matches, live scores", "Notify customers"],
+    adminTasks: ["See every tournament with registrations and live matches", "Edit rounds, teams, times and venues", "Kick off, add goals (minute, scorer), full time, correct scores", "Followers are notified at once (bell and phone alert)", "Share a private host link so the match-day host can do the same without signing in", "Create and edit tournaments (still in the customer backend)"],
     endpoints: [
-      e("GET", "/admin/tournaments", "list (customer backend has it today)", "needed"),
-      e("PUT", "/admin/tournaments/:id/tiesheet", "tie-sheet", "needed"),
+      e("GET", "/admin/tournaments", "list with counts"), e("GET", "/admin/tournaments/:id", "tie-sheet with goals, host link"),
+      e("PUT", "/admin/tournaments/:id/tiesheet", "save rounds, teams, times, venues (live scores kept)"),
+      e("POST", "/admin/tournaments/matches/:id/goal", "add a goal"), e("DELETE", "/admin/tournaments/goals/:id", "take a goal back"),
+      e("POST", "/admin/tournaments/matches/:id/status", "kick off, full time, reopen, correct the score"),
+      e("POST", "/admin/tournaments/:id/host-link", "create or renew the host link"), e("DELETE", "/admin/tournaments/:id/host-link", "switch it off"),
+      e("GET", "/admin/host/:token", "host link: the tie-sheet (no staff sign-in)"),
     ],
   },
   {
