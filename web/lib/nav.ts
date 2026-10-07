@@ -155,7 +155,6 @@ export const modules: Module[] = [
     endpoints: [
       e("GET", "/admin/promos", "list with state (live, paused, expired), times used and discount given"), e("PATCH", "/admin/promos/:code/active", "pause or resume"),
       e("POST", "/admin/promos", "create"),
-      e("POST", "/admin/promos", "create"),
       e("PUT", "/admin/promos/:code", "edit"),
       e("DELETE", "/admin/promos/:code", "remove"),
       e("GET", "/admin/promos/usage", "usage report"),
