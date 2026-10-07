@@ -12,19 +12,19 @@ import {
 } from "@/lib/promos";
 import { copyText } from "@/lib/vip";
 
-type Filter = "all" | "active" | "paused" | "expired";
+type Filter = "all" | "active" | "paused" | "expired" | "used_up";
 const input = "w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
 const msg = (e: unknown) => (e instanceof ApiError || e instanceof Error ? e.message : "Something went wrong");
 const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kathmandu" }).format(new Date());
-const TONE = { active: "bg-green-500/15 text-green-700", paused: "bg-amber-500/15 text-amber-700", expired: "bg-surface-2 text-muted" } as const;
-const WORD = { active: "Live", paused: "Paused", expired: "Expired" } as const;
+const TONE = { active: "bg-green-500/15 text-green-700", paused: "bg-amber-500/15 text-amber-700", expired: "bg-surface-2 text-muted", used_up: "bg-red-500/15 text-red-700" } as const;
+const WORD = { active: "Live", paused: "Paused", expired: "Expired", used_up: "Fully used" } as const;
 
 const shareText = (p: PromoInput) => `Unique Futsal: use code ${p.code} for ${p.label}${p.title ? ` (${p.title})` : ""}. ${conditions(p).join(". ")}.`;
 
 // ---------- add or change a code ----------
-type Draft = { code: string; type: "percent" | "flat"; value: string; label: string; labelEdited: boolean; title: string; description: string; appliedTo: AppliesTo; expiryDate: string; validDays: Day[]; startTime: string; endTime: string; isActive: boolean };
-const blank: Draft = { code: "", type: "percent", value: "", label: "", labelEdited: false, title: "", description: "", appliedTo: "booking", expiryDate: "", validDays: [], startTime: "", endTime: "", isActive: true };
-const toDraft = (p: Promo): Draft => ({ code: p.code, type: p.type, value: String(p.value), label: p.label, labelEdited: true, title: p.title ?? "", description: p.description ?? "", appliedTo: p.appliedTo, expiryDate: p.expiryDate?.slice(0, 10) ?? "", validDays: (p.validDays ?? []) as Day[], startTime: p.startTime ?? "", endTime: p.endTime ?? "", isActive: p.isActive !== false });
+type Draft = { code: string; type: "percent" | "flat"; value: string; label: string; labelEdited: boolean; title: string; description: string; appliedTo: AppliesTo; expiryDate: string; validDays: Day[]; startTime: string; endTime: string; isActive: boolean; maxUses: string; maxPerCustomer: string };
+const blank: Draft = { code: "", type: "percent", value: "", label: "", labelEdited: false, title: "", description: "", appliedTo: "booking", expiryDate: "", validDays: [], startTime: "", endTime: "", isActive: true, maxUses: "", maxPerCustomer: "" };
+const toDraft = (p: Promo): Draft => ({ code: p.code, type: p.type, value: String(p.value), label: p.label, labelEdited: true, title: p.title ?? "", description: p.description ?? "", appliedTo: p.appliedTo, expiryDate: p.expiryDate?.slice(0, 10) ?? "", validDays: (p.validDays ?? []) as Day[], startTime: p.startTime ?? "", endTime: p.endTime ?? "", isActive: p.isActive !== false, maxUses: p.maxUses ? String(p.maxUses) : "", maxPerCustomer: p.maxPerCustomer ? String(p.maxPerCustomer) : "" });
 
 function PromoSheet({ edit, onClose, onSaved }: { edit: Promo | null; onClose: () => void; onSaved: () => void }) {
   const [d, setD] = useState<Draft>(edit ? toDraft(edit) : blank);
@@ -37,8 +37,9 @@ function PromoSheet({ edit, onClose, onSaved }: { edit: Promo | null; onClose: (
     code: d.code.trim().toUpperCase(), type: d.type, value, label: d.label.trim(), appliedTo: d.appliedTo, isActive: d.isActive,
     ...(d.title.trim() ? { title: d.title.trim() } : {}), ...(d.description.trim() ? { description: d.description.trim() } : {}), ...(d.expiryDate ? { expiryDate: d.expiryDate } : {}),
     ...(d.validDays.length ? { validDays: d.validDays } : {}), ...(d.startTime && d.endTime ? { startTime: d.startTime, endTime: d.endTime } : {}),
+    ...(Number(d.maxUses) > 0 ? { maxUses: Number(d.maxUses) } : {}), ...(Number(d.maxPerCustomer) > 0 ? { maxPerCustomer: Number(d.maxPerCustomer) } : {}),
   };
-  const problem = !/^[A-Za-z0-9]{3,20}$/.test(d.code.trim()) ? "The code needs 3 to 20 letters or numbers." : !(value > 0) ? "Enter the discount." : d.type === "percent" && value > 100 ? "A percent discount cannot be more than 100." : d.label.trim().length < 2 ? "Write what the customer sees, like 15% OFF." : !!d.startTime !== !!d.endTime ? "Give both times of the window, or neither." : d.startTime && d.endTime && d.startTime >= d.endTime ? "The window must start before it ends." : "";
+  const problem = !/^[A-Za-z0-9]{3,20}$/.test(d.code.trim()) ? "The code needs 3 to 20 letters or numbers." : !(value > 0) ? "Enter the discount." : d.type === "percent" && value > 100 ? "A percent discount cannot be more than 100." : d.label.trim().length < 2 ? "Write what the customer sees, like 15% OFF." : !!d.startTime !== !!d.endTime ? "Give both times of the window, or neither." : d.startTime && d.endTime && d.startTime >= d.endTime ? "The window must start before it ends." : body.maxUses && body.maxPerCustomer && body.maxPerCustomer > body.maxUses ? "The limit for one customer cannot be more than the total limit." : "";
 
   async function save() {
     if (!guard(edit ? "promos.edit" : "promos.create")) return;
@@ -85,6 +86,15 @@ function PromoSheet({ edit, onClose, onSaved }: { edit: Promo | null; onClose: (
             <label className="block text-sm font-medium">Slots from<input type="time" className={`${input} mt-1`} value={d.startTime} onChange={(e) => set({ startTime: e.target.value })} /></label>
             <label className="block text-sm font-medium">Slots until<input type="time" className={`${input} mt-1`} value={d.endTime} onChange={(e) => set({ endTime: e.target.value })} /></label>
           </div>
+        </div>
+
+        <div className="space-y-3 rounded-xl border border-line p-3">
+          <p className="text-sm font-bold">How many times <span className="font-normal text-muted">(leave empty for no limit)</span></p>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block text-sm font-medium">Total uses, everyone<input inputMode="numeric" className={`${input} mt-1`} value={d.maxUses} onChange={(e) => set({ maxUses: e.target.value.replace(/\D/g, "").slice(0, 6) })} placeholder="50" /></label>
+            <label className="block text-sm font-medium">Uses for one customer<input inputMode="numeric" className={`${input} mt-1`} value={d.maxPerCustomer} onChange={(e) => set({ maxPerCustomer: e.target.value.replace(/\D/g, "").slice(0, 4) })} placeholder="1" /></label>
+          </div>
+          <p className="text-xs text-muted">A use is a booking or membership that carries the code. A cancelled one gives its use back. When the total is reached the code stops working and disappears from the customer app.</p>
         </div>
 
         <div className="flex items-center justify-between rounded-xl bg-surface-2 p-3 text-sm"><span><strong>Live</strong><span className="block text-xs text-muted">Turn off to keep the code but stop customers using it.</span></span><Switch on={d.isActive} onChange={() => set({ isActive: !d.isActive })} label="Code is live" /></div>
@@ -146,7 +156,7 @@ export default function PromosPage() {
       </div>
 
       <div className="flex gap-1 overflow-x-auto rounded-2xl bg-surface p-1 shadow-sm" role="tablist" aria-label="Code state">
-        {([["all", "All"], ["active", "Live"], ["paused", "Paused"], ["expired", "Expired"]] as const).map(([id, l]) => <button key={id} role="tab" aria-selected={filter === id} onClick={() => setFilter(id)} className={`flex-1 whitespace-nowrap rounded-xl px-3 py-2.5 text-sm font-semibold ${filter === id ? "bg-brand text-white" : "text-muted hover:bg-surface-2"}`}>{l}{items ? ` (${count(id)})` : ""}</button>)}
+        {([["all", "All"], ["active", "Live"], ["paused", "Paused"], ["used_up", "Fully used"], ["expired", "Expired"]] as const).map(([id, l]) => <button key={id} role="tab" aria-selected={filter === id} onClick={() => setFilter(id)} className={`flex-1 whitespace-nowrap rounded-xl px-3 py-2.5 text-sm font-semibold ${filter === id ? "bg-brand text-white" : "text-muted hover:bg-surface-2"}`}>{l}{items ? ` (${count(id)})` : ""}</button>)}
       </div>
       <label className="relative block"><Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search a code or title" className={`${input} pl-10`} /></label>
 
@@ -162,11 +172,11 @@ export default function PromosPage() {
                 <p className="flex flex-wrap items-center gap-2"><span className="font-mono text-lg font-bold">{p.code}</span><Badge tone={TONE[p.status]}>{WORD[p.status]}</Badge></p>
                 <p className="font-semibold text-brand">{p.label}{p.title ? <span className="font-normal text-foreground"> · {p.title}</span> : null}</p>
               </div>
-              {p.status !== "expired" && <Switch on={p.isActive !== false} onChange={() => toggle(p)} label={p.isActive === false ? `Make ${p.code} live` : `Pause ${p.code}`} />}
+              {p.status !== "expired" && p.status !== "used_up" && <Switch on={p.isActive !== false} onChange={() => toggle(p)} label={p.isActive === false ? `Make ${p.code} live` : `Pause ${p.code}`} />}
             </div>
             {p.description && <p className="text-sm text-muted">{p.description}</p>}
             <p className="flex flex-wrap gap-1.5">{conditions(p).map((c) => <span key={c} className="rounded-full bg-surface-2 px-2.5 py-0.5 text-xs font-medium">{c}</span>)}</p>
-            <p className="text-sm"><strong>{p.uses}</strong> time{p.uses === 1 ? "" : "s"} used · <strong>{rs(p.discountGiven)}</strong> given{p.lastUsedAt ? <span className="text-xs text-muted"> · last used {fmtDay(p.lastUsedAt)}</span> : null}</p>
+            <p className="text-sm"><strong>{p.uses}</strong>{p.maxUses ? ` of ${p.maxUses}` : ""} time{(p.maxUses ?? p.uses) === 1 ? "" : "s"} used · <strong>{rs(p.discountGiven)}</strong> given{p.lastUsedAt ? <span className="text-xs text-muted"> · last used {fmtDay(p.lastUsedAt)}</span> : null}</p>
             <div className="flex flex-wrap gap-2 border-t border-line pt-3">
               <button onClick={() => copy(p.code)} className="flex items-center gap-1.5 rounded-full border border-line px-3.5 py-1.5 text-xs font-semibold">{copied === p.code ? <><Check size={13} /> Copied</> : <><Copy size={13} /> Copy code</>}</button>
               <a href={`https://wa.me/?text=${encodeURIComponent(shareText(p))}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 rounded-full bg-[#25D366] px-3.5 py-1.5 text-xs font-semibold text-white"><MessageCircle size={13} /> Share</a>

@@ -77,3 +77,27 @@ describe("Promo code days", () => {
     assert.equal((await api.post("/promos", mgr.auth, { code: "BADDAY", type: "percent", value: 10, label: "10% OFF", appliedTo: "booking", validDays: ["Funday"] })).status, 400);
   });
 });
+
+describe("Promo code use limits", () => {
+  it("stores the limits, refuses a customer limit above the total, and marks a code fully used when the total is reached", async () => {
+    const mgr = await staff("admin");
+    await customer("9891000003", "Hari");
+    const p = { code: "FIRST2", type: "percent", value: 10, label: "10% OFF", appliedTo: "booking", maxUses: 2, maxPerCustomer: 1 };
+    assert.equal((await api.post("/promos", mgr.auth, { ...p, maxPerCustomer: 3 })).status, 400, "more per customer than in total");
+    assert.equal((await api.post("/promos", mgr.auth, { ...p, maxUses: 0 })).status, 400);
+    const made = await api.post("/promos", mgr.auth, p);
+    assert.equal(made.status, 201);
+    assert.deepEqual([made.body.data.maxUses, made.body.data.maxPerCustomer], [2, 1]);
+    const find = async () => (await api.get("/promos", mgr.auth)).body.data.find((x: { code: string }) => x.code === "FIRST2");
+    assert.equal((await find()).status, "active");
+    const use = (hour: string, status = "confirmed") => prisma.booking.create({ data: { userId: "9891000003", date: today, startTime: `${hour}:00`, endTime: `${hour}:00`, duration: 1, basePrice: 1500, subtotal: 1500, totalPrice: 1350, paymentMethod: "venue", status, paymentStatus: "pending", promoCode: "FIRST2", discountAmount: 150 } });
+    await use("06");
+    assert.equal((await find()).status, "active", "one of two used");
+    const second = await use("07");
+    const full = await find();
+    assert.deepEqual([full.status, full.uses, full.maxUses], ["used_up", 2, 2]);
+    await prisma.booking.update({ where: { id: second.id }, data: { status: "cancelled" } });
+    assert.equal((await find()).status, "active", "a cancelled game gives its use back");
+    assert.equal((await api.put("/promos/FIRST2", mgr.auth, { ...p, maxUses: undefined, maxPerCustomer: undefined })).body.data.maxUses, undefined, "limits can be removed");
+  });
+});
