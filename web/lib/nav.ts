@@ -137,8 +137,10 @@ export const modules: Module[] = [
     slug: "loyalty", title: "Loyalty Points", group: "Customers", icon: "star",
     summary: "Points ledger, expiry and free-game vouchers.",
     clientFeatures: ["Game points price/100, goods Rs.100 = 1", "Expiry (game 3 months, goods 1 year)", "Claim a free game voucher per shift", "Expiring-soon warnings"],
-    adminTasks: ["Record a goods sale (awards points)", "View a customer's ledger and vouchers", "Manual adjustment with reason", "Void a voucher", "Liability report"],
+    adminTasks: ["Numbers for 7 / 30 days or this month: points given by kind, spent, owed now, expiring in 30 days", "Customers with points: search, sort, open one for the ledger, vouchers and an adjustment with a reason", "Activity feed of every earning and spending, with filters", "Free-game vouchers across customers, void an unused one", "Goods points come from Sell goods in Inventory"],
     endpoints: [
+      e("GET", "/admin/loyalty/overview", "given, spent, owed, expiring soon, vouchers"), e("GET", "/admin/loyalty/customers", "customers with points (q, sort, page)"),
+      e("GET", "/admin/loyalty/ledger", "all entries (kind, dates, q)"), e("GET", "/admin/loyalty/vouchers", "all vouchers (status)"),
       e("GET", "/admin/loyalty/customers/:phone", "ledger + vouchers"),
       e("POST", "/admin/loyalty/goods-sale", "goods sale + points"),
       e("POST", "/admin/loyalty/adjust", "manual adjust (manager+)"),
