@@ -151,9 +151,10 @@ export const modules: Module[] = [
     slug: "promos", title: "Promo Codes", group: "Customers", icon: "tag",
     summary: "Codes shown on Home and the Promos page, validated at booking.",
     clientFeatures: ["Active / Upcoming / Expired tabs", "Copy code", "Ends in N days", "Server-side validation"],
-    adminTasks: ["Create, edit, pause promo codes (dates, discount, eligibility)", "Usage report"],
+    adminTasks: ["Create a code: percent or rupees off, last day, days of the week, slot hours, bookings and/or memberships", "See what customers will read before saving", "Pause or resume a code with one switch", "Edit, delete, copy, share on WhatsApp", "Each code shows how often it was used and the discount given"],
     endpoints: [
-      e("GET", "/admin/promos", "list"),
+      e("GET", "/admin/promos", "list with state (live, paused, expired), times used and discount given"), e("PATCH", "/admin/promos/:code/active", "pause or resume"),
+      e("POST", "/admin/promos", "create"),
       e("POST", "/admin/promos", "create"),
       e("PUT", "/admin/promos/:code", "edit"),
       e("DELETE", "/admin/promos/:code", "remove"),
