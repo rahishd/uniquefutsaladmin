@@ -5,6 +5,7 @@ export type HourPrice = { id: string; time: string; price: number }; // id "ts-<
 export type PromoCode = {
   code: string; type: "percent" | "flat"; value: number; label: string; title?: string; description?: string;
   expiryDate?: string; startTime?: string; endTime?: string; validDays?: string[]; isActive?: boolean; appliedTo: "booking" | "membership" | "both";
+  maxUses?: number; maxPerCustomer?: number;
 };
 
 export async function getSetting(key: string): Promise<string | null> {

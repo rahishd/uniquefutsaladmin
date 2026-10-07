@@ -25,8 +25,11 @@ const promo = z.object({
   startTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
   endTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
   isActive: z.boolean().default(true),
+  maxUses: z.number().int().min(1, "At least 1").max(100000).optional(), // everyone together
+  maxPerCustomer: z.number().int().min(1, "At least 1").max(1000).optional(),
   appliedTo: z.enum(["booking", "membership", "both"]).default("booking"),
 }).refine((p) => p.type !== "percent" || p.value <= 100, { message: "A percent discount cannot be more than 100", path: ["value"] })
+  .refine((p) => !p.maxUses || !p.maxPerCustomer || p.maxPerCustomer <= p.maxUses, { message: "The limit for one customer cannot be more than the total limit", path: ["maxPerCustomer"] })
   .refine((p) => !!p.startTime === !!p.endTime, { message: "Give both the start and the end time of the window, or neither", path: ["endTime"] })
   .refine((p) => !p.startTime || !p.endTime || p.startTime < p.endTime, { message: "The window must start before it ends", path: ["endTime"] });
 
@@ -48,13 +51,14 @@ async function usage(): Promise<Map<string, Use>> {
   for (const r of await prisma.membershipSubscription.groupBy({ by: ["promoCode"], where: { promoCode: { not: null }, status: { notIn: ["cancelled"] } }, _count: { _all: true }, _sum: { discountAmount: true }, _max: { createdAt: true } })) add(r.promoCode, r._count._all, Math.round(r._sum.discountAmount ?? 0), r._max.createdAt);
   return out;
 }
-const stateOf = (p: PromoCode, today: string): "active" | "paused" | "expired" => (p.expiryDate && p.expiryDate.slice(0, 10) < today ? "expired" : p.isActive === false ? "paused" : "active");
+// used up = the total limit has been reached; the customer app stops offering and accepting it
+const stateOf = (p: PromoCode, today: string, uses: number): "active" | "paused" | "expired" | "used_up" => (p.expiryDate && p.expiryDate.slice(0, 10) < today ? "expired" : p.maxUses && uses >= p.maxUses ? "used_up" : p.isActive === false ? "paused" : "active");
 
 // The customer app reads promo codes from Settings and validates again at checkout, so this only stores them.
 promosRouter.get("/", requirePermission("promos.view"), handler(async (_req, res) => {
   const [all, use] = await Promise.all([getPromoCodes(), usage()]);
   const today = todayKey();
-  send(res, all.map((p) => ({ ...p, status: stateOf(p, today), ...(use.get(p.code.toUpperCase()) ?? { uses: 0, discountGiven: 0, lastUsedAt: null }) })));
+  send(res, all.map((p) => { const u = use.get(p.code.toUpperCase()) ?? { uses: 0, discountGiven: 0, lastUsedAt: null }; return { ...p, status: stateOf(p, today, u.uses), ...u }; }));
 }));
 
 promosRouter.post("/", requirePermission("promos.create"), handler(async (req, res) => {
