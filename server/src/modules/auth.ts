@@ -18,7 +18,8 @@ const loginLimiter = rateLimit({
   limit: 10,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: () => process.env.NODE_ENV === "test",
+  // Guessing protection is for the real site only: no limit while developing or testing, so you are never locked out of your own machine.
+  skip: () => process.env.NODE_ENV !== "production",
   handler: (_req, res) => { res.status(429).json({ success: false, statusCode: 429, message: "Too many sign-in attempts. Try again in 15 minutes." }); },
 });
 
