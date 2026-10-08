@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CalendarDays, CalendarPlus, Clock, Lock, Plus, X } from "lucide-react";
+import { CalendarDays, CalendarPlus, Clock, Gift, Lock, Plus, X } from "lucide-react";
 import BookSlotModal from "./BookSlotModal";
 import BulkBookModal from "./BulkBookModal";
 import DatePicker from "./DatePicker";
@@ -21,8 +21,11 @@ const STATUS_LABEL: Record<string, string> = {
 const isTournament = (b: SlotBooking) => b.customerPhone === "Tournament" || /(Tournament)/i.test(b.customerName ?? "") || /tournament/i.test(b.notes ?? "");
 const isStaffBooked = (b: SlotBooking) => /WALK_IN/.test(b.notes ?? "");
 const isBulk = (b: SlotBooking) => /BULK /.test(b.notes ?? "");
+// A free game is claimed by the customer with loyalty points on the booking site; staff cannot create one here.
+const isFreeGame = (b: SlotBooking) => !!b.voucherId || /FREE_MATCH/.test(b.notes ?? "");
 
 function look(b: SlotBooking) {
+  if (isFreeGame(b)) return { bg: "bg-violet-600 text-white", chip: "bg-white/20 text-white", btn: "text-violet-700", tone: "FREE" };
   if (isTournament(b)) return { bg: "bg-yellow-400 text-slate-900", chip: "bg-black/15 text-slate-900", btn: "text-slate-900", tone: "TOURNAMENT" };
   if (b.paymentStatus === "completed") return { bg: "bg-emerald-600 text-white", chip: "bg-white/20 text-white", btn: "text-emerald-700", tone: "PAID" };
   return { bg: "bg-red-600 text-white", chip: "bg-white/20 text-white", btn: "text-red-600", tone: "UNPAID" };
@@ -34,19 +37,21 @@ function BookedCard({ h, onOpen, onReject }: { h: Hour; onOpen: () => void; onRe
   const label = STATUS_LABEL[b.status] ?? b.status.toUpperCase();
   const first = Number(b.startTime.slice(0, 2)) === h.hour;
   const live = b.status === "confirmed" || b.status === "pending";
+  const free = isFreeGame(b);
   const tags: string[] = [];
+  if (free) tags.push("FREE GAME · LOYALTY POINTS");
   if (isTournament(b)) tags.push("TOURNAMENT");
   if (isStaffBooked(b)) tags.push(isBulk(b) ? "BOOKED BY STAFF (BULK)" : "BOOKED BY STAFF");
   if (b.promoCode) tags.push(`PROMO ${b.promoCode}${b.discountAmount > 0 ? ` (-${rs(b.discountAmount)})` : ""}`);
   return (
     <div className={`flex flex-col gap-3 rounded-2xl ${c.bg} p-3 shadow-sm sm:flex-row sm:items-center sm:gap-4 sm:p-4`}>
       <button onClick={onOpen} className="flex min-w-0 flex-1 items-center gap-3 text-left sm:gap-4" aria-label={`Details for ${b.customerName ?? "booking"}`}>
-        <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ${c.chip}`}><CalendarDays size={20} /></span>
+        <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ${c.chip}`}>{free ? <Gift size={20} /> : <CalendarDays size={20} />}</span>
         <span className="min-w-0">
           <span className="block text-[10px] font-bold tracking-wider opacity-80">{label}{!first ? ` · HOUR ${h.hour - Number(b.startTime.slice(0, 2)) + 1} OF ${b.duration}` : ""}</span>
           <span className="block truncate text-base font-extrabold italic leading-tight sm:text-lg">{(b.customerName || "Guest").toUpperCase()}{b.customerPhone && b.customerPhone !== "Tournament" ? ` - ${b.customerPhone}` : ""}</span>
           <span className="block text-[10px] font-semibold tracking-wide opacity-90">
-            {b.duration} HOUR SESSION · {rs(b.totalPrice)} · {b.paymentStatus === "completed" ? "PAID" : "UNPAID"} · ID: #{b.code.replace("UF-", "")}
+            {b.duration} HOUR SESSION · {free ? "FREE GAME" : `${rs(b.totalPrice)} · ${b.paymentStatus === "completed" ? "PAID" : "UNPAID"}`} · ID: #{b.code.replace("UF-", "")}
           </span>
           {tags.length > 0 && (
             <span className="mt-1 flex flex-wrap gap-1">
@@ -65,7 +70,7 @@ function BookedCard({ h, onOpen, onReject }: { h: Hour; onOpen: () => void; onRe
 }
 
 function Legend() {
-  const items = [["bg-emerald-600", "Paid"], ["bg-red-600", "Not paid"], ["bg-yellow-400", "Tournament"]] as const;
+  const items = [["bg-emerald-600", "Paid"], ["bg-red-600", "Not paid"], ["bg-yellow-400", "Tournament"], ["bg-violet-600", "Free game (loyalty)"]] as const;
   return (
     <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted" aria-label="Colour guide">
       {items.map(([bg, l]) => <span key={l} className="flex items-center gap-1.5"><span className={`h-3 w-3 rounded ${bg}`} />{l}</span>)}
@@ -121,8 +126,7 @@ export default function SlotsPage() {
     <div className="w-full space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Book a Slot (manual)</h1>
-          <p className="text-3xl font-black italic tracking-tight"><span>FIELD</span> <span className="text-orange-500">TIMELINE</span></p>
+          <h1 className="text-2xl font-bold">Manual Booking</h1>
           <p className="text-xs text-muted">Visual occupancy grid for daily matches.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
