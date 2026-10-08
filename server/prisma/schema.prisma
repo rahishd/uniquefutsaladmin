@@ -545,6 +545,8 @@ model GoodsSale {
   amount Int
   items  String?
   soldBy String
+  customerName String?
+  bookingId    String?
   soldAt DateTime @default(now())
 }
 

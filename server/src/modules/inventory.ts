@@ -189,13 +189,17 @@ const mergeItems = (items: { productId: string; quantity: number }[]) => {
 };
 
 inventoryRouter.post("/sales", requirePermission("inventory.sell"), handler(async (req, res) => {
-  const b = parse(z.object({ phone: phone.optional(), payment: z.enum(["cash", "online"]).optional(), payments: paysSchema.optional(), fonepayQrId: z.string().min(1).optional(), items: itemsSchema.min(1, "Add at least one item") }), req.body);
+  const b = parse(z.object({ phone: phone.optional(), payment: z.enum(["cash", "online"]).optional(), payments: paysSchema.optional(), fonepayQrId: z.string().min(1).optional(), customerName: z.string().trim().max(80).optional(), bookingId: z.string().min(1).optional(), items: itemsSchema.min(1, "Add at least one item") }), req.body);
   const merged = mergeItems(b.items);
   const customer = b.phone ? await prisma.user.findUnique({ where: { phoneNumber: b.phone }, select: { phoneNumber: true, name: true } }) : null;
   if (b.phone && !customer) throw new AppError(404, "No registered customer with this number. Leave the number empty for a walk-in sale.");
   const pay = { payments: b.payments, fonepayQrId: b.fonepayQrId, single: b.payment === "online" ? ("fonepay" as const) : b.payment === "cash" ? ("cash" as const) : undefined };
+  // the slot (booking) this sale belongs to, so staff do not have to ask who it was for again
+  const slot = b.bookingId ? await prisma.booking.findUnique({ where: { id: b.bookingId }, select: { id: true, customerName: true } }) : null;
+  if (b.bookingId && !slot) throw new AppError(404, "That slot no longer exists");
+  const who = { customerName: b.customerName || customer?.name || slot?.customerName || null, bookingId: slot?.id ?? null };
 
-  const sale = (await prisma.$transaction((tx) => sellGoods(tx, merged, pay, req.staff!.id, customer?.phoneNumber ?? null))).sale;
+  const sale = (await prisma.$transaction((tx) => sellGoods(tx, merged, pay, req.staff!.id, customer?.phoneNumber ?? null, who))).sale;
   let points = 0;
   if (customer) {
     points = pointsForGoods(sale.amount);
@@ -213,8 +217,10 @@ inventoryRouter.get("/sales", requirePermission("inventory.view"), handler(async
   const credit = new Map(dueRows.map((d) => [d.saleId, d.status]));
   const users = await prisma.user.findMany({ where: { phoneNumber: { in: rows.map((r) => r.userId).filter((x): x is string => !!x) } }, select: { phoneNumber: true, name: true } });
   const staff = await prisma.staffUser.findMany({ where: { id: { in: [...new Set(rows.map((r) => r.soldBy))] } }, select: { id: true, name: true } });
+  const bks = await prisma.booking.findMany({ where: { id: { in: rows.map((r) => r.bookingId).filter((x): x is string => !!x) } }, select: { id: true, date: true, startTime: true, endTime: true } });
+  const slots = new Map(bks.map((b) => [b.id, `${b.date} ${b.startTime}-${b.endTime}`]));
   const un = new Map(users.map((u) => [u.phoneNumber, u.name])), sn = new Map(staff.map((s) => [s.id, s.name]));
-  send(res, { items: rows.map((r) => ({ id: r.id, amount: r.amount, items: r.items, soldAt: r.soldAt, customerPhone: r.userId, customerName: r.userId ? un.get(r.userId) ?? null : null, soldBy: sn.get(r.soldBy) ?? null, credit: credit.get(r.id) ?? null })), total, page: pageNo, limit });
+  send(res, { items: rows.map((r) => ({ id: r.id, amount: r.amount, items: r.items, soldAt: r.soldAt, customerPhone: r.userId, customerName: (r.userId ? un.get(r.userId) : null) ?? r.customerName ?? null, slot: r.bookingId ? slots.get(r.bookingId) ?? null : null, soldBy: sn.get(r.soldBy) ?? null, credit: credit.get(r.id) ?? null })), total, page: pageNo, limit });
 }));
 
 // ---------- final bill: goods + games for one customer ----------
