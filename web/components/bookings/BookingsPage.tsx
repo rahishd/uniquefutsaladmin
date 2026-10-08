@@ -63,6 +63,15 @@ export default function BookingsPage() {
     return () => clearTimeout(t);
   }, [search]);
 
+  // Bookings made on the customer site show up without a manual refresh: re-fetch every 10s and when the tab regains focus.
+  useEffect(() => {
+    const bump = () => { if (document.visibilityState === "visible") setReload((n) => n + 1); };
+    const t = setInterval(bump, 10000);
+    document.addEventListener("visibilitychange", bump);
+    window.addEventListener("focus", bump);
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", bump); window.removeEventListener("focus", bump); };
+  }, []);
+
   useEffect(() => { bookingCounts().then(setCounts).catch(() => {}); }, [reload]);
 
   useEffect(() => {

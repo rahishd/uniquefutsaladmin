@@ -3,13 +3,24 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { BarChart3, Bell, CalendarDays, LayoutGrid, LayoutDashboard, LogOut, Plus, Search, User, X } from "lucide-react";
+import { BarChart3, Bell, CalendarDays, ChevronDown, LayoutGrid, LayoutDashboard, LogOut, Plus, Search, ShoppingCart, User, X } from "lucide-react";
 import { icons } from "./icons";
 import { groups, modules } from "@/lib/nav";
 import DeniedDialog from "./DeniedDialog";
 import NotificationBell from "./NotificationBell";
 import { getToken } from "@/lib/api";
 import { currentAdmin, logout, refreshAdmin, type Admin } from "@/lib/auth";
+
+// Pages used all day: shown straight under Dashboard. Everything else sits behind the "More" button.
+const frequents: { href: string; label: string; icon: React.ElementType }[] = [
+  { href: "/slots", label: "Slots", icon: icons.clock },
+  { href: "/bookings", label: "Bookings", icon: icons.calendar },
+  { href: "/sales", label: "Sales", icon: ShoppingCart },
+  { href: "/payments", label: "Payments", icon: icons.wallet },
+  { href: "/gamezone", label: "Gamezone", icon: icons.gamepad },
+  { href: "/customers", label: "Customers", icon: icons.users },
+  { href: "/digital-id", label: "Digital ID", icon: icons.scan },
+];
 
 // Sign-in guard is only for the UI; the API enforces staff access on every request.
 export default function Shell({ children }: { children: React.ReactNode }) {
@@ -19,6 +30,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const ready = signedIn === true;
   const admin: Admin | null = ready ? currentAdmin() : null;
   const [open, setOpen] = useState(false);
+  const [more, setMore] = useState<boolean | null>(null); // null = untouched: open only when the current page lives under More
   const [fresh, setFresh] = useState(false); // permissions re-read from the server for this page load
 
   useEffect(() => {
@@ -49,6 +61,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     </Link>
   );
 
+  const onFrequent = pathname === "/" || frequents.some((f) => pathname.startsWith(f.href));
+  const moreOpen = more ?? !onFrequent;
   const firstName = admin?.name?.split(" ")[0] ?? "Admin";
 
   return (
@@ -64,13 +78,31 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         </div>
         <nav className="flex-1 space-y-5 overflow-y-auto">
           {link("/", "Dashboard", LayoutDashboard)}
-          {link("/overview", "Overview", BarChart3)}
-          {groups.map((g) => (
-            <div key={g}>
-              <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wide text-muted">{g}</p>
-              <div className="space-y-0.5">{modules.filter((m) => m.group === g).map((m) => link(`/${m.slug}`, m.title, icons[m.icon]))}</div>
-            </div>
-          ))}
+          <div>
+            <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wide text-muted">Frequents</p>
+            <div className="space-y-0.5">{frequents.map((f) => link(f.href, f.label, f.icon))}</div>
+          </div>
+          <div>
+            <button onClick={() => setMore(!moreOpen)} aria-expanded={moreOpen} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-muted hover:bg-surface-2 hover:text-foreground">
+              <LayoutGrid size={18} /> More
+              <ChevronDown size={16} className={`ml-auto transition-transform ${moreOpen ? "rotate-180" : ""}`} />
+            </button>
+            {moreOpen && (
+              <div className="mt-3 space-y-5">
+                {link("/overview", "Overview", BarChart3)}
+                {groups.map((g) => {
+                  const items = modules.filter((m) => m.group === g && !frequents.some((f) => f.href === `/${m.slug}`));
+                  if (!items.length) return null;
+                  return (
+                    <div key={g}>
+                      <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wide text-muted">{g}</p>
+                      <div className="space-y-0.5">{items.map((m) => link(`/${m.slug}`, m.title, icons[m.icon]))}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </nav>
         <button onClick={() => { logout(); router.replace("/login"); }} className="mt-3 flex items-center gap-3 rounded-xl px-3 py-2 text-sm text-muted hover:bg-surface-2">
           <LogOut size={18} /> Sign out

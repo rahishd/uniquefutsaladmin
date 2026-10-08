@@ -12,8 +12,8 @@ type Tab = "products" | "sell";
 const field = "rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
 const msg = (e: unknown) => (e instanceof ApiError || e instanceof Error ? e.message : "Something went wrong");
 
-export default function InventoryPage() {
-  const [tab, setTab] = useState<Tab>("products");
+export default function InventoryPage({ initialTab = "products" }: { initialTab?: Tab }) {
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [ov, setOv] = useState<Overview | null>(null);
   const [tick, setTick] = useState(0);
   useEffect(() => { fetchOverview().then(setOv).catch(() => {}); }, [tick]);
