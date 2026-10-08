@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { randomBytes } from "crypto";
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db";
@@ -223,6 +224,29 @@ customersRouter.get("/:phone", requirePermission("customers.view"), handler(asyn
   ]);
   const points = ledger.reduce((n, e) => n + Number(e.points), 0);
   send(res, { user, prefs, bookings, gamezone: gz, loyalty: { balanceBeforeExpiry: Math.round(points * 10) / 10, ledger, vouchers }, team: member?.team ?? null });
+}));
+
+// Staff add a customer by hand (someone at the desk who has no account yet). With a password the person can sign in to the app with their
+// mobile number; without one it is a record only (bookings, billing, points) and the number cannot sign in or sign up itself until staff
+// give it a password. The password is never written to the audit log.
+const newCustomer = z.object({
+  name: z.string().trim().min(2, "Enter the customer's name").max(60),
+  phoneNumber: z.string().regex(/^9\d{9}$/, "Enter a 10-digit mobile number starting with 9"),
+  email: z.string().trim().toLowerCase().email("Enter a valid email or leave it empty").optional().or(z.literal("").transform(() => undefined)),
+  password: z.string().min(6, "A password needs at least 6 characters").max(72).optional().or(z.literal("").transform(() => undefined)),
+});
+
+customersRouter.post("/", requirePermission("customers.create"), handler(async (req, res) => {
+  const b = parse(newCustomer, req.body);
+  if (await prisma.user.findUnique({ where: { phoneNumber: b.phoneNumber }, select: { phoneNumber: true } })) throw new AppError(409, "A customer with this mobile number already exists");
+  if (b.email && (await prisma.user.findUnique({ where: { email: b.email }, select: { phoneNumber: true } }))) throw new AppError(409, "Another customer already uses this email");
+  const hash = await bcrypt.hash(b.password ?? randomBytes(32).toString("hex"), b.password ? 10 : 4); // no password: a random value nobody knows
+  const u = await prisma.user.create({
+    data: { phoneNumber: b.phoneNumber, name: b.name, email: b.email ?? null, password: hash, role: "user", isVerified: true, isActive: true },
+    select: pub,
+  });
+  await audit(req, "create-customer", "customer", u.phoneNumber, { name: u.name, email: u.email, signIn: !!b.password });
+  send(res, { ...u, canSignIn: !!b.password }, "Customer added", 201);
 }));
 
 customersRouter.patch("/:phone", requirePermission("customers.edit"), handler(async (req, res) => {

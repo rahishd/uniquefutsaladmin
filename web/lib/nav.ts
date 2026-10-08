@@ -96,9 +96,10 @@ export const modules: Module[] = [
     slug: "customers", title: "Customers", group: "Customers", icon: "users",
     summary: "Registered players (phone + password, Google link for reset).",
     clientFeatures: ["Profile, location, position", "Preferences (SMS, promo, pop-up)", "Player / Captain mode", "Booking and payment history", "Gameplay stats"],
-    adminTasks: ["Search and open a customer (profile, bookings, points, team)", "Edit details", "Suspend / unsuspend", "Anonymise on request (money records kept)"],
+    adminTasks: ["Search and open a customer (profile, bookings, points, team)", "Add a customer by hand (name, mobile, optional email, optional app password)", "Edit details", "Suspend / unsuspend", "Anonymise on request (money records kept)"],
     endpoints: [
       e("GET", "/admin/customers", "list with games, paid, unpaid and open complaints; filter captains / players"),
+      e("POST", "/admin/customers", "add a customer by hand; with a password they can sign in to the app, without one it is a record only"),
       e("GET", "/admin/customers/:phone/profile", "games, payments, extra items, complaints, tournaments, captain profile, promo settings"),
       e("PUT", "/admin/customers/:phone/promos", "switch a promo code (or all) on or off for one customer"),
       e("PATCH", "/admin/customers/:phone", "edit name or email"),
