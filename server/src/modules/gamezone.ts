@@ -4,7 +4,7 @@ import { z } from "zod";
 import { prisma } from "../db";
 import { audit } from "../lib/audit";
 import { notify } from "../lib/customer-effects";
-import { todayKey } from "../lib/dates";
+import { addDaysKey, currentHour, todayKey } from "../lib/dates";
 import { AppError, dateStr, handler, page, param, parse, send } from "../lib/http";
 import { requirePermission } from "../middleware/auth";
 
@@ -65,6 +65,52 @@ gamezoneRouter.get("/day", requirePermission("gamezone.view"), handler(async (re
       paid: sum(live.filter((i) => i.paymentStatus === "paid")), owed: sum(live.filter((i) => i.paymentStatus === "pending" || i.paymentStatus === "pay_at_venue")),
     },
   });
+}));
+
+// Staff book a session for someone at the desk or on the phone. The server sets the price from the rates;
+// a session whose hours have already passed is logged as completed. Same one-console-one-hour guard as the app.
+const manual = z.object({
+  consoleId: z.string().min(1), gameTitle: z.string().min(1).max(60), date: dateStr,
+  startHour: z.number().int().min(0).max(23), hours: z.number().int().min(1).max(4), players: z.number().int(),
+  customerName: z.string().trim().min(2).max(60),
+  customerPhone: z.string().regex(/^9\d{9}$/, "mobile number like 98XXXXXXXX").optional(),
+  paid: z.boolean().default(false),
+});
+
+gamezoneRouter.post("/bookings", requirePermission("gamezone.manage"), handler(async (req, res) => {
+  const b = parse(manual, req.body);
+  if (b.startHour + b.hours > 24) throw new AppError(400, "The session cannot pass midnight");
+  if (b.date < addDaysKey(todayKey(), -60) || b.date > addDaysKey(todayKey(), 60)) throw new AppError(400, "Pick a date within 60 days of today");
+  const [plan, con, game, user] = await Promise.all([
+    prisma.gzPlan.findUnique({ where: { players: b.players } }),
+    prisma.gzConsole.findUnique({ where: { id: b.consoleId } }),
+    prisma.gzGame.findFirst({ where: { title: b.gameTitle } }),
+    b.customerPhone ? prisma.user.findUnique({ where: { phoneNumber: b.customerPhone }, select: { phoneNumber: true } }) : null,
+  ]);
+  const rate = plan?.ratePerPersonHour ?? ({ 1: 300, 2: 200, 4: 150 } as Record<number, number>)[b.players]; // the app's defaults until rates are first saved
+  if (rate === undefined) throw new AppError(400, "Choose 1, 2 or 4 players");
+  if (!con) throw new AppError(404, "Console not found");
+  if (!game) throw new AppError(400, "Choose a game from the list");
+  const total = rate * b.players * b.hours;
+  const code = `UF-GZ-${b.date.replace(/-/g, "")}-${String(Math.floor(Math.random() * 99999)).padStart(5, "0")}`;
+  const ended = b.date < todayKey() || (b.date === todayKey() && b.startHour + b.hours <= currentHour());
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.gzBooking.create({
+        data: {
+          code, userId: user?.phoneNumber ?? null, guestName: user ? null : b.customerName, guestPhone: user ? null : b.customerPhone ?? null,
+          consoleId: con.id, gameTitle: game.title, date: b.date, startHour: b.startHour, hours: b.hours, players: b.players, total,
+          paymentMethod: "venue", paymentStatus: b.paid ? "paid" : "pay_at_venue", status: ended ? "completed" : "confirmed",
+        },
+      });
+      await tx.gzSlot.createMany({ data: Array.from({ length: b.hours }, (_, i) => ({ consoleId: con.id, date: b.date, hour: b.startHour + i, bookingCode: code })) });
+    });
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") throw new AppError(409, "That console is already booked for part of this time");
+    throw e;
+  }
+  await audit(req, "create", "gamezone", code, { total, paid: b.paid, date: b.date, startHour: b.startHour, hours: b.hours });
+  send(res, { code, total }, "Session booked", 201);
 }));
 
 const load = async (code: string) => {

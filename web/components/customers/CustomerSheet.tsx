@@ -12,6 +12,7 @@ import { ApiError } from "@/lib/api";
 import { guard } from "@/lib/access";
 import { prettyDate, rs, STATUS as BOOKING_STATUS } from "@/lib/bookings";
 import { STATUS as COMPLAINT_STATUS, ago } from "@/lib/complaints";
+import { CustomerLedger, getCustomer as getLoyalty } from "@/lib/loyalty";
 import { METHOD_LABEL } from "@/lib/payments";
 import { CustomerRow, Profile, getProfile, initials, setActive } from "@/lib/customers";
 
@@ -41,6 +42,7 @@ const PAY_TONE = { paid: "bg-brand/15 text-brand", unpaid: "bg-amber-500/15 text
 
 export default function CustomerSheet({ customer, onClose, onChanged }: { customer: CustomerRow; onClose: () => void; onChanged: () => void }) {
   const [p, setP] = useState<Profile | null>(null);
+  const [loyalty, setLoyalty] = useState<CustomerLedger | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
   const canWrite = true;
@@ -50,6 +52,7 @@ export default function CustomerSheet({ customer, onClose, onChanged }: { custom
     getProfile(customer.phoneNumber)
       .then((d) => { if (live) setP(d); })
       .catch((e) => { if (live) setError(e instanceof Error ? e.message : "Could not load this customer"); });
+    getLoyalty(customer.phoneNumber).then((d) => { if (live) setLoyalty(d); }).catch(() => { if (live) setLoyalty({ approxBalance: 0, rows: [], vouchers: [] }); });
     return () => { live = false; };
   }, [customer.phoneNumber]);
 
@@ -179,6 +182,28 @@ export default function CustomerSheet({ customer, onClose, onChanged }: { custom
                     </li>
                   ))}
                 </ul>
+              )}
+            </Section>
+
+            <Section title="Free games" hint="Loyalty points and free-game vouchers (10 games = 1 free game)">
+              {!loyalty ? <Empty>Loading free games…</Empty> : (
+                <>
+                  <div className="grid grid-cols-3 gap-2">
+                    <Tile label="Points now" value={String(Math.round(loyalty.approxBalance * 10) / 10)} />
+                    <Tile label="Unused vouchers" value={String(loyalty.vouchers.filter((v) => v.status === "unused").length)} tone="text-brand" />
+                    <Tile label="Free games used" value={String(loyalty.vouchers.filter((v) => v.status === "used").length)} />
+                  </div>
+                  {loyalty.vouchers.length === 0 ? <Empty>No free-game vouchers claimed yet.</Empty> : (
+                    <ul className="divide-y divide-line">
+                      {loyalty.vouchers.map((v) => (
+                        <li key={v.id} className="flex items-center gap-3 py-2 text-sm">
+                          <div className="min-w-0 flex-1"><p className="font-semibold">{v.period} game</p><p className="text-xs text-muted">Claimed {prettyDate(v.claimedAt.slice(0, 10))}{v.usedAt ? ` · used ${prettyDate(v.usedAt.slice(0, 10))}` : ""}</p></div>
+                          <Badge tone={v.status === "unused" ? "bg-green-500/15 text-green-700" : v.status === "used" ? "bg-surface-2 text-muted" : "bg-red-500/15 text-red-700"}>{v.status === "unused" ? "Unused" : v.status === "used" ? "Used" : "Voided"}</Badge>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </>
               )}
             </Section>
 

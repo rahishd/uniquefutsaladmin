@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight, Gamepad2, Phone, Search } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Gamepad2, Phone, Plus, Search } from "lucide-react";
 import { Badge } from "../bookings/Badge";
+import NewSessionModal from "./NewSessionModal";
 import GamezoneTab from "../courts/GamezoneTab";
 import { ApiError } from "@/lib/api";
 import { guard } from "@/lib/access";
@@ -220,20 +221,26 @@ function Sessions() {
 
 export default function GamezonePage() {
   const [tab, setTab] = useState<Tab>("board");
+  const [booking, setBooking] = useState(false);
+  const [version, setVersion] = useState(0); // bumping it reloads the board and the list after a new session
   return (
     <div className="w-full space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold">Gamezone (PS5)</h1>
-        <p className="text-sm text-muted">Sessions on each console, collecting payment, and the rates, consoles and games customers see.</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">Gamezone (PS5)</h1>
+          <p className="text-sm text-muted">Sessions on each console, collecting payment, and the rates, consoles and games customers see.</p>
+        </div>
+        <button onClick={() => guard("gamezone.manage") && setBooking(true)} className="flex shrink-0 items-center gap-1.5 rounded-full bg-brand px-4 py-2.5 text-sm font-semibold text-white"><Plus size={16} /> New session</button>
       </div>
+      {booking && <NewSessionModal date={todayKey()} onClose={() => setBooking(false)} onDone={() => setVersion((v) => v + 1)} />}
       <div className="flex gap-1 overflow-x-auto rounded-2xl bg-surface p-1 shadow-sm" role="tablist">
         {TABS.map((t) => (
           <button key={t.id} role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)}
             className={`flex-1 whitespace-nowrap rounded-xl px-3 py-2.5 text-sm font-semibold ${tab === t.id ? "bg-brand text-white" : "text-muted hover:bg-surface-2"}`}>{t.label}</button>
         ))}
       </div>
-      {tab === "board" && <DayBoard />}
-      {tab === "sessions" && <Sessions />}
+      {tab === "board" && <DayBoard key={version} />}
+      {tab === "sessions" && <Sessions key={version} />}
       {tab === "setup" && <GamezoneTab />}
     </div>
   );

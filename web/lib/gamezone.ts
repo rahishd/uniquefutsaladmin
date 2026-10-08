@@ -26,6 +26,12 @@ export function listGzSessions(p: { scope: GzScope; page: number; q: string }) {
   return api<GzList>(`/admin/gamezone/bookings?${qs}`);
 }
 
+export type GzManualInput = {
+  consoleId: string; gameTitle: string; date: string; startHour: number; hours: number; players: number;
+  customerName: string; customerPhone?: string; paid: boolean;
+};
+export const createGzSession = (b: GzManualInput) => api<{ code: string; total: number }>("/admin/gamezone/bookings", { method: "POST", body: JSON.stringify(b) });
+
 const post = (code: string, action: "mark-paid" | "complete" | "cancel") => api(`/admin/gamezone/bookings/${encodeURIComponent(code)}/${action}`, { method: "POST" });
 export const markGzPaid = (code: string) => post(code, "mark-paid");
 export const completeGz = (code: string) => post(code, "complete");
