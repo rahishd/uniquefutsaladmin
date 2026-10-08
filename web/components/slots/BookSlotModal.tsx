@@ -2,7 +2,8 @@
 
 import CustomerSuggest from "../CustomerSuggest";
 import { useEffect, useState } from "react";
-import { X } from "lucide-react";
+import { Droplets, X } from "lucide-react";
+import Switch from "../Switch";
 import { Hour, WalkInInput, bookManually, findCustomer, hhmm, hourLabel, longDate } from "@/lib/slots";
 import { rs } from "@/lib/bookings";
 import { ApiError } from "@/lib/api";
@@ -19,7 +20,8 @@ export default function BookSlotModal({ date, hours, hour, past, onClose, onBook
   const [duration, setDuration] = useState(1);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [found, setFound] = useState<{ phone: string; name: string } | null>(null); // result of the last lookup
+  const [found, setFound] = useState<{ phone: string; name: string; vip: boolean } | null>(null); // result of the last lookup
+  const [water, setWater] = useState(true);
   const [price, setPrice] = useState<string | null>(null); // null = use the court price
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
@@ -28,6 +30,7 @@ export default function BookSlotModal({ date, hours, hour, past, onClose, onBook
   const standard = Array.from({ length: duration }, (_, i) => hours.find((h) => h.hour === hour + i)?.price ?? 0).reduce((a, b) => a + b, 0);
   const phoneOk = /^9\d{9}$/.test(phone);
   const registered = phoneOk && found?.phone === phone ? found.name : null;
+  const isVip = phoneOk && found?.phone === phone && found.vip; // VIP customers never get complimentary water
 
   // A registered customer's name is filled in from their account.
   useEffect(() => {
@@ -36,7 +39,7 @@ export default function BookSlotModal({ date, hours, hour, past, onClose, onBook
     findCustomer(phone).then((r) => {
       const c = r.items.find((x) => x.phoneNumber === phone);
       if (!live || !c) return;
-      setFound({ phone, name: c.name ?? "Registered customer" });
+      setFound({ phone, name: c.name ?? "Registered customer", vip: !!c.vip?.active });
       if (c.name) setName((n) => n || c.name!);
     }).catch(() => {});
     return () => { live = false; };
@@ -48,7 +51,7 @@ export default function BookSlotModal({ date, hours, hour, past, onClose, onBook
     if (name.trim().length < 2) return setError("Enter the customer's name.");
     if (phone && !phoneOk) return setError("Enter a 10-digit mobile number starting with 9, or leave it empty.");
     // Billing is not done from Slots: the booking is saved unpaid and billed on the Bookings page (game + add-on items together).
-    const body: WalkInInput = { date, startTime: hhmm(hour), duration, customerName: name.trim(), paymentMethod: "venue", paid: false };
+    const body: WalkInInput = { date, startTime: hhmm(hour), duration, customerName: name.trim(), paymentMethod: "venue", paid: false, water: water && !isVip };
     if (phone) body.customerPhone = phone;
     if (price !== null && price !== "") body.priceOverride = Math.max(0, Math.round(Number(price)));
     if (notes.trim()) body.notes = notes.trim();
@@ -94,6 +97,12 @@ export default function BookSlotModal({ date, hours, hour, past, onClose, onBook
           </label>
         </div>
         {price !== null && Number(price) !== standard && <p className="-mt-2 text-xs text-muted">Court price is {rs(standard)}. The changed price is recorded as a discount.</p>}
+
+        <div className="flex items-center justify-between gap-3 rounded-xl bg-surface-2 p-3">
+          <span className="text-sm"><span className="flex items-center gap-1.5 font-medium"><Droplets size={15} className="text-sky-500" /> Complimentary mineral water</span>
+            <span className="block text-xs text-muted">{isVip ? "VIP customer: no complimentary water." : water ? "2 bottles are included with this game." : "No water with this game."}</span></span>
+          <Switch on={water && !isVip} disabled={isVip} label="Complimentary mineral water" onChange={() => setWater((w) => !w)} />
+        </div>
 
         <p className="rounded-xl bg-surface-2 p-3 text-xs text-muted">Payment is not taken here. Collect it on the Bookings page, where the game and any add-on items are billed together.</p>
 

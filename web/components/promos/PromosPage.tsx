@@ -22,9 +22,9 @@ const WORD = { active: "Live", paused: "Paused", expired: "Expired", used_up: "F
 const shareText = (p: PromoInput) => `Unique Futsal: use code ${p.code} for ${p.label}${p.title ? ` (${p.title})` : ""}. ${conditions(p).join(". ")}.`;
 
 // ---------- add or change a code ----------
-type Draft = { code: string; type: "percent" | "flat"; value: string; label: string; labelEdited: boolean; title: string; description: string; appliedTo: AppliesTo; expiryDate: string; validDays: Day[]; startTime: string; endTime: string; isActive: boolean; maxUses: string; maxPerCustomer: string };
-const blank: Draft = { code: "", type: "percent", value: "", label: "", labelEdited: false, title: "", description: "", appliedTo: "booking", expiryDate: "", validDays: [], startTime: "", endTime: "", isActive: true, maxUses: "", maxPerCustomer: "" };
-const toDraft = (p: Promo): Draft => ({ code: p.code, type: p.type, value: String(p.value), label: p.label, labelEdited: true, title: p.title ?? "", description: p.description ?? "", appliedTo: p.appliedTo, expiryDate: p.expiryDate?.slice(0, 10) ?? "", validDays: (p.validDays ?? []) as Day[], startTime: p.startTime ?? "", endTime: p.endTime ?? "", isActive: p.isActive !== false, maxUses: p.maxUses ? String(p.maxUses) : "", maxPerCustomer: p.maxPerCustomer ? String(p.maxPerCustomer) : "" });
+type Draft = { code: string; type: "percent" | "flat"; value: string; label: string; labelEdited: boolean; title: string; description: string; appliedTo: AppliesTo; expiryDate: string; validDays: Day[]; startTime: string; endTime: string; isActive: boolean; maxUses: string; maxPerCustomer: string; includesWater: boolean };
+const blank: Draft = { code: "", type: "percent", value: "", label: "", labelEdited: false, title: "", description: "", appliedTo: "booking", expiryDate: "", validDays: [], startTime: "", endTime: "", isActive: true, maxUses: "", maxPerCustomer: "", includesWater: false };
+const toDraft = (p: Promo): Draft => ({ code: p.code, type: p.type, value: String(p.value), label: p.label, labelEdited: true, title: p.title ?? "", description: p.description ?? "", appliedTo: p.appliedTo, expiryDate: p.expiryDate?.slice(0, 10) ?? "", validDays: (p.validDays ?? []) as Day[], startTime: p.startTime ?? "", endTime: p.endTime ?? "", isActive: p.isActive !== false, maxUses: p.maxUses ? String(p.maxUses) : "", maxPerCustomer: p.maxPerCustomer ? String(p.maxPerCustomer) : "", includesWater: !!p.includesWater });
 
 function PromoSheet({ edit, onClose, onSaved }: { edit: Promo | null; onClose: () => void; onSaved: () => void }) {
   const [d, setD] = useState<Draft>(edit ? toDraft(edit) : blank);
@@ -34,7 +34,7 @@ function PromoSheet({ edit, onClose, onSaved }: { edit: Promo | null; onClose: (
   const value = Number(d.value);
   const toggleDay = (day: Day) => set({ validDays: d.validDays.includes(day) ? d.validDays.filter((x) => x !== day) : [...d.validDays, day] });
   const body: PromoInput = {
-    code: d.code.trim().toUpperCase(), type: d.type, value, label: d.label.trim(), appliedTo: d.appliedTo, isActive: d.isActive,
+    code: d.code.trim().toUpperCase(), type: d.type, value, label: d.label.trim(), appliedTo: d.appliedTo, isActive: d.isActive, includesWater: d.includesWater,
     ...(d.title.trim() ? { title: d.title.trim() } : {}), ...(d.description.trim() ? { description: d.description.trim() } : {}), ...(d.expiryDate ? { expiryDate: d.expiryDate } : {}),
     ...(d.validDays.length ? { validDays: d.validDays } : {}), ...(d.startTime && d.endTime ? { startTime: d.startTime, endTime: d.endTime } : {}),
     ...(Number(d.maxUses) > 0 ? { maxUses: Number(d.maxUses) } : {}), ...(Number(d.maxPerCustomer) > 0 ? { maxPerCustomer: Number(d.maxPerCustomer) } : {}),
@@ -96,6 +96,8 @@ function PromoSheet({ edit, onClose, onSaved }: { edit: Promo | null; onClose: (
           </div>
           <p className="text-xs text-muted">A use is a booking or membership that carries the code. A cancelled one gives its use back. When the total is reached the code stops working and disappears from the customer app.</p>
         </div>
+
+        <div className="flex items-center justify-between rounded-xl bg-surface-2 p-3 text-sm"><span><strong>Complimentary mineral water</strong><span className="block text-xs text-muted">{d.includesWater ? "Customers using this code still get the 2 free bottles with their game." : "Customers using this code get no free mineral water. They are told so as soon as they apply it."}</span></span><Switch on={d.includesWater} label="Complimentary mineral water with this code" onChange={() => set({ includesWater: !d.includesWater })} /></div>
 
         <div className="flex items-center justify-between rounded-xl bg-surface-2 p-3 text-sm"><span><strong>Live</strong><span className="block text-xs text-muted">Turn off to keep the code but stop customers using it.</span></span><Switch on={d.isActive} onChange={() => set({ isActive: !d.isActive })} label="Code is live" /></div>
 

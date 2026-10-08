@@ -28,6 +28,7 @@ const promo = z.object({
   maxUses: z.number().int().min(1, "At least 1").max(100000).optional(), // everyone together
   maxPerCustomer: z.number().int().min(1, "At least 1").max(1000).optional(),
   appliedTo: z.enum(["booking", "membership", "both"]).default("booking"),
+  includesWater: z.boolean().default(false), // complimentary mineral water stays included with this code (off = no water with this promo)
 }).refine((p) => p.type !== "percent" || p.value <= 100, { message: "A percent discount cannot be more than 100", path: ["value"] })
   .refine((p) => !p.maxUses || !p.maxPerCustomer || p.maxPerCustomer <= p.maxUses, { message: "The limit for one customer cannot be more than the total limit", path: ["maxPerCustomer"] })
   .refine((p) => !!p.startTime === !!p.endTime, { message: "Give both the start and the end time of the window, or neither", path: ["endTime"] })

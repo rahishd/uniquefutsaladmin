@@ -2,6 +2,8 @@
 
 import CustomerSuggest from "../CustomerSuggest";
 import { useEffect, useState } from "react";
+import { Droplets } from "lucide-react";
+import Switch from "../Switch";
 import { CheckCircle2, X } from "lucide-react";
 import { ApiError } from "@/lib/api";
 import { guard } from "@/lib/access";
@@ -26,7 +28,8 @@ export default function BulkBookModal({ startDate, onClose, onBooked }: { startD
   const [duration, setDuration] = useState(1);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [found, setFound] = useState<{ phone: string; name: string } | null>(null);
+  const [found, setFound] = useState<{ phone: string; name: string; vip: boolean } | null>(null);
+  const [water, setWater] = useState(true);
   const [price, setPrice] = useState("");
   const [notes, setNotes] = useState("");
   const [mode, setMode] = useState<"free" | "all">("free");
@@ -44,6 +47,7 @@ export default function BulkBookModal({ startDate, onClose, onBooked }: { startD
   const phoneOk = /^9\d{9}$/.test(phone);
   const stamp = JSON.stringify([dates, hour, duration, price]);
   const stale = !plan || plan.stamp !== stamp;
+  const isVip = phoneOk && found?.phone === phone && found.vip; // VIP customers never get complimentary water
   const registered = /^9\d{9}$/.test(phone) && found?.phone === phone ? found.name : null;
 
   useEffect(() => {
@@ -52,7 +56,7 @@ export default function BulkBookModal({ startDate, onClose, onBooked }: { startD
     findCustomer(phone).then((r) => {
       const c = r.items.find((x) => x.phoneNumber === phone);
       if (!live || !c) return;
-      setFound({ phone, name: c.name ?? "Registered customer" });
+      setFound({ phone, name: c.name ?? "Registered customer", vip: !!c.vip?.active });
       if (c.name) setName((x) => x || c.name!);
     }).catch(() => {});
     return () => { live = false; };
@@ -60,7 +64,7 @@ export default function BulkBookModal({ startDate, onClose, onBooked }: { startD
 
   const body = () => {
     return {
-      dates, startTime: hhmm(hour), duration, customerName: name.trim(), paymentMethod: "venue" as const, paid: false, mode,
+      dates, startTime: hhmm(hour), duration, customerName: name.trim(), paymentMethod: "venue" as const, paid: false, mode, water: water && !isVip,
       ...(phone ? { customerPhone: phone } : {}), ...(price !== "" ? { priceOverride: Math.round(Number(price)) } : {}), ...(notes.trim() ? { notes: notes.trim() } : {}),
     };
   };
@@ -166,6 +170,11 @@ export default function BulkBookModal({ startDate, onClose, onBooked }: { startD
               </label>
               <label className={lab}>Customer or team name<CustomerSuggest by="name" value={name} onChange={setName} onPick={(c) => { setPhone(c.phoneNumber); if (c.name) setName(c.name); }} placeholder="Full name" className={`${input} mt-1`} /></label>
               <label className={lab}>Price per game (Rs.) <span className="font-normal text-muted">empty = court price</span><input inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value.replace(/\D/g, ""))} className={`${input} mt-1`} /></label>
+              <div className="flex items-center justify-between gap-3 rounded-xl bg-surface-2 p-3">
+                <span className="text-sm"><span className="flex items-center gap-1.5 font-medium"><Droplets size={15} className="text-sky-500" /> Complimentary mineral water</span>
+                  <span className="block text-xs text-muted">{isVip ? "VIP customer: no complimentary water." : water ? "2 bottles are included with every game." : "No water with every game."}</span></span>
+                <Switch on={water && !isVip} disabled={isVip} label="Complimentary mineral water" onChange={() => setWater((w) => !w)} />
+              </div>
               <p className="rounded-xl bg-surface-2 p-3 text-xs text-muted">Payment is not taken here. Collect it on the Bookings page.</p>
             </div>
             <label className={lab}>Note <span className="font-normal text-muted">(optional)</span><input value={notes} maxLength={200} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. weekly league, school block" className={`${input} mt-1`} /></label>

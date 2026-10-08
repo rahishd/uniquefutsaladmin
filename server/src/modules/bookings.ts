@@ -11,6 +11,7 @@ import { AppError, dateStr, handler, page, param, parse, send, timeStr } from ".
 import { requirePermission } from "../middleware/auth";
 import { DEAD, claimFonepay, gameLabel, paysSchema, settle } from "../lib/settle";
 import { getHourPrice } from "./settings-store";
+import { waterForBooking } from "../lib/water";
 
 export const bookingsRouter = Router();
 
@@ -158,6 +159,7 @@ const walkIn = z.object({
   paymentMethod: z.enum(["venue", "fonepay"]).default("venue"),
   paid: z.boolean().default(false),
   priceOverride: z.number().int().min(0).optional(),
+  water: z.boolean().default(true), // 2 complimentary mineral water bottles; never for a VIP customer
   notes: z.string().max(300).optional(),
 });
 
@@ -174,6 +176,7 @@ bookingsRouter.post("/walk-in", requirePermission("bookings.create"), handler(as
   for (let i = 0; i < b.duration; i++) basePrice += await getHourPrice(startHour + i);
   const total = b.priceOverride ?? basePrice;
   const user = b.customerPhone ? await prisma.user.findUnique({ where: { phoneNumber: b.customerPhone }, select: { phoneNumber: true } }) : null;
+  const water = await waterForBooking(b.customerPhone, b.water);
   const code = await uniqueCode();
   // A game whose hour has already passed is logged as completed.
   const ended = b.date < todayKey() || (b.date === todayKey() && startHour + b.duration <= currentHour());
@@ -186,7 +189,7 @@ bookingsRouter.post("/walk-in", requirePermission("bookings.create"), handler(as
           discountAmount: Math.max(0, basePrice - total), paymentMethod: b.paymentMethod, status: ended ? "completed" : "confirmed",
           paymentStatus: b.paid ? "completed" : "pending", amountPaidNow: b.paid ? total : 0, remainingAmount: b.paid ? 0 : total,
           cashAmount: b.paid && b.paymentMethod === "venue" ? total : 0, onlineAmount: b.paid && b.paymentMethod !== "venue" ? total : 0,
-          notes: ["WALK_IN", b.notes].filter(Boolean).join(" | "), code,
+          notes: ["WALK_IN", b.notes].filter(Boolean).join(" | "), code, waterBottles: water.bottles,
         },
       });
       // One row per hour; the unique (date, hour) index is the final guard against double booking.
@@ -194,8 +197,8 @@ bookingsRouter.post("/walk-in", requirePermission("bookings.create"), handler(as
       return row;
     });
     if (ended) await awardForCompletedBooking(created);
-    await audit(req, "walk-in", "booking", created.id, { code, date: b.date, startTime: b.startTime, total, paid: b.paid, retroactive: ended });
-    send(res, withCode(created), "Booking created", 201);
+    await audit(req, "walk-in", "booking", created.id, { code, date: b.date, startTime: b.startTime, total, paid: b.paid, retroactive: ended, water: water.bottles, waterOff: water.excluded });
+    send(res, { ...withCode(created), water }, "Booking created", 201);
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") throw new AppError(409, "That hour is already booked or blocked");
     throw e;
@@ -213,6 +216,7 @@ const bulkWalkIn = z.object({
   paymentMethod: z.enum(["venue", "fonepay"]).default("venue"),
   paid: z.boolean().default(false),
   priceOverride: z.number().int().min(0).optional(), // per game, applied to every date
+  water: z.boolean().default(true), // 2 complimentary mineral water bottles per game; never for a VIP customer
   notes: z.string().max(300).optional(),
   mode: z.enum(["free", "all"]).default("free"),
   dryRun: z.boolean().default(false),
@@ -242,6 +246,7 @@ bookingsRouter.post("/walk-in/bulk", requirePermission("bookings.create"), handl
   if (free.length === 0) throw new AppError(409, "All of these dates are already booked or blocked");
 
   const user = b.customerPhone ? await prisma.user.findUnique({ where: { phoneNumber: b.customerPhone }, select: { phoneNumber: true } }) : null;
+  const water = await waterForBooking(b.customerPhone, b.water);
   const codes: string[] = [];
   for (let i = 0; i < free.length; i++) codes.push(await uniqueCode());
   const bulkId = codes[0];
@@ -258,7 +263,7 @@ bookingsRouter.post("/walk-in/bulk", requirePermission("bookings.create"), handl
             discountAmount: Math.max(0, basePrice - total), paymentMethod: b.paymentMethod, status: ended ? "completed" : "confirmed",
             paymentStatus: b.paid ? "completed" : "pending", amountPaidNow: b.paid ? total : 0, remainingAmount: b.paid ? 0 : total,
             cashAmount: b.paid && b.paymentMethod === "venue" ? total : 0, onlineAmount: b.paid && b.paymentMethod !== "venue" ? total : 0,
-            notes: ["WALK_IN", `BULK ${bulkId}`, b.notes].filter(Boolean).join(" | "), code: codes[i],
+            notes: ["WALK_IN", `BULK ${bulkId}`, b.notes].filter(Boolean).join(" | "), code: codes[i], waterBottles: water.bottles,
           },
         });
         await tx.bookingSlot.createMany({ data: hours.map((hour) => ({ date: p.date, hour, bookingId: row.id })) });
@@ -273,8 +278,8 @@ bookingsRouter.post("/walk-in/bulk", requirePermission("bookings.create"), handl
   }
   let points = 0;
   for (const c of created) if (c.ended && (await awardForCompletedBooking(c.row))) points++;
-  await audit(req, "walk-in-bulk", "booking", bulkId, { dates: free.map((p) => p.date), skipped: plan.filter((p) => !p.free).map((p) => p.date), startTime: b.startTime, duration: b.duration, total, paid: b.paid });
-  send(res, { created: created.map((c) => withCode(c.row)), skipped: plan.filter((p) => !p.free).map((p) => p.date), pointsAwardedFor: points, ...summary }, `${created.length} booking${created.length === 1 ? "" : "s"} created`, 201);
+  await audit(req, "walk-in-bulk", "booking", bulkId, { dates: free.map((p) => p.date), skipped: plan.filter((p) => !p.free).map((p) => p.date), startTime: b.startTime, duration: b.duration, total, paid: b.paid, water: water.bottles, waterOff: water.excluded });
+  send(res, { water, created: created.map((c) => withCode(c.row)), skipped: plan.filter((p) => !p.free).map((p) => p.date), pointsAwardedFor: points, ...summary }, `${created.length} booking${created.length === 1 ? "" : "s"} created`, 201);
 }));
 
 bookingsRouter.post("/:id/cancel", requirePermission("bookings.cancel"), handler(async (req, res) => {

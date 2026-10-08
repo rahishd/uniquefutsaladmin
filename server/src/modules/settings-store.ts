@@ -6,6 +6,7 @@ export type PromoCode = {
   code: string; type: "percent" | "flat"; value: number; label: string; title?: string; description?: string;
   expiryDate?: string; startTime?: string; endTime?: string; validDays?: string[]; isActive?: boolean; appliedTo: "booking" | "membership" | "both";
   maxUses?: number; maxPerCustomer?: number;
+  includesWater?: boolean; // a game booked with this code still includes the 2 complimentary mineral water bottles (default off)
 };
 
 export async function getSetting(key: string): Promise<string | null> {

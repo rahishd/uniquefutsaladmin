@@ -39,6 +39,7 @@ export type WalkInInput = {
   paymentMethod: "venue" | "fonepay";
   paid: boolean;
   priceOverride?: number;
+  water?: boolean; // 2 complimentary mineral water bottles (default on); the server never gives them to a VIP customer
   notes?: string;
 };
 
@@ -49,7 +50,7 @@ export type BulkResult = BulkPlan & { created?: { id: string; code: string; date
 export const bulkBook = (b: BulkInput) => api<BulkResult>("/admin/bookings/walk-in/bulk", { method: "POST", body: JSON.stringify(b) });
 export const rejectBooking = (id: string) => api(`/admin/bookings/${encodeURIComponent(id)}/cancel`, { method: "POST", body: "{}" });
 export const findCustomer = (phone: string, limit = 1) =>
-  api<{ items: { phoneNumber: string; name: string | null }[] }>(`/admin/customers?q=${encodeURIComponent(phone)}&limit=${limit}`);
+  api<{ items: { phoneNumber: string; name: string | null; vip?: { code: string; active: boolean } | null }[] }>(`/admin/customers?q=${encodeURIComponent(phone)}&limit=${limit}`);
 
 // ---- date and time helpers (Nepal time, whatever the browser's time zone) ----
 const nepalDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kathmandu", year: "numeric", month: "2-digit", day: "2-digit" });
