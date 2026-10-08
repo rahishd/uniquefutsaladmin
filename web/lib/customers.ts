@@ -64,3 +64,6 @@ export const setActive = (phone: string, active: boolean) => api(`/admin/custome
 
 export const initials = (name: string | null, phone: string) =>
   (name ?? "").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("") || phone.slice(-2);
+
+export type CustomerEdit = { name?: string; email?: string | null; phoneNumber?: string; password?: string };
+export const editCustomer = (phone: string, v: CustomerEdit) => api(`/admin/customers/${encodeURIComponent(phone)}`, { method: "PATCH", body: JSON.stringify(v) });

@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import bcrypt from "bcryptjs";
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db";
@@ -225,15 +226,42 @@ customersRouter.get("/:phone", requirePermission("customers.view"), handler(asyn
 }));
 
 customersRouter.patch("/:phone", requirePermission("customers.edit"), handler(async (req, res) => {
-  const b = parse(z.object({ name: z.string().min(2).max(60).optional(), email: z.string().email().nullable().optional() }), req.body);
+  // No old password is needed here: customers who forget it are told to contact the venue, and staff set a new one.
+  const b = parse(z.object({
+    name: z.string().trim().min(2).max(60).optional(),
+    email: z.string().trim().email().nullable().optional(),
+    phoneNumber: z.string().trim().regex(/^9\d{9}$/, "Enter a 10-digit mobile number starting with 9").optional(),
+    password: z.string().min(6, "Password must be at least 6 characters").max(72).optional(),
+  }), req.body);
   const phone = param(req, "phone");
-  if (!(await prisma.user.findUnique({ where: { phoneNumber: phone } }))) throw new AppError(404, "Customer not found");
+  const old = await prisma.user.findUnique({ where: { phoneNumber: phone } });
+  if (!old) throw new AppError(404, "Customer not found");
+  if (old.role !== "user") throw new AppError(403, "Staff and admin accounts are managed under Staff");
+  const { password, phoneNumber: newPhone, ...rest } = b;
+  const data = { ...rest, ...(password ? { password: await bcrypt.hash(password, 10) } : {}) };
   try {
-    const u = await prisma.user.update({ where: { phoneNumber: phone }, data: b, select: pub });
-    await audit(req, "update", "customer", phone, b);
+    if (newPhone && newPhone !== phone) {
+      // The phone number is the account id and sits as plain text in many tables with no cascade, so copy the
+      // account to the new number, point every record at it, then remove the old row.
+      await prisma.$transaction(async (tx) => {
+        const cols = await tx.$queryRaw<{ table_name: string; column_name: string }[]>`
+          SELECT table_name, column_name FROM information_schema.columns
+          WHERE table_schema = 'public' AND data_type IN ('text', 'character varying')
+            AND column_name IN ('userId', 'customerPhone', 'contactPhone', 'phone') AND table_name NOT IN ('User', 'StaffUser')`;
+        await tx.user.update({ where: { phoneNumber: phone }, data: { email: null, googleSub: null } });
+        const { phoneNumber: _drop, ...copy } = old;
+        await tx.user.create({ data: { ...copy, ...data, phoneNumber: newPhone, email: rest.email === undefined ? old.email : rest.email } });
+        for (const c of cols) await tx.$executeRawUnsafe(`UPDATE "${c.table_name}" SET "${c.column_name}" = $1 WHERE "${c.column_name}" = $2`, newPhone, phone);
+        await tx.user.delete({ where: { phoneNumber: phone } });
+      });
+    } else {
+      await prisma.user.update({ where: { phoneNumber: phone }, data });
+    }
+    const u = await prisma.user.findUniqueOrThrow({ where: { phoneNumber: newPhone ?? phone }, select: pub });
+    await audit(req, "update", "customer", phone, { ...rest, ...(newPhone ? { phoneNumber: newPhone } : {}), ...(password ? { passwordChanged: true } : {}) });
     send(res, u, "Customer updated");
   } catch (e) {
-    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") throw new AppError(409, "That email is used by another account");
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") throw new AppError(409, "That email or phone number is used by another account");
     throw e;
   }
 }));

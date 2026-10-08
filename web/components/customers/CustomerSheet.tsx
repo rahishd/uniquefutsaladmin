@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { MessageCircle, Phone, ShieldCheck, ShieldOff, X } from "lucide-react";
 import { Badge } from "../bookings/Badge";
 import CancellationsSection from "./CancellationsSection";
+import EditCustomer from "./EditCustomer";
 import VipSection from "./VipSection";
 import VipTag from "./VipTag";
 import { ApiError } from "@/lib/api";
@@ -104,6 +105,8 @@ export default function CustomerSheet({ customer, onClose, onChanged }: { custom
 
         {p && (
           <>
+            <EditCustomer key={p.user.phoneNumber} phone={p.user.phoneNumber} name={p.user.name} email={p.user.email} onSaved={(np) => { onChanged(); if (np !== p.user.phoneNumber) onClose(); }} />
+
             <div className="grid grid-cols-2 gap-2">
               <Tile label="Games played" value={String(p.games.played)} sub={p.games.gamezoneSessions ? `+ ${p.games.gamezoneSessions} Gamezone` : undefined} />
               <Tile label="Paid so far" value={rs(p.payments.paid.amount)} sub={`${p.payments.paid.count} payments`} tone="text-brand" />
