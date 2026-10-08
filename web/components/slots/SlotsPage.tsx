@@ -90,6 +90,15 @@ export default function SlotsPage() {
 
   const refresh = useCallback(() => setTick((t) => t + 1), []);
 
+  // Keep the grid live: re-fetch every 10s and when the tab regains focus, so customer-site bookings appear on their own.
+  useEffect(() => {
+    const bump = () => { if (document.visibilityState === "visible") refresh(); };
+    const t = setInterval(bump, 10000);
+    document.addEventListener("visibilitychange", bump);
+    window.addEventListener("focus", bump);
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", bump); window.removeEventListener("focus", bump); };
+  }, [refresh]);
+
   useEffect(() => {
     let live = true;
     getDay(date)
