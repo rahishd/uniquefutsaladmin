@@ -59,7 +59,13 @@ customersRouter.get("/", requirePermission("customers.view"), handler(async (req
       cancelStreak: streaks.get(u.phoneNumber) ?? 0,
     },
   }));
-  send(res, { items, total, page: pageNo, limit });
+  // Whole-site numbers (not narrowed by the search or filters): everyone with a customer account right now.
+  const [all, active, captainCount] = await Promise.all([
+    prisma.user.count({ where: { role: "user" } }),
+    prisma.user.count({ where: { role: "user", isActive: true } }),
+    prisma.userPrefs.findMany({ where: { mode: "captain" }, select: { userId: true } }).then((c) => prisma.user.count({ where: { role: "user", phoneNumber: { in: c.map((x) => x.userId) } } })),
+  ]);
+  send(res, { items, total, page: pageNo, limit, totals: { registered: all, active, suspended: all - active, captains: captainCount } });
 }));
 
 // Everything staff want to know about one customer, in one call.

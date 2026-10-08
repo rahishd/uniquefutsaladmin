@@ -12,7 +12,10 @@ export type CustomerRow = {
   vip: null | { code: string; active: boolean };
   stats: { gamesPlayed: number; gamezoneSessions: number; paidTotal: number; unpaidTotal: number; openComplaints: number; cancelStreak: number };
 };
-export type CustomerList = { items: CustomerRow[]; total: number; page: number; limit: number };
+export type CustomerList = {
+  items: CustomerRow[]; total: number; page: number; limit: number;
+  totals: { registered: number; active: number; suspended: number; captains: number }; // everyone with an account, whatever the filters
+};
 
 type Money = { amount: number; count: number };
 type PayRow = { kind: "court" | "gamezone"; code: string; date: string; time: string; amount: number; status: "paid" | "unpaid" | "cancelled"; method: string };

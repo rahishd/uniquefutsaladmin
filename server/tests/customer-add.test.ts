@@ -57,3 +57,23 @@ describe("staff add a customer by hand", () => {
     assert.ok(log && !log.details!.includes("secret-pass-9") && log.details!.includes('"signIn":true'));
   });
 });
+
+describe("customer totals", () => {
+  it("the list always carries the whole-site numbers, whatever the search or filter", async () => {
+    const owner = await staff("owner");
+    for (const [phone, active] of [["9842000001", true], ["9842000002", true], ["9842000003", false]] as const) {
+      await prisma.user.create({ data: { phoneNumber: phone, name: "C" + phone.slice(-1), password: "x", role: "user", isVerified: true, isActive: active } });
+    }
+    await prisma.userPrefs.create({ data: { userId: "9842000001", mode: "captain" } });
+    const all = (await api.get("/customers", owner.auth)).body.data;
+    assert.deepEqual(all.totals, { registered: 3, active: 2, suspended: 1, captains: 1 });
+    const narrow = (await api.get("/customers?q=9842000003&status=suspended", owner.auth)).body.data;
+    assert.equal(narrow.total, 1, "this filter matches one person");
+    assert.equal(narrow.totals.registered, 3, "but the total stays the whole site");
+    // staff accounts are not customers
+    assert.equal((await api.get("/customers", owner.auth)).body.data.totals.registered, 3);
+    // adding a customer raises it
+    await api.post("/customers", owner.auth, { name: "New One", phoneNumber: "9842000004" });
+    assert.equal((await api.get("/customers", owner.auth)).body.data.totals.registered, 4);
+  });
+});
