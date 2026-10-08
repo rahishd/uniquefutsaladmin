@@ -62,6 +62,10 @@ export const saveVip = (phone: string, v: VipInput) => api(`/admin/customers/${e
 export const removeVip = (phone: string) => api(`/admin/customers/${encodeURIComponent(phone)}/vip`, { method: "DELETE" });
 export const setActive = (phone: string, active: boolean) => api(`/admin/customers/${encodeURIComponent(phone)}/${active ? "unsuspend" : "suspend"}`, { method: "POST", body: "{}" });
 
+// Staff add a customer by hand. With a password the customer can sign in to the app with the mobile number; without one it is a record only.
+export const addCustomer = (b: { name: string; phoneNumber: string; email?: string; password?: string }) =>
+  api<{ phoneNumber: string; name: string | null; email: string | null; canSignIn: boolean }>("/admin/customers", { method: "POST", body: JSON.stringify(b) });
+
 export const initials = (name: string | null, phone: string) =>
   (name ?? "").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("") || phone.slice(-2);
 

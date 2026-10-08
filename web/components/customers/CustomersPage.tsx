@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Ban, ChevronLeft, ChevronRight, Phone, Search, Users } from "lucide-react";
+import { Ban, ChevronLeft, ChevronRight, Phone, Search, UserPlus, Users } from "lucide-react";
 import { Badge } from "../bookings/Badge";
+import AddCustomerSheet from "./AddCustomerSheet";
 import CustomerSheet from "./CustomerSheet";
 import VipTag from "./VipTag";
 import { rs } from "@/lib/bookings";
@@ -20,6 +21,7 @@ export default function CustomersPage() {
   const [data, setData] = useState<CustomerList | null>(null);
   const [error, setError] = useState("");
   const [open, setOpen] = useState<CustomerRow | null>(null);
+  const [adding, setAdding] = useState(false);
   const [tick, setTick] = useState(0);
   const canSuspend = true;
 
@@ -53,9 +55,12 @@ export default function CustomersPage() {
 
   return (
     <div className="w-full space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold">Customers</h1>
-        <p className="text-sm text-muted">Everyone who has an account in the app. Tap a customer for their full history.</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">Customers</h1>
+          <p className="text-sm text-muted">Everyone who has an account in the app. Tap a customer for their full history.</p>
+        </div>
+        <button onClick={() => guard("customers.create") && setAdding(true)} className="flex shrink-0 items-center gap-1.5 rounded-full bg-brand px-4 py-2.5 text-sm font-semibold text-white"><UserPlus size={16} /> Add customer</button>
       </div>
 
       <div className="grid grid-cols-3 gap-1 rounded-2xl bg-surface p-1 shadow-sm" role="tablist" aria-label="Customer type">
@@ -130,6 +135,7 @@ export default function CustomersPage() {
         </div>
       )}
 
+      {adding && <AddCustomerSheet onClose={() => setAdding(false)} onAdded={(phone) => { setSearch(phone); setMode(""); setStatus(""); setPageNo(1); setTick((t) => t + 1); }} />}
       {open && <CustomerSheet customer={open} onClose={() => setOpen(null)} onChanged={() => setTick((t) => t + 1)} />}
     </div>
   );
