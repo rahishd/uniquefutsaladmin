@@ -205,7 +205,7 @@ Table `FonepayQr` (admin-owned, `sql/012_fonepay_qr.sql`) keeps every QR with it
 ## Customers page
 | Method and path | Permission | Notes |
 |---|---|---|
-| `GET /customers?q&mode=captain|player&status=active|suspended&page&limit` | customers.read | each item has `mode` and `stats {gamesPlayed, gamezoneSessions, paidTotal, unpaidTotal, openComplaints, cancelStreak}` (court bookings by account; paid excludes cancelled; unpaid = not yet paid and not cancelled) |
+| `GET /customers?q&mode=captain|player&status=active|suspended&page&limit` | customers.read | the answer also has `totals: {registered, active, suspended, captains}`, the whole-site numbers that ignore the search and filters; each item has `mode` and `stats {gamesPlayed, gamezoneSessions, paidTotal, unpaidTotal, openComplaints, cancelStreak}` (court bookings by account; paid excludes cancelled; unpaid = not yet paid and not cancelled) |
 | `GET /customers/:phone/profile` | customers.read | one call with: `games`, `payments` (cash / online / unpaid, recent court + Gamezone), `goods` (extra items sold at the venue), `complaints`, `tournaments.entered` and `tournaments.challengesHosted`, `profile` (captain or regular, position, team, challenge record W/D/L), `cancellations`, `vip` |
 | `POST /customers/:phone/suspend` and `/unsuspend` | customers.write | records are kept; the customer cannot sign in while suspended |
 | `PUT /customers/:phone/vip` | customers.write | `{code, type: percent|flat, value, active?, note?}`. One VIP code per customer. The code (3 to 20 letters or numbers, stored in capitals) cannot equal a normal promo code (409). Changing the code clears `claimedAt`, so the customer must type the new one. Audited (`vip-give`, `vip-update`) |

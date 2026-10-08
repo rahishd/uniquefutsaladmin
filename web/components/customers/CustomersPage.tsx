@@ -63,6 +63,12 @@ export default function CustomersPage() {
         <button onClick={() => guard("customers.create") && setAdding(true)} className="flex shrink-0 items-center gap-1.5 rounded-full bg-brand px-4 py-2.5 text-sm font-semibold text-white"><UserPlus size={16} /> Add customer</button>
       </div>
 
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" aria-label="Registered customers">
+        {([["Registered customers", data?.totals.registered, "text-brand"], ["Active", data?.totals.active, ""], ["Suspended", data?.totals.suspended, "text-red-600"], ["Captains", data?.totals.captains, ""]] as const).map(([label, n, tone]) => (
+          <div key={label} className="rounded-2xl bg-surface p-3 shadow-sm"><p className="text-xs text-muted">{label}</p><p className={`text-2xl font-bold ${tone}`}>{n === undefined ? "…" : n.toLocaleString("en-US")}</p></div>
+        ))}
+      </div>
+
       <div className="grid grid-cols-3 gap-1 rounded-2xl bg-surface p-1 shadow-sm" role="tablist" aria-label="Customer type">
         {MODES.map((m) => (
           <button key={m.label} role="tab" aria-selected={mode === m.id} onClick={() => pick(() => setMode(m.id))}
