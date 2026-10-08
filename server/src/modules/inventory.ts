@@ -223,10 +223,21 @@ inventoryRouter.get("/sales", requirePermission("inventory.view"), handler(async
   send(res, { items: rows.map((r) => ({ id: r.id, amount: r.amount, items: r.items, soldAt: r.soldAt, customerPhone: r.userId, customerName: (r.userId ? un.get(r.userId) : null) ?? r.customerName ?? null, slot: r.bookingId ? slots.get(r.bookingId) ?? null : null, soldBy: sn.get(r.soldBy) ?? null, credit: credit.get(r.id) ?? null })), total, page: pageNo, limit });
 }));
 
+// Goods put on a customer's account and not yet paid, for the Payments page: one row per sale, grouped by customer there.
+inventoryRouter.get("/dues", requirePermission("payments.view"), handler(async (req, res) => {
+  const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+  const rows = await prisma.goodsDue.findMany({ where: { status: "due" }, orderBy: { createdAt: "asc" }, take: 500 });
+  const users = await prisma.user.findMany({ where: { phoneNumber: { in: [...new Set(rows.map((r) => r.userId))] } }, select: { phoneNumber: true, name: true } });
+  const un = new Map(users.map((u) => [u.phoneNumber, u.name]));
+  const items = rows.map((r) => ({ id: r.id, phone: r.userId, name: un.get(r.userId) ?? null, items: r.items, amount: r.amount, createdAt: r.createdAt }))
+    .filter((r) => !q || r.phone.includes(q) || (r.name ?? "").toLowerCase().includes(q.toLowerCase()));
+  send(res, { items, total: items.reduce((t, r) => t + r.amount, 0) });
+}));
+
 // ---------- final bill: goods + games for one customer ----------
 const gameLabelOf = (b: { date: string; startTime: string; endTime: string }) => `Game ${b.date} ${b.startTime}-${b.endTime}`;
 
-// The customer's games from the last 7 days up to today, and any goods on credit, so the bill can include what they still owe.
+// The customer's games for today only (so a bill never mixes in other days), and any goods on credit.
 inventoryRouter.get("/customer-bill", requirePermission("inventory.sell"), handler(async (req, res) => {
   const p = parse(phone, req.query.phone);
   const user = await prisma.user.findUnique({ where: { phoneNumber: p }, select: { phoneNumber: true, name: true } });
@@ -234,7 +245,7 @@ inventoryRouter.get("/customer-bill", requirePermission("inventory.sell"), handl
   const today = todayKey();
   const [rows, dues] = await Promise.all([
     prisma.booking.findMany({
-      where: { userId: p, date: { gte: addDaysKey(today, -7), lte: today }, status: { notIn: DEAD }, NOT: { status: "pending" } },
+      where: { userId: p, date: today, status: { notIn: DEAD }, NOT: { status: "pending" } },
       orderBy: [{ date: "desc" }, { startTime: "asc" }],
     }),
     prisma.goodsDue.findMany({ where: { userId: p, status: "due" }, orderBy: { createdAt: "asc" } }),

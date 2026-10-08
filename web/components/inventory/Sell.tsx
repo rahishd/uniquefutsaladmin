@@ -60,7 +60,7 @@ export default function Sell({ tick, onChanged }: { tick: number; onChanged: () 
     return () => { live = false; };
   }, [phone, phoneOk, local]);
 
-  const customer = phoneOk && bill?.phone === phone ? bill.data : null;
+  const customer = phoneOk && bill?.phone === phone ? { ...bill.data, games: bill.data.games.filter((g) => g.date === todayKey()) } : null; // today only
   const known = customer?.customer ?? null;
   const byId = new Map((products ?? []).map((p) => [p.id, p]));
   const lines = Object.entries(cart).map(([id, qty]) => ({ p: byId.get(id), qty })).filter((l): l is { p: Product; qty: number } => !!l.p && l.qty > 0);
@@ -174,8 +174,9 @@ export default function Sell({ tick, onChanged }: { tick: number; onChanged: () 
         {!known && (
           <>
             <label className="block space-y-1 text-sm font-medium">Customer name <span className="font-normal text-muted">(optional)</span>
-              <input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} placeholder="e.g. Rahish" className={`${field} w-full`} />
+              <CustomerSuggest by="name" value={name} onChange={(v) => { setName(v); setError(""); }} onPick={(c) => { setPhone(c.phoneNumber); setName(c.name ?? ""); setError(""); }} placeholder="e.g. Rahish" className={`${field} w-full`} />
             </label>
+            {name.trim().length >= 2 && !phoneOk && <p className="text-xs text-muted">To put goods on someone&apos;s account and bill them later, pick them from the list so their account is used. A name that is not registered is only noted on a paid sale.</p>}
             <label className="block space-y-1 text-sm font-medium">Add to slot <span className="font-normal text-muted">(today, optional)</span>
               <select value={slot} onChange={(e) => { const id = e.target.value; setSlot(id); const b = today.find((h) => h.booking!.id === id)?.booking; if (b && !name.trim()) setName(b.customerName ?? ""); }} className={`${field} w-full`}>
                 <option value="">No slot (counter sale)</option>
@@ -187,8 +188,8 @@ export default function Sell({ tick, onChanged }: { tick: number; onChanged: () 
 
         {known && customer && (
           <div className="space-y-2">
-            <p className="text-sm font-semibold">Games (last 7 days)</p>
-            {customer.games.length === 0 && <p className="text-xs text-muted">No games in the last 7 days.</p>}
+            <p className="text-sm font-semibold">Today&apos;s games</p>
+            {customer.games.length === 0 && <p className="text-xs text-muted">No games today.</p>}
             <ul className="space-y-1.5">
               {customer.games.map((g) => (
                 <li key={g.id}>
@@ -205,7 +206,7 @@ export default function Sell({ tick, onChanged }: { tick: number; onChanged: () 
 
         {known && customer && customer.goodsDues.length > 0 && (
           <div className="space-y-2">
-            <p className="text-sm font-semibold">Inventory dues (goods on credit)</p>
+            <p className="text-sm font-semibold">Inventory dues (goods on credit) <span className="font-normal text-muted">· owes {rs(customer.goodsDues.reduce((t, d) => t + d.amount, 0))}</span></p>
             <ul className="space-y-1.5">
               {customer.goodsDues.map((d) => (
                 <li key={d.id}>

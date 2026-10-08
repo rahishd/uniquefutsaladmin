@@ -77,3 +77,6 @@ export type Report = {
   dues: { count: number; amount: number; items: { kind: string; team: string; phone: string | null; amount: number; date: string; detail: string }[] };
 };
 export const getReport = (from: string, to: string) => api<Report>(`/admin/inventory/report?from=${from}&to=${to}`);
+
+export type CreditDue = { id: string; phone: string; name: string | null; items: string; amount: number; createdAt: string };
+export const creditDues = (q = "") => api<{ items: CreditDue[]; total: number }>(`/admin/inventory/dues?q=${encodeURIComponent(q)}`);

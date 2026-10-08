@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { Badge } from "../bookings/Badge";
 import CollectModal from "./CollectModal";
+import GoodsDues from "./GoodsDues";
+import CustomerSheet from "../customers/CustomerSheet";
 import { guard } from "@/lib/access";
 import { prettyDate, rs } from "@/lib/bookings";
 import { Filters, Kind, Ledger, METHOD_LABEL, Mode, PAGE_SIZE, PayStatus, Period, Row, Summary, listPayments, paymentSummary } from "@/lib/payments";
@@ -41,7 +43,9 @@ export default function PaymentsPage() {
   const [sum, setSum] = useState<Summary | null>(null);
   const [error, setError] = useState("");
   const [collecting, setCollecting] = useState<Row | null>(null);
+  const [viewing, setViewing] = useState<Row | null>(null);
   const [tick, setTick] = useState(0);
+  const [view, setView] = useState<"payments" | "goods">("payments"); // goods = what customers owe for items put on their account
 
   useEffect(() => {
     const t = setTimeout(() => { setF((x) => (x.q === search ? x : { ...x, q: search })); setPageNo(1); }, 300);
@@ -68,13 +72,17 @@ export default function PaymentsPage() {
         <p className="text-sm text-muted">Who has paid, who still owes, and how: cash at the venue or online.</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-1 rounded-2xl bg-surface p-1 shadow-sm" role="tablist" aria-label="Payment type">
-        {([["court", "Court bookings"], ["gamezone", "Gamezone"]] as [Kind, string][]).map(([id, label]) => (
-          <button key={id} role="tab" aria-selected={f.kind === id} onClick={() => change({ kind: id })}
-            className={`rounded-xl py-2.5 text-sm font-semibold ${f.kind === id ? "bg-brand text-white" : "text-muted hover:bg-surface-2"}`}>{label}</button>
-        ))}
+      <div className="grid grid-cols-3 gap-1 rounded-2xl bg-surface p-1 shadow-sm" role="tablist" aria-label="Payment type">
+        {([["court", "Court bookings"], ["gamezone", "Gamezone"], ["goods", "Goods on credit"]] as [Kind | "goods", string][]).map(([id, label]) => {
+          const on = id === "goods" ? view === "goods" : view === "payments" && f.kind === id;
+          return (
+            <button key={id} role="tab" aria-selected={on} onClick={() => { if (id === "goods") setView("goods"); else { setView("payments"); change({ kind: id }); } }}
+              className={`rounded-xl py-2.5 text-sm font-semibold ${on ? "bg-brand text-white" : "text-muted hover:bg-surface-2"}`}>{label}</button>
+          );
+        })}
       </div>
 
+      {view === "goods" ? <GoodsDues tick={tick} onChanged={() => setTick((t) => t + 1)} /> : (<>
       <div className="grid grid-cols-2 gap-3">
         <Card title="Paid" value={sum ? rs(sum.paid.sum) : "—"} sub={sum ? `${sum.paid.count} payments` : " "} tone="text-brand" />
         <Card title="Unpaid (to collect)" value={sum ? rs(sum.unpaid.sum) : "—"} sub={sum ? `${sum.unpaid.count} bookings` : " "} tone="text-amber-600" />
@@ -130,7 +138,11 @@ export default function PaymentsPage() {
           return (
             <li key={`${r.kind}-${r.id}`} className="flex items-center gap-3 rounded-2xl bg-surface p-4 shadow-sm">
               <div className="min-w-0 flex-1">
-                <p className="line-clamp-2 break-words font-semibold">{r.customer || "Guest"}</p>
+                {r.phone ? (
+                  <button onClick={() => setViewing(r)} title="View customer details" className="line-clamp-2 break-words text-left font-semibold underline-offset-2 hover:text-brand hover:underline">{r.customer || "Guest"}</button>
+                ) : (
+                  <p className="line-clamp-2 break-words font-semibold">{r.customer || "Guest"}</p>
+                )}
                 <p className="truncate text-sm text-muted">{r.phone || "No phone"} · <span className="font-mono">{r.code}</span></p>
                 <p className="text-xs text-muted">{prettyDate(r.date)} · {r.time}</p>
                 <div className="mt-2 flex flex-wrap gap-1.5">
@@ -156,6 +168,16 @@ export default function PaymentsPage() {
           <button disabled={pageNo >= pages} onClick={() => { setPageNo(pageNo + 1); setData(null); }} className="flex items-center gap-1 rounded-xl bg-surface px-3 py-2 shadow-sm disabled:opacity-40">Next <ChevronRight size={16} /></button>
         </div>
       )}
+
+      {viewing?.phone && (
+        <CustomerSheet
+          customer={{ phoneNumber: viewing.phone, name: viewing.customer || null, email: null, isActive: true, createdAt: "", mode: "player", vip: null, stats: { gamesPlayed: 0, gamezoneSessions: 0, paidTotal: 0, unpaidTotal: 0, openComplaints: 0, cancelStreak: 0 } }}
+          onClose={() => setViewing(null)}
+          onChanged={() => setTick((t) => t + 1)}
+        />
+      )}
+
+      </>)}
 
       {collecting && <CollectModal target={collecting} onClose={() => setCollecting(null)} onDone={() => { setTick((t) => t + 1); }} />}
     </div>

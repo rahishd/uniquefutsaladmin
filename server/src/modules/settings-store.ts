@@ -24,7 +24,13 @@ export async function getJson<T>(key: string, fallback: T): Promise<T> {
 }
 
 export const getHourlyRate = async () => Number((await getSetting("hourlyRate")) ?? 0) || 0;
-export const getHourlyPricing = () => getJson<HourPrice[]>("hourlyPricing", []);
+// Until prices are saved in Courts & Pricing, the customer app charges these (Rs. 1,500 for 5 to 9 AM and from 5 PM, else Rs. 1,000), so the admin shows the same.
+export const defaultHourlyPricing = (): HourPrice[] => Array.from({ length: 17 }, (_, i) => {
+  const hour = i + 5;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return { id: `ts-${hour}`, time: `${pad(hour)}:00 - ${pad(hour + 1)}:00`, price: hour < 9 || hour >= 17 ? 1500 : 1000 };
+});
+export const getHourlyPricing = () => getJson<HourPrice[]>("hourlyPricing", defaultHourlyPricing());
 export const getPromoCodes = () => getJson<PromoCode[]>("promoCodes", []);
 
 export async function getHourPrice(hour: number): Promise<number> {
