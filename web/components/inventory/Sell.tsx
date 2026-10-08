@@ -7,6 +7,7 @@ import { CheckCircle2, Minus, Plus, Search, ShoppingCart } from "lucide-react";
 import PaySplit, { INITIAL_PAY, PayState, paymentsFor } from "../PaySplit";
 import { ApiError } from "@/lib/api";
 import { guard } from "@/lib/access";
+import { Hour, getDay, hourLabel, todayKey } from "@/lib/slots";
 import { BillResult, CreditResult, CustomerBill, Product, checkout, customerBill, listProducts, rs, sell } from "@/lib/inventory";
 
 const field = "rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
@@ -23,6 +24,9 @@ export default function Sell({ tick, onChanged }: { tick: number; onChanged: () 
   const [pay, setPay] = useState<PayState>(INITIAL_PAY);
   const [dueOn, setDueOn] = useState<Record<string, boolean>>({}); // goods on credit chosen for this bill
   const [phone, setPhone] = useState("");
+  const [name, setName] = useState(""); // who the sale is for (free text, so a walk-in can be tracked too)
+  const [slot, setSlot] = useState(""); // booking id of today's slot this sale belongs to
+  const [today, setToday] = useState<Hour[]>([]);
   const [bill, setBill] = useState<{ phone: string; data: CustomerBill } | null>(null);
   const [games, setGames] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
@@ -33,6 +37,12 @@ export default function Sell({ tick, onChanged }: { tick: number; onChanged: () 
   useEffect(() => {
     let live = true;
     listProducts({}).then((p) => { if (live) setProducts(p); }).catch((e) => { if (live) setError(msg(e)); });
+    return () => { live = false; };
+  }, [tick, local]);
+
+  useEffect(() => {
+    let live = true;
+    getDay(todayKey()).then((d) => { if (live) setToday(d.hours.filter((h) => h.state === "booked" && h.booking)); }).catch(() => {});
     return () => { live = false; };
   }, [tick, local]);
 
@@ -68,7 +78,7 @@ export default function Sell({ tick, onChanged }: { tick: number; onChanged: () 
   const shown = (products ?? []).filter((p) => !search.trim() || p.name.toLowerCase().includes(search.trim().toLowerCase()));
   const setQty = (p: Product, qty: number) => setCart((c) => ({ ...c, [p.id]: Math.max(0, Math.min(Number.isFinite(qty) ? qty : 0, p.stock)) }));
 
-  function reset() { setCart({}); setPhone(""); setBill(null); setPay(INITIAL_PAY); setLocal((n) => n + 1); onChanged(); }
+  function reset() { setCart({}); setPhone(""); setName(""); setSlot(""); setBill(null); setPay(INITIAL_PAY); setLocal((n) => n + 1); onChanged(); }
 
   async function complete(onAccount = false) {
     if (!guard("inventory.sell")) return;
@@ -81,7 +91,7 @@ export default function Sell({ tick, onChanged }: { tick: number; onChanged: () 
       if (onAccount && phone) setDone(await checkout({ phone, payment: "due", items, bookingIds: [], goodsDueIds: [] }));
       else if (phone && known) setDone(await checkout({ phone, ...how, items, bookingIds: chosenGames.map((g) => g.id), goodsDueIds: chosenDues.map((d) => d.id) }));
       else {
-        const r = await sell({ ...how, items });
+        const r = await sell({ ...how, items, customerName: name.trim() || undefined, bookingId: slot || undefined });
         setDone({ simple: true, amount: r.amount, items: r.items });
       }
       reset();
@@ -160,6 +170,20 @@ export default function Sell({ tick, onChanged }: { tick: number; onChanged: () 
         {phone && !phoneOk && <p className="text-xs text-red-600">Enter all 10 digits, starting with 9.</p>}
         {phoneOk && customer && !known && <p className="rounded-xl bg-amber-500/10 p-2 text-xs text-amber-700">This number is not registered, so there is no account for the bill or points. Clear it for a walk-in sale.</p>}
         {known && <p className="rounded-xl bg-brand/10 p-2 text-sm font-semibold text-brand">{known.name ?? "Registered customer"}</p>}
+
+        {!known && (
+          <>
+            <label className="block space-y-1 text-sm font-medium">Customer name <span className="font-normal text-muted">(optional)</span>
+              <input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} placeholder="e.g. Rahish" className={`${field} w-full`} />
+            </label>
+            <label className="block space-y-1 text-sm font-medium">Add to slot <span className="font-normal text-muted">(today, optional)</span>
+              <select value={slot} onChange={(e) => { const id = e.target.value; setSlot(id); const b = today.find((h) => h.booking!.id === id)?.booking; if (b && !name.trim()) setName(b.customerName ?? ""); }} className={`${field} w-full`}>
+                <option value="">No slot (counter sale)</option>
+                {today.map((h) => <option key={h.hour} value={h.booking!.id}>{hourLabel(h.hour)} · {h.booking!.customerName ?? "Guest"}</option>)}
+              </select>
+            </label>
+          </>
+        )}
 
         {known && customer && (
           <div className="space-y-2">

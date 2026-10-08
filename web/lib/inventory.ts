@@ -11,7 +11,7 @@ export type Overview = {
   salesToday: { amount: number; count: number }; salesWeek: { amount: number; count: number }; goodsDue: { amount: number; count: number };
 };
 export type Log = { id: string; product: string; unit: string; change: number; price: number | null; reason: string | null; createdAt: string };
-export type Sale = { credit?: "due" | "paid" | null; id: string; amount: number; items: string | null; soldAt: string; customerPhone: string | null; customerName: string | null; soldBy: string | null };
+export type Sale = { credit?: "due" | "paid" | null; id: string; amount: number; items: string | null; soldAt: string; customerPhone: string | null; customerName: string | null; slot?: string | null; soldBy: string | null };
 export type Paged<T> = { items: T[]; total: number; page: number; limit: number };
 export type ProductInput = { name: string; description?: string | null; price: number; costPrice?: number | null; unit: string; lowStockThreshold: number; categoryId: string };
 
@@ -59,7 +59,7 @@ export const listBills = (page: number) => api<Paged<Bill>>(`/admin/inventory/bi
 
 export const listLogs = (page: number) => api<Paged<Log>>(`/admin/inventory/logs?page=${page}&limit=${PAGE_SIZE}`);
 export const listSales = (page: number) => api<Paged<Sale>>(`/admin/inventory/sales?page=${page}&limit=${PAGE_SIZE}`);
-export const sell = (b: PayArgs & { phone?: string; items: { productId: string; quantity: number }[] }) =>
+export const sell = (b: PayArgs & { phone?: string; items: { productId: string; quantity: number }[]; customerName?: string; bookingId?: string }) =>
   api<{ id: string; amount: number; items: string; points: number; customerName: string | null }>("/admin/inventory/sales", { method: "POST", body: JSON.stringify(b) });
 
 // ---- Inventory report: sales totals and the detail for a day or a date range ----

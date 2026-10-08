@@ -103,10 +103,10 @@ export async function buildGoods(tx: Tx, merged: Map<string, number>): Promise<G
 }
 
 // Takes the stock, writes the log (with the cash / online split) and the GoodsSale row.
-export async function commitGoods(tx: Tx, lines: GoodsLine[], staffId: string, phoneNo: string | null, shares: Share[]) {
+export async function commitGoods(tx: Tx, lines: GoodsLine[], staffId: string, phoneNo: string | null, shares: Share[], who: { customerName?: string | null; bookingId?: string | null } = {}) {
   const total = lines.reduce((s, l) => s + l.amount, 0);
   const sale = await tx.goodsSale.create({
-    data: { userId: phoneNo, phone: phoneNo, amount: total, items: lines.map((l) => `${l.qty} x ${l.p.name}`).join(", ").slice(0, 190), soldBy: staffId },
+    data: { userId: phoneNo, phone: phoneNo, amount: total, items: lines.map((l) => `${l.qty} x ${l.p.name}`).join(", ").slice(0, 190), soldBy: staffId, customerName: who.customerName ?? null, bookingId: who.bookingId ?? null },
   });
   for (const [i, l] of lines.entries()) {
     await tx.product.update({ where: { id: l.p.id }, data: { inventory: { decrement: l.qty } } });
@@ -116,12 +116,12 @@ export async function commitGoods(tx: Tx, lines: GoodsLine[], staffId: string, p
 }
 
 // A counter sale paid now (one or several methods).
-export async function sellGoods(tx: Tx, merged: Map<string, number>, pay: PayInput, staffId: string, phoneNo: string | null) {
+export async function sellGoods(tx: Tx, merged: Map<string, number>, pay: PayInput, staffId: string, phoneNo: string | null, who: { customerName?: string | null; bookingId?: string | null } = {}) {
   const lines = await buildGoods(tx, merged);
   const total = lines.reduce((s, l) => s + l.amount, 0);
   const pays = resolvePays(pay, total);
   await claimFonepay(tx, pay, pays, "counter sale");
-  return commitGoods(tx, lines, staffId, phoneNo, allocate(lines.map((l) => l.amount), pays));
+  return commitGoods(tx, lines, staffId, phoneNo, allocate(lines.map((l) => l.amount), pays), who);
 }
 
 // Goods given on credit: the stock goes now, the money is a due that is collected later with the games.

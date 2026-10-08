@@ -82,7 +82,7 @@ function GoodsSales({ tick }: { tick: number }) {
           <li key={s.id} className="flex items-center justify-between gap-3 rounded-2xl bg-surface p-4 shadow-sm">
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold">{s.items ?? "Goods"}</p>
-              <p className="text-xs text-muted">{when(s.soldAt)} · {s.customerName ?? s.customerPhone ?? "Walk-in"}{s.soldBy ? ` · by ${s.soldBy}` : ""}{s.credit === "due" ? " · ON CREDIT, UNPAID" : s.credit === "paid" ? " · was on credit, paid" : ""}</p>
+              <p className="text-xs text-muted">{when(s.soldAt)} · {s.customerName ?? s.customerPhone ?? "Walk-in"}{s.slot ? ` · slot ${s.slot}` : ""}{s.soldBy ? ` · by ${s.soldBy}` : ""}{s.credit === "due" ? " · ON CREDIT, UNPAID" : s.credit === "paid" ? " · was on credit, paid" : ""}</p>
             </div>
             <p className="shrink-0 text-lg font-bold">{rs(s.amount)}</p>
           </li>
