@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Check, Copy, MessageCircle, RefreshCw, ShieldCheck, UserRound, X } from "lucide-react";
 import { guard } from "@/lib/access";
+import { withBase } from "@/lib/base";
 import { ApiError } from "@/lib/api";
 import { Account, Catalog, createStaff, getCatalog, randomPassword, updateStaff } from "@/lib/staff";
 import { copyText } from "@/lib/vip";
@@ -20,7 +21,7 @@ function Box({ on }: { on: boolean }) {
 // The sign-in details of an account that was just saved: copy each one, copy everything, or send it on WhatsApp.
 function SignInDetails({ email, password }: { email: string; password?: string }) {
   const [done, setDone] = useState("");
-  const link = typeof window === "undefined" ? "" : `${window.location.origin}/login`;
+  const link = typeof window === "undefined" ? "" : `${window.location.origin}${withBase("/login")}`;
   const message = [
     "Unique Futsal admin portal: your sign-in details", link && `Link: ${link}`, `Email: ${email}`, password ? `Password: ${password}` : "Password: unchanged",
     password ? "Please change your password after signing in (Settings > My password)." : "",

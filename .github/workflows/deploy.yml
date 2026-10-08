@@ -1,0 +1,29 @@
+# Deploys ONLY the admin portal and its API to the server after every push to main.
+# Stays switched off until you add the repository variable DEPLOY_ENABLED=true (Settings > Secrets and variables > Actions > Variables)
+# and the three secrets SSH_HOST, SSH_USER, SSH_KEY. Steps: deploy/HOSTING.md in the hosting kit.
+name: Deploy admin portal
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-admin
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update the server over SSH
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new "$SSH_USER@$SSH_HOST" "bash /var/www/unique/deploy/scripts/update-admin.sh"

@@ -1,4 +1,5 @@
 import { API_BASE, api, ApiError } from "./api";
+import { withBase } from "./base";
 
 export type Side = "home" | "away";
 export type MatchStatus = "upcoming" | "live" | "finished";
@@ -73,4 +74,4 @@ export const fromNepalInput = (v: string) => (v ? new Date(`${v}:00+05:45`).toIS
 export const nepalTime = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString("en-GB", { timeZone: "Asia/Kathmandu", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "";
 
-export const hostUrl = (token: string) => `${typeof window === "undefined" ? "" : window.location.origin}/host/${token}`;
+export const hostUrl = (token: string) => `${typeof window === "undefined" ? "" : window.location.origin}${withBase("/host/" + token)}`;
