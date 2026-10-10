@@ -48,6 +48,18 @@ gamezoneRouter.get("/bookings", requirePermission("gamezone.view"), handler(asyn
   send(res, { items: await enrich(rows), total, page: pageNo, limit });
 }));
 
+// Registered customers by name or mobile number, for the "book a session" form's suggestions. Kept here (not on the
+// Customers page route) so a Gamezone attendant without the Customers permission can still link a session to an account.
+gamezoneRouter.get("/customers", requirePermission("gamezone.view"), handler(async (req, res) => {
+  const q = String((req.query as Record<string, string | undefined>).q ?? "").trim();
+  if (q.length < 2) return send(res, { items: [] });
+  const items = await prisma.user.findMany({
+    where: { role: "user", isActive: true, OR: [{ name: { contains: q, mode: "insensitive" } }, { phoneNumber: { contains: q } }] },
+    select: { phoneNumber: true, name: true }, orderBy: { name: "asc" }, take: 8,
+  });
+  send(res, { items });
+}));
+
 // One day on one screen: every console with its sessions, plus the money for that day.
 gamezoneRouter.get("/day", requirePermission("gamezone.view"), handler(async (req, res) => {
   const date = parse(dateStr, (req.query as Record<string, string | undefined>).date ?? todayKey());
