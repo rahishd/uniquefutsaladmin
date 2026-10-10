@@ -6,7 +6,7 @@ import { ApiError } from "@/lib/api";
 import { guard } from "@/lib/access";
 import { rs } from "@/lib/bookings";
 import { DEFAULT_GZ_PLANS, GzCatalog, getGzCatalog } from "@/lib/courts";
-import { createGzSession } from "@/lib/gamezone";
+import { GzCustomer, createGzSession, searchGzCustomers } from "@/lib/gamezone";
 import { todayKey } from "@/lib/slots";
 
 const input = "w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
@@ -32,6 +32,28 @@ export default function NewSessionModal({ date: initialDate, onClose, onDone }: 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState<{ code: string; total: number } | null>(null);
+  const [linked, setLinked] = useState<GzCustomer | null>(null); // a registered customer picked from the suggestions
+  const [field, setField] = useState<"name" | "phone" | null>(null); // which box the suggestions belong to
+  const [hits, setHits] = useState<GzCustomer[]>([]);
+
+  // Suggest registered customers while staff type a name or a number. Typing again clears the link, so the session
+  // is only tied to an account when a suggestion was chosen or the number typed is exactly theirs.
+  useEffect(() => {
+    const q = (field === "phone" ? phone : name).trim();
+    if (!field || linked || q.length < 2) { setHits([]); return; }
+    let live = true;
+    const t = setTimeout(() => {
+      searchGzCustomers(q).then((r) => { if (live) setHits(r.items); }).catch(() => { if (live) setHits([]); });
+    }, 250);
+    return () => { live = false; clearTimeout(t); };
+  }, [field, name, phone, linked]);
+
+  function pick(c: GzCustomer) {
+    setLinked(c);
+    setName(c.name ?? c.phoneNumber);
+    setPhone(c.phoneNumber);
+    setHits([]);
+  }
 
   useEffect(() => {
     getGzCatalog()
@@ -83,11 +105,30 @@ export default function NewSessionModal({ date: initialDate, onClose, onDone }: 
           </div>
         ) : (
           <>
-            <Field label="Customer name"><input className={input} value={name} maxLength={60} onChange={(e) => setName(e.target.value)} placeholder="Full name" /></Field>
-            <Field label="Mobile number (optional, links to their account)">
-              <input className={input} inputMode="numeric" value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))} placeholder="98XXXXXXXX" />
-              {!phoneOk && <span className="text-xs text-red-600">A 10-digit number starting with 9</span>}
-            </Field>
+            <div className="relative space-y-4" onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setTimeout(() => setField(null), 100); }}>
+              <Field label="Customer name">
+                <input className={input} value={name} maxLength={60} autoComplete="off" onFocus={() => setField("name")}
+                  onChange={(e) => { setName(e.target.value); setLinked(null); setField("name"); }} placeholder="Type a name to find a registered customer" />
+              </Field>
+              <Field label="Mobile number (optional, links to their account)">
+                <input className={input} inputMode="numeric" value={phone} autoComplete="off" onFocus={() => setField("phone")}
+                  onChange={(e) => { setPhone(e.target.value.replace(/\D/g, "").slice(0, 10)); setLinked(null); setField("phone"); }} placeholder="98XXXXXXXX" />
+                {!phoneOk && <span className="text-xs text-red-600">A 10-digit number starting with 9</span>}
+              </Field>
+              {linked && <p className="rounded-xl bg-brand/10 px-3 py-2 text-xs font-semibold text-brand">Registered customer: {linked.name ?? linked.phoneNumber} · {linked.phoneNumber}. This session will show on their account.</p>}
+              {field && hits.length > 0 && (
+                <ul className={`absolute left-0 right-0 z-10 max-h-56 overflow-y-auto rounded-xl border border-line bg-surface p-1 shadow-lg ${field === "phone" ? "top-[8.5rem]" : "top-[4.5rem]"}`} role="listbox" aria-label="Registered customers">
+                  {hits.map((c) => (
+                    <li key={c.phoneNumber}>
+                      <button type="button" role="option" aria-selected={false} onMouseDown={(e) => e.preventDefault()} onClick={() => pick(c)} className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-surface-2">
+                        <span className="min-w-0 truncate font-semibold">{c.name ?? "Customer"}</span>
+                        <span className="shrink-0 text-xs text-muted">{c.phoneNumber}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Date"><input type="date" className={input} value={date} onChange={(e) => e.target.value && setDate(e.target.value)} /></Field>
               <Field label="Start time">

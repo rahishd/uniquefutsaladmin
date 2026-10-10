@@ -30,6 +30,8 @@ export type GzManualInput = {
   consoleId: string; gameTitle: string; date: string; startHour: number; hours: number; players: number;
   customerName: string; customerPhone?: string; paid: boolean;
 };
+export type GzCustomer = { phoneNumber: string; name: string | null };
+export const searchGzCustomers = (q: string) => api<{ items: GzCustomer[] }>(`/admin/gamezone/customers?q=${encodeURIComponent(q)}`);
 export const createGzSession = (b: GzManualInput) => api<{ code: string; total: number }>("/admin/gamezone/bookings", { method: "POST", body: JSON.stringify(b) });
 
 const post = (code: string, action: "mark-paid" | "complete" | "cancel") => api(`/admin/gamezone/bookings/${encodeURIComponent(code)}/${action}`, { method: "POST" });
