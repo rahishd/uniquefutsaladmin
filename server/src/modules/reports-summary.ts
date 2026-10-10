@@ -7,6 +7,7 @@ import { prisma } from "../db";
 import { addDaysKey, todayKey } from "../lib/dates";
 import { AppError, dateStr, handler, parse, send } from "../lib/http";
 import { DEAD } from "../lib/settle";
+import { gzSplits } from "../lib/gz-pay";
 import { requirePermission } from "../middleware/auth";
 
 export const reportsSummaryRouter = Router();
@@ -41,8 +42,9 @@ async function period(from: string, to: string) {
   for (const l of logs) if (l.cashAmount + l.onlineAmount > 0) put(dayOf(l.createdAt), "goods", { cash: l.cashAmount, fonepay: l.onlineAmount });
   for (const d of await prisma.goodsDue.findMany({ where: { status: "paid", paidAt: { gte: start, lt: end } } })) put(dayOf(d.paidAt!), "goods", { cash: d.cashAmount, fonepay: d.onlineAmount });
   // gamezone
-  const gz = await prisma.gzBooking.findMany({ where: { date: { gte: from, lte: to }, paymentStatus: "paid", status: { notIn: ["cancelled", "expired"] } }, select: { date: true, total: true, paymentMethod: true } });
-  for (const g of gz) put(g.date, "gamezone", ONLINE.test(g.paymentMethod) ? { cash: 0, fonepay: g.total } : { cash: g.total, fonepay: 0 });
+  const gz = await prisma.gzBooking.findMany({ where: { date: { gte: from, lte: to }, paymentStatus: "paid", status: { notIn: ["cancelled", "expired"] } }, select: { code: true, date: true, total: true, paymentMethod: true } });
+  const gzSplit = await gzSplits(gz);
+  for (const g of gz) put(g.date, "gamezone", gzSplit.get(g.code)!);
 
   // hosted tournaments: money received that day
   for (const p of await prisma.tournamentPayment.findMany({ where: { createdAt: { gte: start, lt: end } }, select: { createdAt: true, cash: true, fonepay: true } })) put(dayOf(p.createdAt), "tournaments", { cash: p.cash, fonepay: p.fonepay });

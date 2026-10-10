@@ -225,7 +225,7 @@ function VouchersTab({ tick, onChanged }: { tick: number; onChanged: () => void 
       <div className="flex gap-1 overflow-x-auto rounded-2xl bg-surface p-1 shadow-sm" role="tablist" aria-label="Voucher status">
         {([["unused", "Unused"], ["used", "Used"], ["void", "Voided"], ["", "All"]] as const).map(([id, l]) => <button key={l} role="tab" aria-selected={status === id} onClick={() => { setStatus(id); setPageNo(1); }} className={`flex-1 whitespace-nowrap rounded-xl px-3 py-2 text-sm font-semibold ${status === id ? "bg-brand text-white" : "text-muted hover:bg-surface-2"}`}>{l}</button>)}
       </div>
-      <p className="text-sm text-muted">A customer spends points to claim a free game for a shift (10 games = 1 free game). The voucher is used when they book with it.</p>
+      <p className="text-sm text-muted">A customer spends points to claim a free game for a shift (the cost is the shift price ÷ 10 in points). The voucher is used when they book with it.</p>
       {err && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600" role="alert">{err}</p>}
       <Status error={error} loading={!data} empty={data && data.items.length === 0 ? "No vouchers here." : undefined} />
       <ul className="grid gap-2 xl:grid-cols-2">
@@ -244,11 +244,12 @@ function VouchersTab({ tick, onChanged }: { tick: number; onChanged: () => void 
 function RulesTab() {
   const rows: [string, string][] = [
     ["A paid game", "Price ÷ 100 points (Rs. 1,250 = 12.5 points), added when the game is completed and paid. Free-game and challenge games earn none."],
+    ["Gamezone", "Every hour played = 5 points (a 2 hour session = 10), added when the session is completed and paid. Guests earn none."],
     ["Goods", "Every Rs. 100 = 1 point, added when the goods are paid. Goods taken on credit earn when they are paid."],
     ["Membership", "3 months = 30 points, 6 months = 70 points, one month = 0. Added once when the payment is verified, and again for each renewal."],
     ["Winning a challenge game", "5 points to the winning captain, once, when the result is approved."],
     ["Refer & Earn", "Points for both people when staff approve a referral. The amounts are set on the Refer & Earn page."],
-    ["Free game", "10 games' worth of points = 1 free game of that shift (cost = price ÷ 10). The customer claims it in the app and uses the voucher when booking."],
+    ["Free game", "Costs the shift price ÷ 10 in points (a Rs. 1,250 morning game = 125 points). There is no 10-games rule: the customer can claim as soon as they hold that many points. They claim it in the app and use the voucher when booking."],
     ["How long points last", "Game and challenge points: 3 months from the game. Goods: 1 year. Referral: 12 months. Membership: never. Spending uses the points that expire soonest first."],
     ["Adjustments", "Staff can add or take away up to 200 points with a reason. The customer is told. Adjusting is limited to people with that permission."],
   ];

@@ -12,6 +12,7 @@ import { NOT_LEDGER } from "./bookings";
 import { cancellationProfile, cancellationStreaks } from "./cancellations";
 import { CATEGORIES } from "./complaints";
 import { getPromoCodes } from "./settings-store";
+import { gzSplits } from "../lib/gz-pay";
 
 export const customersRouter = Router();
 
@@ -89,7 +90,19 @@ export async function customerProfile(phone: string) {
     prisma.booking.findMany({ where: mine, orderBy: [{ date: "desc" }, { startTime: "desc" }], take: 10 }),
     prisma.booking.groupBy({ by: ["paymentMethod"], where: { AND: [mine, { paymentStatus: "completed" }, live] }, _sum: { totalPrice: true }, _count: { _all: true } }),
     prisma.booking.aggregate({ where: { AND: [mine, { paymentStatus: { not: "completed" } }, live] }, _sum: { totalPrice: true }, _count: { _all: true } }),
-    prisma.gzBooking.groupBy({ by: ["paymentMethod"], where: { userId: phone, paymentStatus: "paid", ...live }, _sum: { total: true }, _count: { _all: true } }),
+    // Gamezone money paid, cash and Fonepay split exactly (a session can be part of each); counted once under the method that paid most
+    (async () => {
+      const rows = await prisma.gzBooking.findMany({ where: { userId: phone, paymentStatus: "paid", ...live }, select: { code: true, total: true, paymentMethod: true } });
+      const split = await gzSplits(rows);
+      const venue = { paymentMethod: "venue", _sum: { total: 0 }, _count: { _all: 0 } };
+      const online = { paymentMethod: "fonepay", _sum: { total: 0 }, _count: { _all: 0 } };
+      for (const r of rows) {
+        const s = split.get(r.code)!;
+        venue._sum.total += s.cash; online._sum.total += s.fonepay;
+        (s.cash >= s.fonepay ? venue : online)._count._all += 1;
+      }
+      return [venue, online];
+    })(),
     prisma.gzBooking.aggregate({ where: { userId: phone, paymentStatus: { not: "paid" }, ...live }, _sum: { total: true }, _count: { _all: true } }),
     prisma.gzBooking.findMany({ where: { userId: phone }, orderBy: { createdAt: "desc" }, take: 10 }),
     prisma.goodsSale.aggregate({ where: { OR: [{ userId: phone }, { phone }] }, _sum: { amount: true }, _count: { _all: true } }),

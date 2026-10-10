@@ -228,6 +228,52 @@ describe("gamezone, teams, notices, reports", () => {
     assert.equal((await api.get("/payments/refunds?status=due", fd.auth)).body.data.length, 1);
   });
 
+  it("gamezone: a session can be paid part cash and part Fonepay, and the Fonepay part needs a paid QR for that amount", async () => {
+    const fd = await staff("frontdesk");
+    await prisma.gzBooking.create({ data: { code: "GZ-SPLIT", guestName: "Sita", guestPhone: "9877777778", consoleId: "c1", gameTitle: "FIFA 26", date: tomorrow, startHour: 16, hours: 1, players: 2, total: 400, paymentMethod: "venue", paymentStatus: "pay_at_venue" } });
+    // cash + Fonepay with no QR is refused, a QR for the wrong amount is refused
+    const split = [{ method: "cash", amount: 100 }, { method: "fonepay", amount: 300 }];
+    assert.equal((await api.post("/gamezone/bookings/GZ-SPLIT/mark-paid", fd.auth, { payments: split })).status, 400);
+    assert.equal((await api.post("/gamezone/bookings/GZ-SPLIT/mark-paid", fd.auth, { payments: split, fonepayQrId: await paidQr(fd.auth, 250) })).status, 409);
+    // the payments must add up to the session total
+    assert.equal((await api.post("/gamezone/bookings/GZ-SPLIT/mark-paid", fd.auth, { payments: [{ method: "cash", amount: 100 }] })).status, 400);
+    assert.equal((await prisma.gzBooking.findUnique({ where: { code: "GZ-SPLIT" } }))?.paymentStatus, "pay_at_venue");
+    const ok = await api.post("/gamezone/bookings/GZ-SPLIT/mark-paid", fd.auth, { payments: split, fonepayQrId: await paidQr(fd.auth, 300) });
+    assert.equal(ok.status, 200);
+    const row = await prisma.gzBooking.findUnique({ where: { code: "GZ-SPLIT" } });
+    assert.equal(row?.paymentStatus, "paid");
+    assert.equal(row?.paymentMethod, "fonepay"); // Fonepay paid the larger part
+    assert.equal((await api.post("/gamezone/bookings/GZ-SPLIT/mark-paid", fd.auth)).status, 409);
+
+    // the Overview, the report and the Payments summary all show Rs. 100 cash + Rs. 300 Fonepay, not Rs. 400 under one method
+    const day = tomorrow;
+    const rep = (await api.get(`/inventory/report?from=${day}&to=${day}`, fd.auth)).body.data;
+    assert.deepEqual([rep.totals.bySource.gamezone.cash, rep.totals.bySource.gamezone.fonepay], [100, 300]);
+    const sum = (await api.get(`/payments/summary?kind=gamezone&from=${day}&to=${day}`, fd.auth)).body.data;
+    assert.equal(sum.paidCash.sum, 100);
+    assert.equal(sum.paidOnline.sum, 300);
+    assert.equal(sum.paid.count, 1);
+  });
+
+  it("gamezone: every hour played earns 5 loyalty points, once, when the session is both paid and completed", async () => {
+    const fd = await staff("frontdesk");
+    await customer("9877000555");
+    await prisma.gzBooking.create({ data: { code: "GZ-PTS", userId: "9877000555", consoleId: "c1", gameTitle: "FIFA 26", date: tomorrow, startHour: 10, hours: 2, players: 1, total: 600, paymentMethod: "venue", paymentStatus: "pay_at_venue" } });
+    const pts = () => prisma.loyaltyEntry.findMany({ where: { userId: "9877000555", sourceType: "gamezone" } });
+    assert.equal((await api.post("/gamezone/bookings/GZ-PTS/mark-paid", fd.auth)).status, 200);
+    assert.equal((await pts()).length, 0); // paid but not yet played
+    assert.equal((await api.post("/gamezone/bookings/GZ-PTS/complete", fd.auth)).status, 200);
+    const rows = await pts();
+    assert.equal(rows.length, 1);
+    assert.equal(Number(rows[0].points), 10); // 2 hours x 5
+    assert.equal(rows[0].kind, "game");
+    // a guest session earns nothing
+    await prisma.gzBooking.create({ data: { code: "GZ-GUEST", guestName: "Guest", guestPhone: "9877000556", consoleId: "c1", gameTitle: "FIFA 26", date: tomorrow, startHour: 12, hours: 1, players: 1, total: 300, paymentMethod: "venue", paymentStatus: "pay_at_venue" } });
+    await api.post("/gamezone/bookings/GZ-GUEST/mark-paid", fd.auth);
+    await api.post("/gamezone/bookings/GZ-GUEST/complete", fd.auth);
+    assert.equal(await prisma.loyaltyEntry.count({ where: { sourceId: "GZ-GUEST" } }), 0);
+  });
+
   it("gamezone: the day board names consoles and customers and adds up the money", async () => {
     const fd = await staff("frontdesk");
     await customer("9810000077");

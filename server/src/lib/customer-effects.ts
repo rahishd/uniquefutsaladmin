@@ -8,6 +8,7 @@ export type LoyaltyKind = "game" | "captain_win" | "goods" | "membership" | "ref
 
 export const pointsForGame = (priceRs: number) => Math.floor(Math.max(0, priceRs) / 10) / 10; // price/100, 1 decimal
 export const pointsForGoods = (amountRs: number) => Math.floor(Math.max(0, amountRs) / 100);
+export const GZ_POINTS_PER_HOUR = 5; // Gamezone: every hour played earns 5 points
 
 function expiryFor(kind: LoyaltyKind, earnedOn: string): string | null {
   if (kind === "game" || kind === "captain_win") return addMonthsKey(earnedOn, 3);
@@ -52,4 +53,14 @@ export async function awardForCompletedBooking(b: { id: string; userId: string |
   if (b.notes?.includes("FREE_MATCH") || b.voucherId || b.notes?.includes("MEMBERSHIP_") || b.source === "challenge") return false;
   const pts = pointsForGame(b.totalPrice);
   return awardPoints({ userId: b.userId, kind: "game", points: pts, sourceType: "booking", sourceId: b.id, detail: `Game on ${b.date} at ${b.startTime} (Rs. ${b.totalPrice})`, earnedOn: b.date });
+}
+
+// A completed, paid Gamezone session earns 5 points per hour played (a 2 hour session = 10). Guests earn nothing.
+// Called whenever a session becomes completed or paid, so it fires once both are true; the source key makes it once only.
+export async function awardForGamezone(b: { code: string; userId: string | null; hours: number; status: string; paymentStatus: string; date: string }) {
+  if (!b.userId || b.status !== "completed" || b.paymentStatus !== "paid") return false;
+  return awardPoints({
+    userId: b.userId, kind: "game", points: b.hours * GZ_POINTS_PER_HOUR, sourceType: "gamezone", sourceId: b.code,
+    detail: `Gamezone ${b.hours} ${b.hours === 1 ? "hour" : "hours"} on ${b.date}`, earnedOn: b.date,
+  });
 }
