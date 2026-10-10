@@ -20,7 +20,7 @@ type Range = "today" | "yesterday" | "custom";
 
 function Section({ n, title, children, total }: { n: number; title: string; children: React.ReactNode; total?: React.ReactNode }) {
   return (
-    <section className="rounded-2xl bg-surface p-4 shadow-sm lg:p-5">
+    <section className="glass-card rounded-2xl p-4 lg:p-5">
       <h2 className="mb-3 text-lg font-bold">{n}. {title}</h2>
       {children}
       {total && <p className="mt-3 border-t border-line pt-3 text-base font-bold">{total}</p>}
@@ -75,7 +75,7 @@ export default function OverviewPage() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex gap-1 rounded-2xl bg-surface p-1 shadow-sm" role="tablist" aria-label="Overview period">
+        <div className="glass-card flex gap-1 rounded-2xl p-1" role="tablist" aria-label="Overview period">
           {([["today", "Today"], ["yesterday", "Yesterday"], ["custom", "Custom (From to till)"]] as const).map(([id, l]) => (
             <button key={id} role="tab" aria-selected={range === id} onClick={() => setRange(id)} className={`whitespace-nowrap rounded-xl px-3 py-2 text-sm font-semibold ${range === id ? "bg-brand text-white" : "text-muted hover:bg-surface-2"}`}>{l}</button>
           ))}
@@ -101,13 +101,13 @@ export default function OverviewPage() {
         return (
           <>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="rounded-2xl bg-brand/10 p-4">
+              <div className="glass-card glass-card-brand rounded-2xl p-4">
                 <p className="text-sm text-muted">Total sales</p><p className="text-3xl font-bold text-brand">{rs(o.today.total)}</p>
                 <p className={`mt-1 flex items-center gap-1 text-xs font-semibold ${diff >= 0 ? "text-green-700" : "text-red-600"}`}>{diff >= 0 ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />} {rs(Math.abs(diff))} {diff >= 0 ? "more" : "less"} than {prev}</p>
               </div>
-              <div className="rounded-2xl bg-surface p-4 shadow-sm"><p className="flex items-center gap-2 text-sm text-muted"><QrCode size={16} /> Fonepay</p><p className="text-2xl font-bold">{rs(o.today.fonepay)}</p></div>
-              <div className="rounded-2xl bg-surface p-4 shadow-sm"><p className="flex items-center gap-2 text-sm text-muted"><Banknote size={16} /> Cash</p><p className="text-2xl font-bold">{rs(o.today.cash)}</p></div>
-              <div className="rounded-2xl bg-surface p-4 shadow-sm">
+              <div className="glass-card rounded-2xl p-4"><p className="flex items-center gap-2 text-sm text-muted"><QrCode size={16} /> Fonepay</p><p className="text-2xl font-bold">{rs(o.today.fonepay)}</p></div>
+              <div className="glass-card rounded-2xl p-4"><p className="flex items-center gap-2 text-sm text-muted"><Banknote size={16} /> Cash</p><p className="text-2xl font-bold">{rs(o.today.cash)}</p></div>
+              <div className="glass-card rounded-2xl p-4">
                 <p className="flex items-center gap-2 text-sm text-muted"><Globe size={16} /> Website visits</p>
                 <p className="text-2xl font-bold">{o.visits.visitors}</p>
                 <p className="mt-1 text-xs text-muted">{o.visits.visitors === 1 ? "visitor" : "visitors"}: {o.visits.pageViews} pages opened · {o.visits.signedIn} signed in{o.visits.visitors !== o.visits.previous && <span className={`ml-1 font-semibold ${o.visits.visitors > o.visits.previous ? "text-green-700" : "text-red-600"}`}>({o.visits.visitors > o.visits.previous ? "+" : "-"}{Math.abs(o.visits.visitors - o.visits.previous)} vs {prev})</span>}</p>
