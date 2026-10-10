@@ -7,6 +7,7 @@ import { z } from "zod";
 import { prisma } from "../db";
 import { dateStr, handler, page, parse, send } from "../lib/http";
 import { requirePermission } from "../middleware/auth";
+import { gzSplits } from "../lib/gz-pay";
 import { NOT_LEDGER } from "./bookings";
 
 export const ledgerRouter = Router();
@@ -93,8 +94,16 @@ ledgerRouter.get("/summary", requirePermission("payments.view"), handler(async (
   type Row = { method: string; sum: number; count: number };
   const group = async (paid: boolean): Promise<Row[]> => {
     if (f.kind === "gamezone") {
-      const g = await prisma.gzBooking.groupBy({ by: ["paymentMethod"], where: { AND: [gzBase(f), gzStatus(paid ? "paid" : "unpaid")] }, _sum: { total: true }, _count: { _all: true } });
-      return g.map((r) => ({ method: r.paymentMethod, sum: r._sum.total ?? 0, count: r._count._all }));
+      const rows = await prisma.gzBooking.findMany({ where: { AND: [gzBase(f), gzStatus(paid ? "paid" : "unpaid")] }, select: { code: true, total: true, paymentMethod: true } });
+      // A part cash, part Fonepay session adds its cash to Cash and its Fonepay to Online; it is counted once, under the method that paid most.
+      const split = await gzSplits(rows);
+      const out: Record<"venue" | "fonepay", Row> = { venue: { method: "venue", sum: 0, count: 0 }, fonepay: { method: "fonepay", sum: 0, count: 0 } };
+      for (const r of rows) {
+        const s = paid ? split.get(r.code)! : { cash: r.paymentMethod === "venue" ? r.total : 0, fonepay: r.paymentMethod === "venue" ? 0 : r.total };
+        out.venue.sum += s.cash; out.fonepay.sum += s.fonepay;
+        out[s.cash >= s.fonepay ? "venue" : "fonepay"].count += 1;
+      }
+      return [out.venue, out.fonepay];
     }
     const g = await prisma.booking.groupBy({ by: ["paymentMethod"], where: { AND: [courtBase(f), courtStatus(paid ? "paid" : "unpaid")] }, _sum: { totalPrice: true }, _count: { _all: true } });
     return g.map((r) => ({ method: r.paymentMethod, sum: r._sum.totalPrice ?? 0, count: r._count._all }));

@@ -3,14 +3,16 @@
 import { useCallback, useEffect, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, Gamepad2, Phone, Plus, Search } from "lucide-react";
 import { Badge } from "../bookings/Badge";
+import CollectModal from "../payments/CollectModal";
 import NewSessionModal from "./NewSessionModal";
 import GamezoneTab from "../courts/GamezoneTab";
 import { ApiError } from "@/lib/api";
 import { guard } from "@/lib/access";
 import { prettyDate, rs } from "@/lib/bookings";
+import { CollectTarget } from "@/lib/payments";
 import { shiftDate, todayKey } from "@/lib/slots";
 import {
-  GzDay, GzList, GzScope, GzSession, PAGE_SIZE, PAY, STATUS, cancelGz, canCancel, canClose, completeGz, getGzDay, listGzSessions, markGzPaid, owes, timeSpan,
+  GzDay, GzList, GzScope, GzSession, PAGE_SIZE, PAY, STATUS, cancelGz, canCancel, canClose, completeGz, getGzDay, listGzSessions, owes, timeSpan,
 } from "@/lib/gamezone";
 
 const TABS = [
@@ -24,20 +26,24 @@ const REFRESH_MS = 20000;
 const input = "rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
 
 // The three things staff do to a session. Each checks the permission first, asks once, then reloads.
-function useActions(onDone: () => void, setError: (m: string) => void) {
+// "Mark paid" opens the payment popup (cash, Fonepay QR or both); Complete and Cancel ask once.
+function useActions(onDone: () => void, setError: (m: string) => void, onCollect: (s: GzSession) => void) {
   return useCallback(async (s: GzSession, kind: "pay" | "done" | "cancel") => {
     const perm = kind === "pay" ? "gamezone.collect" : "gamezone.manage";
     if (!guard(perm)) return;
+    if (kind === "pay") return onCollect(s);
     const who = s.customerName || "this customer";
-    const ask = kind === "pay" ? `Mark ${rs(s.total)} as received from ${who}?` : kind === "done" ? `Mark ${s.code} as completed?` : `Cancel ${s.code} for ${who}? The console hour is freed${s.paymentStatus === "paid" ? " and a refund becomes due" : ""}, and the customer is told.`;
+    const ask = kind === "done" ? `Mark ${s.code} as completed?` : `Cancel ${s.code} for ${who}? The console hour is freed${s.paymentStatus === "paid" ? " and a refund becomes due" : ""}, and the customer is told.`;
     if (!window.confirm(ask)) return;
     setError("");
     try {
-      await (kind === "pay" ? markGzPaid(s.code) : kind === "done" ? completeGz(s.code) : cancelGz(s.code));
+      await (kind === "done" ? completeGz(s.code) : cancelGz(s.code));
       onDone();
     } catch (e) { setError(e instanceof ApiError ? e.message : "That did not save"); }
-  }, [onDone, setError]);
+  }, [onDone, setError, onCollect]);
 }
+
+const toTarget = (s: GzSession): CollectTarget => ({ kind: "gamezone", ref: s.code, code: s.code, customer: s.customerName, amount: s.total, method: s.paymentMethod, phone: s.customerPhone });
 
 type Act = (s: GzSession, kind: "pay" | "done" | "cancel") => void;
 
@@ -94,7 +100,8 @@ function DayBoard() {
   const [error, setError] = useState("");
   const [tick, setTick] = useState(0);
   const reload = useCallback(() => setTick((t) => t + 1), []);
-  const act = useActions(reload, setError);
+  const [collecting, setCollecting] = useState<GzSession | null>(null);
+  const act = useActions(reload, setError, setCollecting);
 
   useEffect(() => {
     let live = true;
@@ -151,6 +158,7 @@ function DayBoard() {
           })}
         </div>
       )}
+      {collecting && <CollectModal target={toTarget(collecting)} onClose={() => setCollecting(null)} onDone={reload} />}
     </div>
   );
 }
@@ -168,7 +176,8 @@ function Sessions() {
   const [error, setError] = useState("");
   const [tick, setTick] = useState(0);
   const reload = useCallback(() => setTick((t) => t + 1), []);
-  const act = useActions(reload, setError);
+  const [collecting, setCollecting] = useState<GzSession | null>(null);
+  const act = useActions(reload, setError, setCollecting);
 
   useEffect(() => {
     const id = setTimeout(() => { setQ(search.trim()); setPageNo(1); }, 300);
@@ -215,6 +224,7 @@ function Sessions() {
           <button disabled={pageNo >= pages} onClick={() => { setPageNo(pageNo + 1); setData(null); }} className="flex items-center gap-1 rounded-xl bg-surface px-3 py-2 shadow-sm disabled:opacity-40">Next <ChevronRight size={16} /></button>
         </div>
       )}
+      {collecting && <CollectModal target={toTarget(collecting)} onClose={() => setCollecting(null)} onDone={reload} />}
     </div>
   );
 }

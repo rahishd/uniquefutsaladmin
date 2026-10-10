@@ -21,7 +21,7 @@ export default function CollectModal({ target: row, onClose, onDone }: { target:
 
   async function save() {
     if (!guard("payments.collect")) return;
-    if (court && ready.problem) return setError(ready.problem);
+    if (ready.problem) return setError(ready.problem);
     setBusy(true);
     setError("");
     try {
@@ -30,7 +30,7 @@ export default function CollectModal({ target: row, onClose, onDone }: { target:
         const r = await collectDues({ anchorId: row.ref, bookingIds: [row.ref], goodsDueIds: [], ...(ready.payments ? { payments: ready.payments, fonepayQrId: ready.fonepayQrId } : { method: ready.single === "fonepay" ? "fonepay" : "venue", fonepayQrId: ready.fonepayQrId }) });
         setPaid({ code: r.billCode ?? row.code, lines: r.lines.length ? r.lines : [{ label: `Court booking ${row.code}`, amount: row.amount }], paidBy, points: r.points });
       } else {
-        await collectGamezone(row);
+        await collectGamezone(row, ready.payments ? { payments: ready.payments, fonepayQrId: ready.fonepayQrId } : { single: ready.single, fonepayQrId: ready.fonepayQrId });
         setPaid({ code: row.code, lines: [{ label: `Gamezone session ${row.code}`, amount: row.amount }], paidBy, points: 0 });
       }
       onDone();
@@ -59,9 +59,9 @@ export default function CollectModal({ target: row, onClose, onDone }: { target:
             <button onClick={onClose} className="w-full rounded-xl border border-line py-3 font-semibold">Done</button>
           </div>
         ) : (<>
-        {court ? <PaySplit total={row.amount} value={pay} onChange={(v) => { setPay(v); setError(""); }} /> : <p className="rounded-xl bg-surface-2 p-3 text-sm">Gamezone sessions are collected in cash at the venue.</p>}
+        <PaySplit total={row.amount} value={pay} onChange={(v) => { setPay(v); setError(""); }} customerPhone={row.phone ?? undefined} />
         {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600" role="alert">{error}</p>}
-        <button disabled={busy || (court && !!ready.problem)} onClick={save} className="w-full rounded-xl bg-brand py-3 font-semibold text-white disabled:opacity-60">{busy ? "Saving…" : "Mark as paid"}</button>
+        <button disabled={busy || !!ready.problem} onClick={save} className="w-full rounded-xl bg-brand py-3 font-semibold text-white disabled:opacity-60">{busy ? "Saving…" : "Mark as paid"}</button>
         </>)}
       </div>
     </div>

@@ -3,10 +3,11 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db";
 import { audit } from "../lib/audit";
-import { notify } from "../lib/customer-effects";
+import { awardForGamezone, notify } from "../lib/customer-effects";
 import { addDaysKey, currentHour, todayKey } from "../lib/dates";
 import { AppError, dateStr, handler, page, param, parse, send } from "../lib/http";
 import { requirePermission } from "../middleware/auth";
+import { PAY_METHODS, claimFonepay, paysSchema, resolvePays } from "../lib/settle";
 
 export const gamezoneRouter = Router();
 
@@ -121,6 +122,7 @@ gamezoneRouter.post("/bookings", requirePermission("gamezone.manage"), handler(a
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") throw new AppError(409, "That console is already booked for part of this time");
     throw e;
   }
+  await awardForGamezone({ code, userId: user?.phoneNumber ?? null, hours: b.hours, status: ended ? "completed" : "confirmed", paymentStatus: b.paid ? "paid" : "pay_at_venue", date: b.date });
   await audit(req, "create", "gamezone", code, { total, paid: b.paid, date: b.date, startHour: b.startHour, hours: b.hours });
   send(res, { code, total }, "Session booked", 201);
 }));
@@ -131,16 +133,28 @@ const load = async (code: string) => {
   return b;
 };
 
+// Collected in cash, by Fonepay QR, or part cash and part Fonepay (same rules as a court booking: the Fonepay part must be
+// backed by a QR the gateway marked paid for exactly that amount). With no body it is all cash, as before. The session keeps
+// the method that paid most of it; the exact split is written to the payment log.
+const collectBody = z.object({ payments: paysSchema.optional(), single: z.enum(PAY_METHODS).optional(), fonepayQrId: z.string().min(1).optional() });
 gamezoneRouter.post("/bookings/:code/mark-paid", requirePermission("gamezone.collect"), handler(async (req, res) => {
+  const body = parse(collectBody, req.body ?? {});
   const b = await load(param(req, "code"));
   if (b.status === "cancelled" || b.status === "expired") throw new AppError(409, `This booking is ${b.status}`);
   if (b.paymentStatus === "paid") throw new AppError(409, "Already paid");
-  await prisma.$transaction([
-    prisma.gzBooking.update({ where: { code: b.code }, data: { paymentStatus: "paid", holdExpiresAt: null } }),
-    prisma.paymentOrder.updateMany({ where: { orderCode: b.code, status: { in: ["pending", "expired"] } }, data: { status: "paid", paidAt: new Date(), paidBy: req.staff!.id } }),
-  ]);
+  const input = { payments: body.payments, single: body.payments ? undefined : body.single ?? ("cash" as const), fonepayQrId: body.fonepayQrId };
+  const pays = resolvePays(input, b.total);
+  const cash = pays.filter((p) => p.method === "cash").reduce((n, p) => n + p.amount, 0);
+  const fonepay = b.total - cash;
+  await prisma.$transaction(async (tx) => {
+    await claimFonepay(tx, input, pays, b.code);
+    await tx.gzBooking.update({ where: { code: b.code }, data: { paymentStatus: "paid", holdExpiresAt: null, paymentMethod: cash >= fonepay ? "venue" : "fonepay" } });
+    await tx.paymentOrder.updateMany({ where: { orderCode: b.code, status: { in: ["pending", "expired"] } }, data: { status: "paid", paidAt: new Date(), paidBy: req.staff!.id } });
+    await tx.paymentEvent.create({ data: { orderCode: b.code, source: "staff", payload: JSON.stringify({ event: "MARKED_PAID", by: req.staff!.id, cash, fonepay }) } });
+  });
   if (b.userId) await notify(prisma, { userId: b.userId, type: "gamezone", title: "Payment received", message: `Rs. ${b.total} for your Gamezone session ${b.code} was received.`, href: "/gamezone", dedupeKey: `gz-paid-${b.code}` });
-  await audit(req, "mark-paid", "gamezone", b.code, { total: b.total });
+  await awardForGamezone({ ...b, paymentStatus: "paid" }); // 5 points per hour, once the session is also completed
+  await audit(req, "mark-paid", "gamezone", b.code, { total: b.total, cash, fonepay });
   send(res, null, "Marked as paid");
 }));
 
@@ -149,6 +163,7 @@ gamezoneRouter.post("/bookings/:code/complete", requirePermission("gamezone.mana
   if (b.status !== "confirmed") throw new AppError(409, `Only confirmed sessions can be completed (this one is ${b.status})`);
   await prisma.gzBooking.update({ where: { code: b.code }, data: { status: "completed" } });
   if (b.userId) await notify(prisma, { userId: b.userId, type: "gamezone", title: "Thanks for playing", message: `Your Gamezone session ${b.code} is complete. See you again soon!`, href: "/gamezone", dedupeKey: `gz-done-${b.code}` });
+  await awardForGamezone({ ...b, status: "completed" }); // 5 points per hour, once the session is also paid
   await audit(req, "complete", "gamezone", b.code);
   send(res, null, "Session completed");
 }));

@@ -12,6 +12,7 @@ import { addDaysKey, todayKey } from "../lib/dates";
 import { AppError, dateStr, handler, parse, send } from "../lib/http";
 import { requirePermission } from "../middleware/auth";
 import { DEAD } from "../lib/settle";
+import { gzSplits } from "../lib/gz-pay";
 
 export const inventoryReportRouter = Router();
 
@@ -92,9 +93,10 @@ export async function buildReport(from: string, to: string) {
   const gzNames = new Map((await prisma.user.findMany({ where: { phoneNumber: { in: gz.flatMap((g) => (g.userId ? [g.userId] : [])) } }, select: { phoneNumber: true, name: true } })).map((u) => [u.phoneNumber, u.name]));
   const consoles = new Map((await prisma.gzConsole.findMany({ select: { id: true, name: true } })).map((c) => [c.id, c.name]));
   const gzMoney = zero();
+  const gzSplit = await gzSplits(gz); // part cash + part Fonepay sessions are split exactly, not counted under one method
   const gamezone = gz.map((g) => {
     const paid = g.paymentStatus === "paid";
-    const split: Split = paid ? (ONLINE.test(g.paymentMethod) ? { cash: 0, fonepay: g.total } : { cash: g.total, fonepay: 0 }) : zero();
+    const split: Split = paid ? { ...gzSplit.get(g.code)! } : zero();
     add(gzMoney, split);
     return {
       code: g.code, date: g.date, startHour: g.startHour, customer: (g.userId && gzNames.get(g.userId)) || g.guestName || g.guestPhone || "Guest", phone: g.userId ?? g.guestPhone,
@@ -107,10 +109,20 @@ export async function buildReport(from: string, to: string) {
     where: { OR: [{ createdAt: { gte: start, lt: end } }, { paymentVerifiedAt: { gte: start, lt: end } }, { status: "pending" }] },
     include: { plan: { select: { name: true } }, user: { select: { name: true } } }, orderBy: { createdAt: "asc" },
   });
+  // a membership started with an advance has received only part of its price: add up the payment rows written for it
+  const received = new Map<string, number>();
+  const partialIds = subs.filter((s) => s.paymentStatus === "partial").map((s) => s.id);
+  if (partialIds.length) {
+    for (const r of await prisma.booking.findMany({ where: { OR: partialIds.map((id) => ({ notes: { contains: `MEMBERSHIP_SUB:${id}` } })) }, select: { notes: true, totalPrice: true } })) {
+      const id = /MEMBERSHIP_SUB:([A-Za-z0-9]+)/.exec(r.notes ?? "")?.[1];
+      if (id) received.set(id, (received.get(id) ?? 0) + r.totalPrice);
+    }
+  }
+  const paidOf = (s: (typeof subs)[number]) => (s.paymentStatus === "verified" ? Math.round(s.totalPrice ?? 0) : s.paymentStatus === "partial" ? Math.min(Math.round(s.totalPrice ?? 0), Math.round(received.get(s.id) ?? 0)) : 0);
   const memberships = subs.map((s) => ({
     id: s.id, memberCode: s.memberCode, customer: s.user.name ?? s.userId, phone: s.userId, plan: s.plan.name, length: s.chosenDuration, timeSlot: s.timeSlot, days: s.chosenDays,
     startDate: s.startDate.toISOString().slice(0, 10), endDate: s.endDate.toISOString().slice(0, 10), amount: Math.round(s.totalPrice ?? 0), status: s.status, paymentStatus: s.paymentStatus,
-    paid: s.paymentStatus === "verified" ? Math.round(s.totalPrice ?? 0) : 0, due: s.paymentStatus === "verified" ? 0 : Math.round(s.totalPrice ?? 0),
+    paid: paidOf(s), due: Math.max(0, Math.round(s.totalPrice ?? 0) - paidOf(s)),
     daysLeft: Math.round((new Date(`${s.endDate.toISOString().slice(0, 10)}T00:00:00Z`).getTime() - new Date(`${todayKey()}T00:00:00Z`).getTime()) / 86_400_000),
   }));
 

@@ -185,7 +185,7 @@ export default function CustomerSheet({ customer, onClose, onChanged }: { custom
               )}
             </Section>
 
-            <Section title="Free games" hint="Loyalty points and free-game vouchers (10 games = 1 free game)">
+            <Section title="Free games" hint="Loyalty points and free-game vouchers (a free game costs the shift price ÷ 10 in points)">
               {!loyalty ? <Empty>Loading free games…</Empty> : (
                 <>
                   <div className="grid grid-cols-3 gap-2">
