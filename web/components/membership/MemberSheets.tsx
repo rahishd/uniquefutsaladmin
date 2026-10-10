@@ -9,7 +9,7 @@ import { ApiError } from "@/lib/api";
 import { rs } from "@/lib/bookings";
 import { M_LENGTHS, MLength, MPlan, getPlans } from "@/lib/courts";
 import {
-  HOURS, Member, NewMember, Preview, WEEKDAYS, cancelMember, createMember, extendMember, h12, hourSlot, lengthLabel, previewMember, renewMember,
+  HOURS, Member, NewMember, Preview, WEEKDAYS, advanceOf, cancelMember, collectBalance, createMember, extendMember, h12, hourSlot, lengthLabel, previewMember, renewMember,
   shiftOfHour, shortDate, suspendMember, verifyMember,
 } from "@/lib/membership";
 
@@ -27,6 +27,24 @@ function Frame({ title, sub, onClose, children }: { title: string; sub?: string;
         </div>
         {children}
       </div>
+    </div>
+  );
+}
+
+// How much to take now: everything, or half as an advance (the rest is collected later from the membership card).
+function AmountChoice({ total, advance, onChange }: { total: number; advance: boolean; onChange: (advance: boolean) => void }) {
+  const half = advanceOf(total);
+  return (
+    <div className="space-y-1.5">
+      <p className="text-sm font-medium">How much is being paid now?</p>
+      <div className="grid grid-cols-2 gap-1 rounded-xl bg-surface-2 p-1" role="group" aria-label="Amount to take now">
+        {([[false, "Full payment", rs(total)], [true, "50% advance", rs(half)]] as const).map(([v, l, amt]) => (
+          <button key={l} type="button" aria-pressed={advance === v} onClick={() => onChange(v)} className={`rounded-lg px-2 py-2 text-center text-xs font-semibold sm:text-sm ${advance === v ? "bg-brand text-white" : "text-muted"}`}>
+            <span className="block">{l}</span><span className="block text-base font-bold">{amt}</span>
+          </button>
+        ))}
+      </div>
+      {advance && <p className="text-xs text-muted">The membership starts now. The remaining <strong>{rs(total - half)}</strong> is collected later with &ldquo;Collect balance&rdquo; on the membership.</p>}
     </div>
   );
 }
@@ -56,6 +74,7 @@ export function NewMemberSheet({ onClose, onDone }: { onClose: () => void; onDon
   const [start, setStart] = useState(todayKey());
   const [notes, setNotes] = useState("");
   const [payNow, setPayNow] = useState(true);
+  const [advance, setAdvance] = useState(false);
   const [pay, setPay] = useState<PayState>(INITIAL_PAY);
   const [pv, setPv] = useState<{ key: string; data: Preview } | null>(null);
   const [error, setError] = useState("");
@@ -85,7 +104,8 @@ export function NewMemberSheet({ onClose, onDone }: { onClose: () => void; onDon
   }, [ready, key]);
 
   const total = preview?.total ?? cell?.customerPays ?? 0;
-  const paid = paymentsFor(total, pay);
+  const dueNow = advance && total > 1 ? advanceOf(total) : total; // what is taken at this moment
+  const paid = paymentsFor(dueNow, pay);
   const clash = !!preview?.clashes.length;
   const toggleDay = (d: string) => setDays((x) => (x.includes(d) ? x.filter((y) => y !== d) : [...x, d]));
 
@@ -93,17 +113,24 @@ export function NewMemberSheet({ onClose, onDone }: { onClose: () => void; onDon
     if (!ready || clash) return;
     if (payNow && paid.problem) return setError(paid.problem);
     setBusy(true); setError("");
-    const body: NewMember = { phone, planId, length, timeSlot: hourSlot(hour), days, startDate: start, notes: notes.trim() || undefined, ...(payNow ? { pay: paid.payments ? { payments: paid.payments, fonepayQrId: paid.fonepayQrId } : { single: paid.single, fonepayQrId: paid.fonepayQrId } } : {}) };
-    try { const m = await createMember(body); setDone({ m, total: payNow ? total : undefined }); onDone(); } catch (e) { setError(msg(e)); } finally { setBusy(false); }
+    const body: NewMember = { phone, planId, length, timeSlot: hourSlot(hour), days, startDate: start, notes: notes.trim() || undefined, ...(payNow ? { pay: { ...(paid.payments ? { payments: paid.payments, fonepayQrId: paid.fonepayQrId } : { single: paid.single, fonepayQrId: paid.fonepayQrId }), advance: advance && total > 1 } } : {}) };
+    try { const m = await createMember(body); setDone({ m, total: payNow ? dueNow : undefined }); onDone(); } catch (e) { setError(msg(e)); } finally { setBusy(false); }
   }
 
   if (done) return <Frame title="New membership" onClose={onClose}><Done m={done.m} total={done.total} text={done.total ? "Membership activated" : "Saved. It becomes active when the payment is verified."} onClose={onClose} /></Frame>;
   return (
     <Frame title="New membership" sub="The hour is held for the member on their days until the end date." onClose={onClose}>
-      <label className="block text-sm font-medium">Mobile number (registered customer)
-        <CustomerSuggest by="phone" className={`${field} mt-1`} value={phone} onChange={setPhone} onPick={(c) => { setPhone(c.phoneNumber); setName(c.name ?? ""); }} placeholder="98XXXXXXXX" />
-        {name && phoneOk && <span className="mt-1 block text-xs font-normal text-brand">{name}</span>}
-      </label>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <label className="block text-sm font-medium">Customer name
+          <CustomerSuggest by="name" className={`${field} mt-1`} value={name} onChange={(v) => { setName(v); if (phoneOk) setPhone(""); }} onPick={(c) => { setPhone(c.phoneNumber); setName(c.name ?? ""); }} placeholder="Type a name to find the customer" />
+        </label>
+        <label className="block text-sm font-medium">Mobile number
+          <CustomerSuggest by="phone" className={`${field} mt-1`} value={phone} onChange={setPhone} onPick={(c) => { setPhone(c.phoneNumber); setName(c.name ?? ""); }} placeholder="98XXXXXXXX" />
+        </label>
+      </div>
+      {phoneOk && name
+        ? <p className="flex items-center gap-2 rounded-xl bg-brand/10 px-3 py-2 text-sm"><CheckCircle2 size={16} className="shrink-0 text-brand" /><span className="min-w-0 truncate"><strong>{name}</strong> <span className="text-muted">· {phone}</span></span></p>
+        : <p className="text-xs text-muted">Search by name or mobile number and pick the registered customer. A membership needs a registered account.</p>}
       <div className="grid grid-cols-2 gap-3">
         <label className="block text-sm font-medium">Plan
           <select className={`${field} mt-1`} value={planId} onChange={(e) => setPlanId(e.target.value)}>{plans.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
@@ -139,11 +166,12 @@ export function NewMemberSheet({ onClose, onDone }: { onClose: () => void; onDon
         <div className="grid grid-cols-2 gap-1 rounded-xl bg-surface-2 p-1">
           {([[true, "Collect payment now"], [false, "Pay later (pending)"]] as const).map(([v, l]) => <button key={l} type="button" aria-pressed={payNow === v} onClick={() => setPayNow(v)} className={`rounded-lg px-2 py-2 text-xs font-semibold sm:text-sm ${payNow === v ? "bg-brand text-white" : "text-muted"}`}>{l}</button>)}
         </div>
-        {payNow && total > 0 && <PaySplit total={total} value={pay} onChange={(v) => { setPay(v); setError(""); }} customerPhone={phoneOk ? phone : undefined} />}
+        {payNow && total > 1 && <AmountChoice total={total} advance={advance} onChange={(v) => { setAdvance(v); setError(""); }} />}
+        {payNow && total > 0 && <PaySplit total={dueNow} value={pay} onChange={(v) => { setPay(v); setError(""); }} customerPhone={phoneOk ? phone : undefined} />}
         <input className={field} value={notes} maxLength={300} onChange={(e) => setNotes(e.target.value)} placeholder="Note (optional)" />
       </div>
       {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600" role="alert">{error}</p>}
-      <button onClick={save} disabled={busy || !ready || !preview || clash || (payNow && !!paid.problem)} className="w-full rounded-xl bg-brand py-3 font-semibold text-white disabled:opacity-50">{busy ? "Saving…" : payNow ? `Activate for ${rs(total)}` : "Save as pending"}</button>
+      <button onClick={save} disabled={busy || !ready || !preview || clash || (payNow && !!paid.problem)} className="w-full rounded-xl bg-brand py-3 font-semibold text-white disabled:opacity-50">{busy ? "Saving…" : payNow ? (advance && total > 1 ? `Take ${rs(dueNow)} advance and activate` : `Activate for ${rs(total)}`) : "Save as pending"}</button>
     </Frame>
   );
 }
@@ -151,23 +179,57 @@ export function NewMemberSheet({ onClose, onDone }: { onClose: () => void; onDon
 // ---------- verify the payment of a pending membership ----------
 export function VerifySheet({ m, onClose, onDone }: { m: Member; onClose: () => void; onDone: () => void }) {
   const [pay, setPay] = useState<PayState>(INITIAL_PAY);
+  const [advance, setAdvance] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<Member | null>(null);
-  const paid = paymentsFor(m.totalPrice, pay);
+  const dueNow = advance && m.totalPrice > 1 ? advanceOf(m.totalPrice) : m.totalPrice;
+  const paid = paymentsFor(dueNow, pay);
   async function save() {
     if (paid.problem) return setError(paid.problem);
     setBusy(true); setError("");
-    try { setDone(await verifyMember(m.id, paid.payments ? { payments: paid.payments, fonepayQrId: paid.fonepayQrId } : { single: paid.single, fonepayQrId: paid.fonepayQrId })); onDone(); } catch (e) { setError(msg(e)); } finally { setBusy(false); }
+    try { setDone(await verifyMember(m.id, { ...(paid.payments ? { payments: paid.payments, fonepayQrId: paid.fonepayQrId } : { single: paid.single, fonepayQrId: paid.fonepayQrId }), advance: advance && m.totalPrice > 1 })); onDone(); } catch (e) { setError(msg(e)); } finally { setBusy(false); }
   }
   return (
     <Frame title="Verify payment" sub={`${m.customer.name ?? m.customer.phone} · ${m.memberCode} · ${m.plan.name}`} onClose={onClose}>
-      {done ? <Done m={done} total={m.totalPrice} text="Payment verified, membership active" onClose={onClose} /> : (
+      {done ? <Done m={done} total={dueNow} text={advance ? `Advance received, membership active. Balance ${rs(m.totalPrice - dueNow)} to collect` : "Payment verified, membership active"} onClose={onClose} /> : (
         <>
           <p className="text-3xl font-bold">{rs(m.totalPrice)}</p>
-          <PaySplit total={m.totalPrice} value={pay} onChange={(v) => { setPay(v); setError(""); }} customerPhone={m.customer.phone} />
+          {m.totalPrice > 1 && <AmountChoice total={m.totalPrice} advance={advance} onChange={(v) => { setAdvance(v); setError(""); }} />}
+          <PaySplit total={dueNow} value={pay} onChange={(v) => { setPay(v); setError(""); }} customerPhone={m.customer.phone} />
           {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600" role="alert">{error}</p>}
-          <button onClick={save} disabled={busy || !!paid.problem} className="w-full rounded-xl bg-brand py-3 font-semibold text-white disabled:opacity-50">{busy ? "Saving…" : "Verify and activate"}</button>
+          <button onClick={save} disabled={busy || !!paid.problem} className="w-full rounded-xl bg-brand py-3 font-semibold text-white disabled:opacity-50">{busy ? "Saving…" : advance ? `Take ${rs(dueNow)} advance and activate` : "Verify and activate"}</button>
+        </>
+      )}
+    </Frame>
+  );
+}
+
+// ---------- collect the balance left after an advance ----------
+export function BalanceSheet({ m, onClose, onDone }: { m: Member; onClose: () => void; onDone: () => void }) {
+  const balance = m.balance ?? 0;
+  const [pay, setPay] = useState<PayState>(INITIAL_PAY);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState<Member | null>(null);
+  const paid = paymentsFor(balance, pay);
+  async function save() {
+    if (paid.problem) return setError(paid.problem);
+    setBusy(true); setError("");
+    try { setDone(await collectBalance(m.id, paid.payments ? { payments: paid.payments, fonepayQrId: paid.fonepayQrId } : { single: paid.single, fonepayQrId: paid.fonepayQrId })); onDone(); } catch (e) { setError(msg(e)); } finally { setBusy(false); }
+  }
+  return (
+    <Frame title="Collect balance" sub={`${m.customer.name ?? m.customer.phone} · ${m.memberCode} · ${m.plan.name}`} onClose={onClose}>
+      {done ? <Done m={done} total={balance} text="Balance received, membership paid in full" onClose={onClose} /> : (
+        <>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="rounded-xl bg-surface-2 p-2"><p className="text-[11px] text-muted">Price</p><p className="font-bold">{rs(m.totalPrice)}</p></div>
+            <div className="rounded-xl bg-surface-2 p-2"><p className="text-[11px] text-muted">Paid</p><p className="font-bold text-brand">{rs(m.paid ?? 0)}</p></div>
+            <div className="rounded-xl bg-amber-500/10 p-2"><p className="text-[11px] text-muted">Balance</p><p className="font-bold text-amber-700">{rs(balance)}</p></div>
+          </div>
+          <PaySplit total={balance} value={pay} onChange={(v) => { setPay(v); setError(""); }} customerPhone={m.customer.phone} />
+          {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600" role="alert">{error}</p>}
+          <button onClick={save} disabled={busy || balance <= 0 || !!paid.problem} className="w-full rounded-xl bg-brand py-3 font-semibold text-white disabled:opacity-50">{busy ? "Saving…" : `Collect ${rs(balance)}`}</button>
         </>
       )}
     </Frame>

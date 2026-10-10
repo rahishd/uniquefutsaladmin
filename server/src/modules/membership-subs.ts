@@ -27,7 +27,10 @@ const slotHour = (slot: string) => Number(slot.slice(0, 2));
 const slotName = (h: number) => `${String(h).padStart(2, "0")}:00-${String(h + 1).padStart(2, "0")}:00`;
 const fmtDate = (k: string) => new Date(`${k}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 
-const payInput = z.object({ payments: paysSchema.optional(), single: z.enum(PAY_METHODS).optional(), fonepayQrId: z.string().optional() });
+// advance: take half now (rounded up to a whole rupee) and the rest later with "collect balance". The membership is active from the advance.
+const payInput = z.object({ payments: paysSchema.optional(), single: z.enum(PAY_METHODS).optional(), fonepayQrId: z.string().optional(), advance: z.boolean().optional() });
+const ADVANCE_SHARE = 0.5;
+const advanceOf = (total: number) => Math.ceil(total * ADVANCE_SHARE);
 type PayIn = z.infer<typeof payInput>;
 
 // ---------- status ----------
@@ -97,7 +100,19 @@ async function pointsFor(s: { id: string; userId: string }, length: Length, sour
 type Sub = Prisma.MembershipSubscriptionGetPayload<{ include: { plan: true; user: { select: { name: true; phoneNumber: true } } } }>;
 const include = { plan: true, user: { select: { name: true, phoneNumber: true } } } as const;
 
-function view(s: Sub, today = todayKey(), gamesPlayed?: number) {
+// What has been received for each membership so far: the payment rows written for it (advance, balance and renewals).
+async function paidOf(ids: string[]): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  if (!ids.length) return out;
+  const rows = await prisma.booking.findMany({ where: { OR: ids.map((id) => ({ notes: { contains: `MEMBERSHIP_SUB:${id}` } })) }, select: { notes: true, totalPrice: true } });
+  for (const r of rows) {
+    const id = /MEMBERSHIP_SUB:([A-Za-z0-9]+)/.exec(r.notes ?? "")?.[1];
+    if (id) out.set(id, (out.get(id) ?? 0) + r.totalPrice);
+  }
+  return out;
+}
+
+function view(s: Sub, today = todayKey(), gamesPlayed?: number, paid?: number) {
   const status = statusOf(s, today);
   const slot = s.timeSlot;
   return {
@@ -107,6 +122,7 @@ function view(s: Sub, today = todayKey(), gamesPlayed?: number) {
     length: s.chosenDuration, shift: slot ? shiftOf(slotHour(slot)) : null, timeSlot: slot, days: s.chosenDays,
     startDate: keyOf(s.startDate), endDate: keyOf(s.endDate), daysLeft: status === "pending" ? null : daysBetween(today, keyOf(s.endDate)),
     totalPrice: s.totalPrice ?? 0, promoCode: s.promoCode, notes: s.notes, paymentVerifiedAt: s.paymentVerifiedAt, createdAt: s.createdAt,
+    ...(paid === undefined ? {} : { paid: Math.round(paid), balance: s.paymentStatus === "partial" ? Math.max(0, Math.round((s.totalPrice ?? 0) - paid)) : 0 }),
     ...(gamesPlayed === undefined ? {} : { gamesPlayed }),
   };
 }
@@ -154,8 +170,8 @@ membershipSubsRouter.get("/subscriptions", requirePermission("membership.view"),
   const rows = status ? all.filter((s) => statusOf(s, today) === status) : all;
   const { take, skip, pageNo, limit } = page(req.query);
   const slice = rows.slice(skip, skip + take);
-  const played = await Promise.all(slice.map(games));
-  send(res, { items: slice.map((s, i) => view(s, today, played[i])), total: rows.length, page: pageNo, limit, counts, activeValue: revenue });
+  const [played, paid] = await Promise.all([Promise.all(slice.map(games)), paidOf(slice.map((s) => s.id))]);
+  send(res, { items: slice.map((s, i) => view(s, today, played[i], paid.get(s.id) ?? 0)), total: rows.length, page: pageNo, limit, counts, activeValue: revenue });
 }));
 
 membershipSubsRouter.get("/subscriptions/:id", requirePermission("membership.view"), handler(async (req, res) => {
@@ -165,7 +181,7 @@ membershipSubsRouter.get("/subscriptions/:id", requirePermission("membership.vie
     prisma.membershipSubscription.findMany({ where: { userId: s.userId, id: { not: s.id } }, include, orderBy: { startDate: "desc" }, take: 10 }),
     prisma.booking.findMany({ where: { notes: { contains: `MEMBERSHIP_SUB:${s.id}` } }, orderBy: { createdAt: "asc" }, select: { id: true, date: true, totalPrice: true, cashAmount: true, onlineAmount: true, notes: true, paymentStatus: true } }),
   ]);
-  send(res, { ...view(s, todayKey(), await games(s)), earlier: earlier.map((e) => view(e)), payments: ledger.map((l) => ({ id: l.id, date: l.date, amount: l.totalPrice, cash: l.cashAmount, online: l.onlineAmount, renewal: !!l.notes?.includes("(renewal)"), status: l.paymentStatus })) });
+  send(res, { ...view(s, todayKey(), await games(s), (await paidOf([s.id])).get(s.id) ?? 0), earlier: earlier.map((e) => view(e)), payments: ledger.map((l) => ({ id: l.id, date: l.date, amount: l.totalPrice, cash: l.cashAmount, online: l.onlineAmount, renewal: !!l.notes?.includes("(renewal)"), status: l.paymentStatus })) });
 }));
 
 // ---------- check a plan, shift and hour before making the membership ----------
@@ -177,7 +193,7 @@ const createBody = z.object({
   days: z.array(z.enum(WEEKDAYS)).min(1, "Choose at least one day").max(7),
   startDate: dateStr,
   notes: z.string().trim().max(300).optional(),
-  pay: payInput.optional(), // leave out: the membership waits as "pending" until payment is verified
+  pay: payInput.optional(), // leave out: the membership waits as "pending" until payment is verified. pay.advance: half now, rest later
   dryRun: z.boolean().default(false),
 });
 
@@ -203,10 +219,12 @@ membershipSubsRouter.post("/subscriptions", requirePermission("membership.create
   const quote = await priceFor(b.planId, shiftOf(hour), b.length);
   const end = addDaysKey(b.startDate, DAYS[b.length]);
   const check = await conflicts({ timeSlot: b.timeSlot, days: b.days, start: b.startDate, end });
-  if (b.dryRun) return send(res, { price: quote.price, discount: quote.discount, total: quote.total, shift: shiftOf(hour), startDate: b.startDate, endDate: end, ...check });
+  if (b.dryRun) return send(res, { price: quote.price, discount: quote.discount, total: quote.total, advance: advanceOf(quote.total), shift: shiftOf(hour), startDate: b.startDate, endDate: end, ...check });
   if (check.clashes.length) throw new AppError(409, `That hour is not free on ${check.clashes.length} of the chosen days (first: ${fmtDate(check.clashes[0].date)}, ${check.clashes[0].reason})`);
 
-  const pays = b.pay ? resolvePays(b.pay, quote.total) : null;
+  const advance = !!b.pay?.advance && quote.total > 1;
+  const dueNow = advance ? advanceOf(quote.total) : quote.total; // what is received at this moment
+  const pays = b.pay ? resolvePays(b.pay, dueNow) : null;
   let created: Sub;
   let pts = 0;
   try {
@@ -214,13 +232,13 @@ membershipSubsRouter.post("/subscriptions", requirePermission("membership.create
       const row = await tx.membershipSubscription.create({
         data: {
           planId: b.planId, userId: b.phone, startDate: new Date(`${b.startDate}T00:00:00Z`), endDate: new Date(`${end}T00:00:00Z`),
-          status: pays ? "active" : "pending", paymentStatus: pays ? "verified" : "pending", paymentVerifiedAt: pays ? new Date() : null, paymentVerifiedBy: pays ? req.staff!.id : null,
+          status: pays ? "active" : "pending", paymentStatus: pays ? (advance ? "partial" : "verified") : "pending", paymentVerifiedAt: pays ? new Date() : null, paymentVerifiedBy: pays ? req.staff!.id : null,
           timeSlot: b.timeSlot, chosenCategory: shiftOf(hour), chosenDuration: b.length, totalPrice: quote.total, discountAmount: quote.discount, chosenDays: b.days, excludeDays: [], notes: b.notes ?? null,
           memberCode: await nextMemberCode(tx),
         },
         include,
       });
-      if (pays) { await claimFonepay(tx, b.pay!, pays, `membership:${row.id}`); await recordPayment(tx, row, row.plan.name, quote.total, pays, false); }
+      if (pays) { await claimFonepay(tx, b.pay!, pays, `membership:${row.id}`); await recordPayment(tx, row, row.plan.name, dueNow, pays, false); }
       return row;
     });
   } catch (e) {
@@ -228,11 +246,11 @@ membershipSubsRouter.post("/subscriptions", requirePermission("membership.create
     throw e;
   }
   if (pays) {
-    pts = await pointsFor(created, b.length, created.id, false);
+    pts = advance ? 0 : await pointsFor(created, b.length, created.id, false); // loyalty points come when it is fully paid
     await notify(prisma, { userId: b.phone, type: "membership", title: "Membership active", message: `Your ${created.plan.name} membership ${created.memberCode} is active until ${fmtDate(end)}.`, href: "/member", dedupeKey: `member-active-${created.id}` });
   }
-  await audit(req, "create", "membership", created.id, { code: created.memberCode, phone: b.phone, plan: created.plan.name, length: b.length, slot: b.timeSlot, days: b.days, total: quote.total, paid: !!pays });
-  send(res, { ...view(created), pointsAdded: pts }, pays ? "Membership activated" : "Membership saved, waiting for payment", 201);
+  await audit(req, "create", "membership", created.id, { code: created.memberCode, phone: b.phone, plan: created.plan.name, length: b.length, slot: b.timeSlot, days: b.days, total: quote.total, paid: !!pays, advance, received: pays ? dueNow : 0 });
+  send(res, { ...view(created, todayKey(), undefined, pays ? dueNow : 0), pointsAdded: pts }, pays ? (advance ? `Membership activated. Advance Rs. ${dueNow} received, balance Rs. ${quote.total - dueNow}` : "Membership activated") : "Membership saved, waiting for payment", 201);
 }));
 
 // ---------- verify payment (activates a pending membership) ----------
@@ -249,18 +267,44 @@ membershipSubsRouter.post("/subscriptions/:id/verify", requirePermission("member
     const check = await conflicts({ timeSlot: s.timeSlot, days: s.chosenDays, start: keyOf(s.startDate) < todayKey() ? todayKey() : keyOf(s.startDate), end: keyOf(s.endDate), exceptUserId: s.userId });
     if (check.clashes.length) throw new AppError(409, `The hour is no longer free on ${check.clashes.length} days (first: ${fmtDate(check.clashes[0].date)}, ${check.clashes[0].reason})`);
   }
-  const pays = resolvePays(pay, total);
+  const advance = !!pay.advance && total > 1;
+  const dueNow = advance ? advanceOf(total) : total;
+  const pays = resolvePays({ payments: pay.payments, single: pay.single, fonepayQrId: pay.fonepayQrId }, dueNow);
   const done = await prisma.$transaction(async (tx) => {
-    const flip = await tx.membershipSubscription.updateMany({ where: { id: s.id, status: "pending" }, data: { status: "active", paymentStatus: "verified", paymentVerifiedAt: new Date(), paymentVerifiedBy: req.staff!.id, memberCode: s.memberCode ?? (await nextMemberCode(tx)) } });
+    const flip = await tx.membershipSubscription.updateMany({ where: { id: s.id, status: "pending" }, data: { status: "active", paymentStatus: advance ? "partial" : "verified", paymentVerifiedAt: new Date(), paymentVerifiedBy: req.staff!.id, memberCode: s.memberCode ?? (await nextMemberCode(tx)) } });
     if (flip.count === 0) throw new AppError(409, "This membership was just verified by someone else");
     await claimFonepay(tx, pay, pays, `membership:${s.id}`);
-    await recordPayment(tx, s, s.plan.name, total, pays, false);
+    await recordPayment(tx, s, s.plan.name, dueNow, pays, false);
+    return tx.membershipSubscription.findUniqueOrThrow({ where: { id: s.id }, include });
+  });
+  const pts = advance ? 0 : await pointsFor(done, (done.chosenDuration as Length) ?? "1_month", done.id, false);
+  await notify(prisma, { userId: done.userId, type: "membership", title: "Membership active", message: `Your ${done.plan.name} membership ${done.memberCode} is active until ${fmtDate(keyOf(done.endDate))}.`, href: "/member", dedupeKey: `member-active-${done.id}` });
+  await audit(req, "verify-payment", "membership", done.id, { code: done.memberCode, total, advance, received: dueNow, payments: pays, hour });
+  send(res, { ...view(done, todayKey(), undefined, dueNow), pointsAdded: pts }, advance ? `Advance received, membership active. Balance Rs. ${total - dueNow}` : "Payment verified, membership active");
+}));
+
+// ---------- collect the balance of a membership that was started with an advance ----------
+membershipSubsRouter.post("/subscriptions/:id/collect-balance", requirePermission("membership.edit"), handler(async (req, res) => {
+  const pay = parse(payInput, req.body);
+  const s = await prisma.membershipSubscription.findUnique({ where: { id: param(req, "id") }, include });
+  if (!s) throw new AppError(404, "Membership not found");
+  if (s.paymentStatus !== "partial") throw new AppError(409, "There is no balance to collect on this membership");
+  const total = s.totalPrice ?? 0;
+  const paid = (await paidOf([s.id])).get(s.id) ?? 0;
+  const balance = Math.round(total - paid);
+  if (balance <= 0) throw new AppError(409, "There is no balance to collect on this membership");
+  const pays = resolvePays({ payments: pay.payments, single: pay.single, fonepayQrId: pay.fonepayQrId }, balance);
+  const done = await prisma.$transaction(async (tx) => {
+    const flip = await tx.membershipSubscription.updateMany({ where: { id: s.id, paymentStatus: "partial" }, data: { paymentStatus: "verified", paymentVerifiedAt: new Date(), paymentVerifiedBy: req.staff!.id } });
+    if (flip.count === 0) throw new AppError(409, "The balance was just collected by someone else");
+    await claimFonepay(tx, pay, pays, `membership-balance:${s.id}`);
+    await recordPayment(tx, s, s.plan.name, balance, pays, false);
     return tx.membershipSubscription.findUniqueOrThrow({ where: { id: s.id }, include });
   });
   const pts = await pointsFor(done, (done.chosenDuration as Length) ?? "1_month", done.id, false);
-  await notify(prisma, { userId: done.userId, type: "membership", title: "Membership active", message: `Your ${done.plan.name} membership ${done.memberCode} is active until ${fmtDate(keyOf(done.endDate))}.`, href: "/member", dedupeKey: `member-active-${done.id}` });
-  await audit(req, "verify-payment", "membership", done.id, { code: done.memberCode, total, payments: pays, hour });
-  send(res, { ...view(done), pointsAdded: pts }, "Payment verified, membership active");
+  await notify(prisma, { userId: done.userId, type: "membership", title: "Membership fully paid", message: `Thank you! Your ${done.plan.name} membership ${done.memberCode ?? ""} is now paid in full.`, href: "/member", dedupeKey: `member-balance-${done.id}` });
+  await audit(req, "collect-balance", "membership", done.id, { code: done.memberCode, balance, payments: pays });
+  send(res, { ...view(done, todayKey(), undefined, paid + balance), pointsAdded: pts }, "Balance received, membership paid in full");
 }));
 
 // ---------- renew: another period, paid now ----------
@@ -271,6 +315,7 @@ membershipSubsRouter.post("/subscriptions/:id/renew", requirePermission("members
   if (!s || !s.timeSlot) throw new AppError(404, "Membership not found");
   const st = statusOf(s);
   if (st === "pending" || st === "suspended" || st === "cancelled") throw new AppError(409, st === "pending" ? "Verify the payment first" : `A ${st} membership cannot be renewed`);
+  if (s.paymentStatus === "partial") throw new AppError(409, "Collect the balance of the current period before renewing");
   const length = b.length ?? ((s.chosenDuration as Length) ?? "1_month");
   const hour = slotHour(s.timeSlot);
   const quote = await priceFor(s.planId, shiftOf(hour), length);

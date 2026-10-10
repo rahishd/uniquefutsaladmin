@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { BadgeCheck, ChevronLeft, ChevronRight, MessageCircle, Phone, Plus, Search } from "lucide-react";
 import { Badge } from "../bookings/Badge";
-import { NewMemberSheet, ReasonSheet, RenewSheet, VerifySheet } from "./MemberSheets";
+import { BalanceSheet, NewMemberSheet, ReasonSheet, RenewSheet, VerifySheet } from "./MemberSheets";
 import { ApiError } from "@/lib/api";
 import { guard } from "@/lib/access";
 import { rs } from "@/lib/bookings";
@@ -17,7 +17,7 @@ const TABS: { id: "" | MemberStatus; label: string }[] = [
   { id: "expired", label: "Expired" }, { id: "suspended", label: "Suspended" }, { id: "cancelled", label: "Cancelled" },
 ];
 
-type Sheet = { kind: "new" } | { kind: "verify" | "renew" | "extend" | "suspend" | "cancel"; m: Member } | null;
+type Sheet = { kind: "new" } | { kind: "verify" | "balance" | "renew" | "extend" | "suspend" | "cancel"; m: Member } | null;
 
 const reminder = (m: Member) => {
   const text = m.status === "expired"
@@ -111,7 +111,7 @@ export default function MembershipPage() {
             <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-sm sm:grid-cols-3">
               <p><span className="block text-[11px] text-muted">Plan</span><span className="font-semibold">{m.plan.name}{m.length ? `, ${lengthLabel(m.length)}` : ""}</span></p>
               <p><span className="block text-[11px] text-muted">Fixed hour</span><span className="font-semibold">{m.timeSlot ? slotLabel(m.timeSlot) : "None"}{m.shift ? ` (${m.shift})` : ""}</span></p>
-              <p><span className="block text-[11px] text-muted">Paid</span><span className="font-semibold">{rs(m.totalPrice)}{m.paymentStatus !== "verified" ? " (not yet)" : ""}</span></p>
+              <p><span className="block text-[11px] text-muted">Paid</span><span className="font-semibold">{m.paymentStatus === "partial" ? <>{rs(m.paid ?? 0)} <span className="font-normal text-muted">of {rs(m.totalPrice)}</span></> : <>{rs(m.totalPrice)}{m.paymentStatus !== "verified" ? " (not yet)" : ""}</>}</span>{m.paymentStatus === "partial" && <span className="mt-0.5 block text-xs font-semibold text-amber-700">Balance {rs(m.balance ?? 0)} to collect</span>}</p>
               <p><span className="block text-[11px] text-muted">From</span><span className="font-semibold">{shortDate(m.startDate)}</span></p>
               <p><span className="block text-[11px] text-muted">Until</span><span className="font-semibold">{shortDate(m.endDate)}{m.daysLeft !== null && m.status !== "cancelled" ? (m.daysLeft >= 0 ? ` · ${m.daysLeft} days left` : ` · ended ${-m.daysLeft} days ago`) : ""}</span></p>
               <p><span className="block text-[11px] text-muted">Games played</span><span className="font-semibold">{m.gamesPlayed ?? 0}</span></p>
@@ -124,6 +124,7 @@ export default function MembershipPage() {
 
             <div className="flex flex-wrap gap-2 border-t border-line pt-3">
               {m.status === "pending" && <button onClick={() => open("membership.edit", { kind: "verify", m })} className="rounded-full bg-brand px-4 py-2 text-xs font-semibold text-white">Verify payment</button>}
+              {m.paymentStatus === "partial" && (m.balance ?? 0) > 0 && m.rawStatus !== "cancelled" && <button onClick={() => open("membership.edit", { kind: "balance", m })} className="rounded-full bg-amber-500 px-4 py-2 text-xs font-semibold text-white">Collect balance {rs(m.balance ?? 0)}</button>}
               {(m.status === "active" || m.status === "expiring" || m.status === "expired") && <button onClick={() => open("membership.edit", { kind: "renew", m })} className="rounded-full bg-brand px-4 py-2 text-xs font-semibold text-white">Renew</button>}
               {m.rawStatus === "active" && <button onClick={() => open("membership.edit", { kind: "extend", m })} className="rounded-full border border-line px-4 py-2 text-xs font-semibold">Extend</button>}
               {m.rawStatus === "active" && m.status !== "expired" && <button onClick={() => open("membership.edit", { kind: "suspend", m })} className="rounded-full border border-line px-4 py-2 text-xs font-semibold">Suspend</button>}
@@ -145,6 +146,7 @@ export default function MembershipPage() {
 
       {sheet?.kind === "new" && <NewMemberSheet onClose={() => setSheet(null)} onDone={refresh} />}
       {sheet?.kind === "verify" && <VerifySheet m={sheet.m} onClose={() => setSheet(null)} onDone={refresh} />}
+      {sheet?.kind === "balance" && <BalanceSheet m={sheet.m} onClose={() => setSheet(null)} onDone={refresh} />}
       {sheet?.kind === "renew" && <RenewSheet m={sheet.m} onClose={() => setSheet(null)} onDone={refresh} />}
       {(sheet?.kind === "extend" || sheet?.kind === "suspend" || sheet?.kind === "cancel") && <ReasonSheet m={sheet.m} kind={sheet.kind} onClose={() => setSheet(null)} onDone={refresh} />}
     </div>
