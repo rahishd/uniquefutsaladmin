@@ -157,8 +157,40 @@ describe("courts, promos, loyalty, customers", () => {
     const day = await api.get(`/courts/slots?date=${tomorrow}`, mgr.auth);
     assert.equal(day.body.data.hours[10].state, "blocked");
     assert.equal(day.body.data.hours[9].state, "free");
-    assert.equal((await api.del(`/courts/blocks/${blk.body.data[0].id}`, mgr.auth)).status, 200);
+    assert.equal((await api.del(`/courts/blocks/${blk.body.data.blocks[0].id}`, mgr.auth)).status, 200);
     assert.equal((await api.post("/bookings/walk-in", mgr.auth, { date: tomorrow, startTime: "10:00", customerName: "Ram" })).status, 201);
+  });
+
+  it("blocking an hour cancels the games booked in it, tells those customers the reason and marks paid bookings for refund", async () => {
+    const mgr = await staff("manager");
+    await customer("9877000700", "Hari");
+    // a registered customer's pending game at 14:00 and a paid online one at 15:00
+    const a = await api.post("/bookings/walk-in", mgr.auth, { date: tomorrow, startTime: "14:00", customerName: "Hari", customerPhone: "9877000700" });
+    const b = await api.post("/bookings/walk-in", mgr.auth, { date: tomorrow, startTime: "15:00", customerName: "Sita" });
+    assert.equal(a.status, 201);
+    await prisma.paymentOrder.create({ data: { orderCode: "UF-BLK1", purpose: "booking", method: "fonepay", amount: 1000, status: "paid", remarks: "Game", expiresAt: new Date(Date.now() + 600000) } });
+    await prisma.booking.update({ where: { id: b.body.data.id }, data: { paymentOrderCode: "UF-BLK1", paymentStatus: "completed" } });
+    // the preview lists them and changes nothing
+    const preview = await api.post("/courts/blocks", mgr.auth, { date: tomorrow, hours: [14, 15], reason: "Repair & Renovation", dryRun: true });
+    assert.equal(preview.status, 200);
+    assert.equal(preview.body.data.wouldCancel.length, 2);
+    assert.equal(await prisma.slotBlock.count(), 0);
+    const r = await api.post("/courts/blocks", mgr.auth, { date: tomorrow, hours: [14, 15], reason: "Repair & Renovation" });
+    assert.equal(r.status, 201);
+    assert.equal(r.body.data.cancelled.length, 2);
+    assert.equal((await prisma.booking.findUnique({ where: { id: a.body.data.id } }))?.status, "cancelled");
+    assert.equal((await prisma.booking.findUnique({ where: { id: b.body.data.id } }))?.status, "cancelled");
+    // the hours now belong to the block; the customer was told why
+    assert.equal(await prisma.bookingSlot.count({ where: { bookingId: { startsWith: "block:" } } }), 2);
+    const note = await prisma.notification.findFirst({ where: { userId: "9877000700", type: "booking" } });
+    assert.match(note?.message ?? "", /Repair & Renovation/);
+    // the paid online booking is marked for refund
+    assert.equal((await prisma.paymentOrder.findUnique({ where: { orderCode: "UF-BLK1" } }))?.status, "refunded");
+    assert.equal(await prisma.paymentEvent.count({ where: { orderCode: "UF-BLK1", payload: { contains: "REFUND_DUE" } } }), 1);
+    // a game that is already finished cannot be closed over
+    const done = await api.post("/bookings/walk-in", mgr.auth, { date: tomorrow, startTime: "17:00", customerName: "Old" });
+    await prisma.booking.update({ where: { id: done.body.data.id }, data: { status: "completed" } });
+    assert.equal((await api.post("/courts/blocks", mgr.auth, { date: tomorrow, hours: [17], reason: "x1" })).status, 409);
   });
 
   it("pricing writes the same Settings keys the customer app reads", async () => {

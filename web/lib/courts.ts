@@ -8,7 +8,10 @@ export const savePricing = (body: { hourlyRate?: number; hours?: { hour: number;
   api<Pricing>("/admin/courts/pricing", { method: "PUT", body: JSON.stringify(body) });
 
 export const getBlocks = () => api<Block[]>("/admin/courts/blocks");
-export const addBlock = (b: { date: string; hours: number[]; reason: string }) => api<Block[]>("/admin/courts/blocks", { method: "POST", body: JSON.stringify(b) });
+export type BlockedBooking = { id: string; code: string; customer: string | null; phone: string | null; time: string; paid: boolean };
+// Blocking cancels the games already booked in those hours (the customers are told the reason). dryRun lists them first.
+export const previewBlock = (b: { date: string; hours: number[]; reason: string }) => api<{ wouldCancel: BlockedBooking[] }>("/admin/courts/blocks", { method: "POST", body: JSON.stringify({ ...b, dryRun: true }) });
+export const addBlock = (b: { date: string; hours: number[]; reason: string }) => api<{ blocks: Block[]; cancelled: BlockedBooking[] }>("/admin/courts/blocks", { method: "POST", body: JSON.stringify(b) });
 export const removeBlock = (id: string) => api(`/admin/courts/blocks/${encodeURIComponent(id)}`, { method: "DELETE" });
 
 // The hours the venue is open (5 AM to 10 PM) and the three price shifts the customer app uses.

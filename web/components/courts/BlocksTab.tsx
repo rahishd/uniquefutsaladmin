@@ -6,7 +6,7 @@ import { Lock, Trash2 } from "lucide-react";
 import { prettyDate } from "@/lib/bookings";
 import { ApiError } from "@/lib/api";
 import { guard } from "@/lib/access";
-import { Block, HOURS, addBlock, getBlocks, removeBlock } from "@/lib/courts";
+import { Block, HOURS, addBlock, getBlocks, previewBlock, removeBlock } from "@/lib/courts";
 import { hourLabel, todayKey } from "@/lib/slots";
 
 const field = "w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
@@ -48,8 +48,16 @@ export default function BlocksTab() {
     if (reason.trim().length < 2) return setError("Write a short reason, for example floor repair.");
     setBusy(true);
     try {
-      await addBlock({ date, hours, reason: reason.trim() });
-      setNote(`Blocked ${hours.length} hour${hours.length > 1 ? "s" : ""} on ${prettyDate(date)}. Customers can no longer book them.`);
+      // games already booked in those hours are cancelled: show them first and ask
+      const { wouldCancel } = await previewBlock({ date, hours, reason: reason.trim() });
+      if (wouldCancel.length > 0) {
+        const list = wouldCancel.slice(0, 8).map((x) => `• ${x.customer ?? x.phone ?? "Guest"} · ${x.time}${x.paid ? " (paid, refund due)" : ""}`).join("\n");
+        const more = wouldCancel.length > 8 ? `\n…and ${wouldCancel.length - 8} more` : "";
+        const ok = window.confirm(`Blocking these hours will CANCEL ${wouldCancel.length} booking${wouldCancel.length === 1 ? "" : "s"}:\n\n${list}${more}\n\nEach customer is told the reason: "${reason.trim()}". Paid online bookings are marked for refund.\n\nBlock and cancel them?`);
+        if (!ok) { setBusy(false); return; }
+      }
+      const r = await addBlock({ date, hours, reason: reason.trim() });
+      setNote(`Blocked ${hours.length} hour${hours.length > 1 ? "s" : ""} on ${prettyDate(date)}. Customers can no longer book them and will see the reason.${r.cancelled.length ? ` ${r.cancelled.length} booking${r.cancelled.length === 1 ? "" : "s"} cancelled and the customer${r.cancelled.length === 1 ? "" : "s"} told.` : ""}`);
       setHours([]);
       setReason("");
       setTick((t) => t + 1);
@@ -79,7 +87,7 @@ export default function BlocksTab() {
       {editable ? (
         <form onSubmit={submit} className="space-y-3 rounded-2xl bg-surface p-4 shadow-sm">
           <h2 className="font-bold">Block hours</h2>
-          <p className="text-xs text-muted">For repairs, tournaments or private events. Blocked hours cannot be booked in the app or at the desk. An hour that already has a booking cannot be blocked: reject that booking first.</p>
+          <p className="text-xs text-muted">For repairs, tournaments or private events. Blocked hours cannot be booked in the app or at the desk, and customers see the reason you write. Bookings already in those hours are cancelled automatically and the customers are told why.</p>
           <label className="block text-sm font-medium">Date
             <input type="date" min={todayKey()} value={date} onChange={(e) => setDate(e.target.value)} className={`${field} mt-1`} />
           </label>
