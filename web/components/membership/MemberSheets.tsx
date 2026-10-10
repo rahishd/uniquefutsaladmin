@@ -179,7 +179,7 @@ export function NewMemberSheet({ onClose, onDone }: { onClose: () => void; onDon
 // ---------- verify the payment of a pending membership ----------
 export function VerifySheet({ m, onClose, onDone }: { m: Member; onClose: () => void; onDone: () => void }) {
   const [pay, setPay] = useState<PayState>(INITIAL_PAY);
-  const [advance, setAdvance] = useState(false);
+  const [advance, setAdvance] = useState(!!m.notes?.includes("50% advance")); // the customer asked for a 50% advance in the app
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<Member | null>(null);
