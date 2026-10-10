@@ -14,6 +14,7 @@ export type Member = {
   length: string | null; shift: MShift | null; timeSlot: string | null; days: string[];
   startDate: string; endDate: string; daysLeft: number | null; totalPrice: number; promoCode: string | null; notes: string | null;
   gamesPlayed?: number; pointsAdded?: number;
+  paid?: number; balance?: number; // received so far, and what is still owed after an advance (0 when fully paid)
 };
 export type MemberList = {
   items: Member[]; total: number; page: number; limit: number; activeValue: number;
@@ -22,7 +23,9 @@ export type MemberList = {
 export type MemberDetail = Member & { earlier: Member[]; payments: { id: string; date: string; amount: number; cash: number; online: number; renewal: boolean; status: string }[] };
 
 export const PAGE_SIZE = 25;
-export type PayBody = { payments?: { method: "cash" | "fonepay"; amount: number }[]; single?: "cash" | "fonepay"; fonepayQrId?: string };
+export type PayBody = { payments?: { method: "cash" | "fonepay"; amount: number }[]; single?: "cash" | "fonepay"; fonepayQrId?: string; advance?: boolean };
+// "advance" takes half now (rounded up) and the rest later; "full" takes everything now.
+export const advanceOf = (total: number) => Math.ceil(total / 2);
 
 export const listMembers = (p: { status: "" | MemberStatus; q: string; page: number }) => {
   const qs = new URLSearchParams({ page: String(p.page), limit: String(PAGE_SIZE) });
@@ -33,11 +36,12 @@ export const listMembers = (p: { status: "" | MemberStatus; q: string; page: num
 export const getMember = (id: string) => api<MemberDetail>(`/admin/membership/subscriptions/${id}`);
 
 export type NewMember = { phone: string; planId: string; length: MLength; timeSlot: string; days: string[]; startDate: string; notes?: string; pay?: PayBody };
-export type Preview = { price: number; discount: number; total: number; shift: MShift; startDate: string; endDate: string; dates: number; clashes: { date: string; reason: string }[] };
+export type Preview = { price: number; discount: number; total: number; advance: number; shift: MShift; startDate: string; endDate: string; dates: number; clashes: { date: string; reason: string }[] };
 export const previewMember = (b: NewMember) => api<Preview>("/admin/membership/subscriptions", { method: "POST", body: JSON.stringify({ ...b, pay: undefined, dryRun: true }) });
 export const createMember = (b: NewMember) => api<Member>("/admin/membership/subscriptions", { method: "POST", body: JSON.stringify(b) });
 const post = (id: string, action: string, b: object = {}) => api<Member>(`/admin/membership/subscriptions/${id}/${action}`, { method: "POST", body: JSON.stringify(b) });
 export const verifyMember = (id: string, pay: PayBody) => post(id, "verify", pay);
+export const collectBalance = (id: string, pay: PayBody) => post(id, "collect-balance", pay);
 export const renewMember = (id: string, b: { length?: MLength; pay: PayBody }) => post(id, "renew", b);
 export const extendMember = (id: string, b: { days: number; reason: string }) => post(id, "extend", b);
 export const suspendMember = (id: string, reason: string) => post(id, "suspend", { reason });

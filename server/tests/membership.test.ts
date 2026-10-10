@@ -32,6 +32,46 @@ describe("Membership subscriptions", () => {
     assert.equal(Number(r2.body.data.memberCode.slice(4)), Number(r.body.data.memberCode.slice(4)) + 1);
   });
 
+  it("takes a 50% advance: active at once, the balance is tracked and collected later, and the payments add up to the price", async () => {
+    await customer("9840000001", "Mina Member");
+    const mgr = await staff("manager");
+    const p = await plan();
+    // the advance is half of Rs. 3,000; paying a different amount is refused
+    assert.equal((await api.post("/membership/subscriptions", mgr.auth, body(p.id, { pay: { single: "cash", advance: true } }))).status, 201);
+    const sub = (await api.get("/membership/subscriptions?status=active", mgr.auth)).body.data.items[0];
+    assert.equal(sub.status, "active");
+    assert.equal(sub.paymentStatus, "partial");
+    assert.equal(sub.paid, 1500);
+    assert.equal(sub.balance, 1500);
+    // no loyalty points until it is fully paid, and it cannot be renewed with a balance open
+    assert.equal(await prisma.loyaltyEntry.count({ where: { userId: "9840000001", kind: "membership" } }), 0);
+    assert.equal((await api.post(`/membership/subscriptions/${sub.id}/renew`, mgr.auth, { pay: { single: "cash" } })).status, 409);
+    // the balance: a part payment is refused, the exact balance is accepted once
+    assert.equal((await api.post(`/membership/subscriptions/${sub.id}/collect-balance`, mgr.auth, { payments: [{ method: "cash", amount: 500 }] })).status, 400);
+    assert.equal((await api.post(`/membership/subscriptions/${sub.id}/collect-balance`, mgr.auth, { single: "cash" })).status, 200);
+    const after = (await api.get(`/membership/subscriptions/${sub.id}`, mgr.auth)).body.data;
+    assert.equal(after.paymentStatus, "verified");
+    assert.equal(after.balance, 0);
+    assert.equal(after.paid, 3000);
+    assert.equal(after.payments.length, 2);
+    assert.equal((await api.post(`/membership/subscriptions/${sub.id}/collect-balance`, mgr.auth, { single: "cash" })).status, 409);
+  });
+
+  it("verifies a pending membership with a 50% advance, part of it by Fonepay QR", async () => {
+    await customer("9840000001", "Mina Member");
+    const mgr = await staff("manager");
+    const p = await plan();
+    const made = await api.post("/membership/subscriptions", mgr.auth, body(p.id));
+    const id = made.body.data.id;
+    // Rs. 1,500 due now: Rs. 500 cash + Rs. 1,000 Fonepay
+    const r = await api.post(`/membership/subscriptions/${id}/verify`, mgr.auth, { advance: true, payments: [{ method: "cash", amount: 500 }, { method: "fonepay", amount: 1000 }], fonepayQrId: await paidQr(mgr.auth, 1000) });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.data.status, "active");
+    assert.equal(r.body.data.paymentStatus, "partial");
+    assert.equal(r.body.data.paid, 1500);
+    assert.equal(r.body.data.balance, 1500);
+  });
+
   it("refuses 4 PM to 8 PM, a price the plan does not offer, unknown customers, past dates and a second membership", async () => {
     await customer("9840000001");
     const mgr = await staff("manager");
