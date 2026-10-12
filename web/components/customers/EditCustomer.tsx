@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Eye, EyeOff, Pencil } from "lucide-react";
+import { Eye, EyeOff, MessageCircle, Pencil } from "lucide-react";
 import { ApiError } from "@/lib/api";
 import { guard } from "@/lib/access";
 import { CustomerEdit, editCustomer } from "@/lib/customers";
@@ -14,6 +14,8 @@ export default function EditCustomer({ phone, name, email, onSaved }: { phone: s
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState("");
+  // After a new password is saved: who to send it to on WhatsApp (the number is saved without the country code)
+  const [share, setShare] = useState<{ phone: string; text: string } | null>(null);
   const input = "w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
 
   async function save() {
@@ -25,10 +27,15 @@ export default function EditCustomer({ phone, name, email, onSaved }: { phone: s
     if (f.password) body.password = f.password;
     if (!Object.keys(body).length) { setOpen(false); return; }
     if (body.phoneNumber && !window.confirm(`Change the phone number from ${phone} to ${body.phoneNumber}? The customer will sign in with the new number.`)) return;
-    setBusy(true); setError(""); setDone("");
+    setBusy(true); setError(""); setDone(""); setShare(null);
     try {
       await editCustomer(phone, body);
       setDone(body.password ? `Saved. Tell the customer their new password: ${body.password}` : "Saved.");
+      if (body.password) {
+        const to = body.phoneNumber ?? phone;
+        const first = (body.name ?? f.name).trim().split(" ")[0] || "there";
+        setShare({ phone: to, text: `Hello ${first}! Your Unique Futsal password has been changed. Open the app and sign in with your mobile number ${to} and the new password ${body.password}. You can change it any time from Profile.` });
+      }
       setF((v) => ({ ...v, password: "" }));
       onSaved(body.phoneNumber ?? phone);
     } catch (e) {
@@ -40,6 +47,11 @@ export default function EditCustomer({ phone, name, email, onSaved }: { phone: s
     <div className="space-y-2">
       <button onClick={() => setOpen(true)} className="flex w-full items-center justify-center gap-2 rounded-xl bg-surface-2 py-3 text-sm font-semibold"><Pencil size={16} /> Edit details / set password</button>
       {done && <p className="rounded-xl bg-brand/10 p-3 text-sm text-brand">{done}</p>}
+      {share && (
+        <a href={`https://wa.me/977${share.phone}?text=${encodeURIComponent(share.text)}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 rounded-xl bg-[#25D366] py-3 text-sm font-semibold text-white">
+          <MessageCircle size={16} /> Send the new password on WhatsApp to {share.phone}
+        </a>
+      )}
     </div>
   );
   return (
@@ -55,6 +67,11 @@ export default function EditCustomer({ phone, name, email, onSaved }: { phone: s
       <p className="text-xs text-muted">No old password is needed. Passwords are stored scrambled and cannot be read back later, so note the new one down and tell the customer.</p>
       {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600" role="alert">{error}</p>}
       {done && <p className="rounded-xl bg-brand/10 p-3 text-sm text-brand">{done}</p>}
+      {share && (
+        <a href={`https://wa.me/977${share.phone}?text=${encodeURIComponent(share.text)}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 rounded-xl bg-[#25D366] py-3 text-sm font-semibold text-white">
+          <MessageCircle size={16} /> Send the new password on WhatsApp to {share.phone}
+        </a>
+      )}
       <div className="grid grid-cols-2 gap-2">
         <button onClick={() => setOpen(false)} className="rounded-xl bg-surface-2 py-2.5 text-sm font-semibold">Cancel</button>
         <button onClick={save} disabled={busy} className="rounded-xl bg-brand py-2.5 text-sm font-semibold text-white disabled:opacity-60">{busy ? "Saving…" : "Save"}</button>
