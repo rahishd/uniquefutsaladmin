@@ -39,7 +39,7 @@ tournamentsRouter.get("/", requirePermission("tournaments.view"), handler(async 
   }
   send(res, rows.map((t) => ({
     id: t.id, name: t.name, startDate: t.startDate, endDate: t.endDate, state: stateOf(t), prizePool: t.prizePool, minTeams: t.minTeams, maxTeams: t.maxTeams,
-    registrations: t._count.registrations, isActive: t.isActive, hostedEvent: t.hostedEvent, hostName: t.hostName, ...(sheet.get(t.id) ?? { matches: 0, live: 0, finished: 0 }),
+    registrations: t._count.registrations, entryFee: t.entryFee, isActive: t.isActive, hostedEvent: t.hostedEvent, hostName: t.hostName, ...(sheet.get(t.id) ?? { matches: 0, live: 0, finished: 0 }),
   })));
 }));
 
@@ -49,11 +49,21 @@ tournamentsRouter.get("/:id", requirePermission("tournaments.view"), handler(asy
   const canShare = !!req.staff!.permissions.includes("tournaments.share");
   const link = canShare ? await prisma.tournamentHostLink.findUnique({ where: { tournamentId: t.id } }) : null;
   send(res, {
-    tournament: { id: t.id, name: t.name, startDate: t.startDate, endDate: t.endDate, state: stateOf(t), prizePool: t.prizePool, registrations: t._count.registrations, hostedEvent: t.hostedEvent, hostName: t.hostName },
+    tournament: { id: t.id, name: t.name, startDate: t.startDate, endDate: t.endDate, state: stateOf(t), prizePool: t.prizePool, entryFee: t.entryFee, registrations: t._count.registrations, hostedEvent: t.hostedEvent, hostName: t.hostName },
     rounds: await loadSheet(t.id),
     hostLink: linkView(link),
     canShare,
   });
+}));
+
+// The entry fee customers see on the tournament page and on the registration page (rupees per team, 0 = free entry).
+tournamentsRouter.patch("/:id/entry-fee", requirePermission("tournaments.edit"), handler(async (req, res) => {
+  const b = parse(z.object({ entryFee: z.number().int("Whole rupees only").min(0, "The fee cannot be below 0").max(1_000_000, "That fee is too high") }), req.body);
+  const t = await prisma.tournament.findUnique({ where: { id: param(req, "id") }, select: { id: true, name: true, entryFee: true } });
+  if (!t) throw new AppError(404, "Tournament not found");
+  await prisma.tournament.update({ where: { id: t.id }, data: { entryFee: b.entryFee } });
+  await audit(req, "entry-fee", "tournament", t.id, { tournament: t.name, from: t.entryFee, to: b.entryFee });
+  send(res, { entryFee: b.entryFee }, "Entry fee saved");
 }));
 
 // ---- team registrations: teams that signed up from the shareable link on the customer site ----

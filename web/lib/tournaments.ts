@@ -12,12 +12,12 @@ export type Round = { id: string; name: string; matches: Match[] };
 
 export type TournamentItem = {
   id: string; name: string; startDate: string; endDate: string; state: "upcoming" | "live" | "completed"; prizePool: number;
-  minTeams: number; maxTeams: number; registrations: number; isActive: boolean; matches: number; live: number; finished: number;
+  minTeams: number; maxTeams: number; registrations: number; entryFee: number; isActive: boolean; matches: number; live: number; finished: number;
   hostedEvent?: boolean; hostName?: string | null;
 };
 export type HostLink = { token: string; active: boolean; expired: boolean; expiresAt: string | null; lastUsedAt: string | null; createdAt: string };
 export type TournamentDetail = {
-  tournament: { id: string; name: string; startDate: string; endDate: string; state: TournamentItem["state"]; prizePool: number; registrations: number; hostedEvent?: boolean; hostName?: string | null };
+  tournament: { id: string; name: string; startDate: string; endDate: string; state: TournamentItem["state"]; prizePool: number; entryFee: number; registrations: number; hostedEvent?: boolean; hostName?: string | null };
   rounds: Round[]; hostLink: HostLink | null; canShare: boolean;
 };
 
@@ -77,6 +77,7 @@ export const nepalTime = (iso: string | null) =>
 export const hostUrl = (token: string) => `${typeof window === "undefined" ? "" : window.location.origin}${withBase("/host/" + token)}`;
 
 /* ---------- team registrations (teams that signed up from the shareable link on the customer site) ---------- */
+export const setEntryFee = (id: string, entryFee: number) => api<{ entryFee: number }>(`/admin/tournaments/${id}/entry-fee`, { method: "PATCH", body: JSON.stringify({ entryFee }) });
 export type RegStatus = "pending" | "approved" | "rejected";
 export type TeamRegistration = { id: string; teamName: string; captainName: string; contactPhone: string; contactEmail: string | null; players: string[]; status: RegStatus; createdAt: string };
 export const listRegistrations = (id: string) => api<{ maxTeams: number; items: TeamRegistration[] }>(`/admin/tournaments/${id}/registrations`);

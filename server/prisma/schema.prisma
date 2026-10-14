@@ -249,6 +249,7 @@ model Tournament {
   status        String         @default("active")
   totalAmount   Float          @default(0)
   hostedEvent   Boolean        @default(false)
+  entryFee      Float          @default(0)
   hostName      String?
   hostPhone     String?
   minRate       Int?

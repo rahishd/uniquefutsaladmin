@@ -74,4 +74,20 @@ describe("Tournament team registrations", () => {
     assert.equal((await api.patch(`/tournaments/${t.id}/registrations/${reg.id}`, decider.auth, { status: "approved" })).status, 200);
     assert.equal((await request(app).get(`/api/admin/tournaments/${t.id}/registrations`)).status, 401);
   });
+  it("sets the entry fee, which customers see, and checks it", async () => {
+    const mgr = await staff("admin");
+    const { t } = await setup();
+    const ok = await api.patch(`/tournaments/${t.id}/entry-fee`, mgr.auth, { entryFee: 1500 });
+    assert.equal(ok.status, 200);
+    assert.equal((await prisma.tournament.findUnique({ where: { id: t.id } }))!.entryFee, 1500);
+    assert.equal((await api.get(`/tournaments/${t.id}`, mgr.auth)).body.data.tournament.entryFee, 1500);
+    assert.equal((await api.get("/tournaments", mgr.auth)).body.data[0].entryFee, 1500);
+    assert.equal((await api.patch(`/tournaments/${t.id}/entry-fee`, mgr.auth, { entryFee: 0 })).status, 200, "0 means free entry");
+    assert.equal((await api.patch(`/tournaments/${t.id}/entry-fee`, mgr.auth, { entryFee: -5 })).status, 400);
+    assert.equal((await api.patch(`/tournaments/${t.id}/entry-fee`, mgr.auth, { entryFee: 99.5 })).status, 400);
+    assert.equal((await api.patch("/tournaments/nope/entry-fee", mgr.auth, { entryFee: 100 })).status, 404);
+    const viewer = await staffWith(["tournaments.view"], "v2@test.np");
+    assert.equal((await api.patch(`/tournaments/${t.id}/entry-fee`, viewer.auth, { entryFee: 10 })).status, 403);
+    assert.ok((await prisma.adminAuditLog.count({ where: { entity: "tournament", action: "entry-fee" } })) >= 2);
+  });
 });

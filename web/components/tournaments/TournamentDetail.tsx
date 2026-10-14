@@ -48,7 +48,7 @@ export default function TournamentDetail({ id }: { id: string }) {
 
           {data.tournament.hostedEvent && <BillingPanel id={id} canBill={canDo("tournaments.bill")} />}
 
-          <RegistrationsCard tournamentId={id} name={data.tournament.name} finished={data.tournament.state === "completed"} />
+          <RegistrationsCard tournamentId={id} name={data.tournament.name} finished={data.tournament.state === "completed"} entryFee={data.tournament.entryFee} onFeeSaved={reload} />
 
           {data.canShare && <HostLinkCard tournamentId={id} name={data.tournament.name} link={data.hostLink} onChanged={reload} />}
 
