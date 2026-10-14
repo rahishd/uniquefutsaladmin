@@ -95,3 +95,20 @@ export function scheduleText(a: Pick<Ad, "startDate" | "endDate" | "dailyStart" 
   if (a.startDate || a.endDate) parts.push(`${a.startDate ? dayLabel(a.startDate) : "now"} to ${a.endDate ? dayLabel(a.endDate) : "no end"}`);
   return parts.join(" · ");
 }
+
+/* ---------- Corporate Network (partner logos) ---------- */
+export type Partner = { id: string; name: string; visible: boolean; sortOrder: number; imageUrl: string };
+export const listPartners = () => api<Partner[]>("/admin/content/partners");
+export const addPartner = (b: { name: string; image: string }) => api<Partner>("/admin/content/partners", { method: "POST", body: JSON.stringify(b) });
+export const editPartner = (id: string, b: Partial<{ name: string; visible: boolean; image: string }>) => api<Partner>(`/admin/content/partners/${id}`, { method: "PATCH", body: JSON.stringify(b) });
+export const reorderPartners = (ids: string[]) => api<null>("/admin/content/partners/reorder", { method: "POST", body: JSON.stringify({ ids }) });
+export const deletePartner = (id: string) => api<null>(`/admin/content/partners/${id}`, { method: "DELETE" });
+
+// A logo is sent as it is (the server shrinks it and keeps any transparent background).
+export const fileToDataUrl = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = () => reject(new Error("That file could not be read."));
+    r.readAsDataURL(file);
+  });

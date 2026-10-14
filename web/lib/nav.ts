@@ -277,6 +277,17 @@ export const modules: Module[] = [
     ],
   },
   {
+    slug: "partners", title: "Corporate Network", group: "Communication", icon: "handshake",
+    summary: "Logos of the companies and institutions you work with, shown as a moving strip on the customer Home.",
+    clientFeatures: ["\"Corporate Network. We Trusted\" strip on Home, between the promo codes and the founder message", "Logos move across the screen and pause when touched"],
+    adminTasks: ["Upload a logo with the organisation name", "Rename, replace the picture, hide or delete a logo", "Choose the order the logos appear in"],
+    endpoints: [
+      e("GET", "/admin/content/partners", "all logos"), e("POST", "/admin/content/partners", "add a logo and its name"),
+      e("PATCH", "/admin/content/partners/:id", "rename, show or hide, replace the picture"), e("POST", "/admin/content/partners/reorder", "save the order"),
+      e("DELETE", "/admin/content/partners/:id", "delete a logo"),
+    ],
+  },
+  {
     slug: "inventory", title: "Inventory & Goods", group: "Business", icon: "box",
     summary: "Products sold at the venue: stock, restocking, counter sales and goods points.",
     clientFeatures: ["Goods points: Rs. 100 = 1 point, kept for a year", "Bottled water is taken from stock when a booking is paid"],

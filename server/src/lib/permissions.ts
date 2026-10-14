@@ -87,6 +87,7 @@ export const SECTIONS: Section[] = [
   { id: "content", label: "Site Content", permissions: [
     { key: "content.view", label: "View Gallery & Ads" },
     { key: "content.gallery", label: "Add / Edit / Delete Gallery Photos" },
+    { key: "content.partners", label: "Add / Edit / Delete Corporate Network Logos" },
     { key: "content.ads", label: "Add / Edit / Pause / Delete Ads" },
   ] },
   { id: "refer", label: "Refer & Earn", permissions: [

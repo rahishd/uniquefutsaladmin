@@ -904,6 +904,20 @@ model SiteGallery {
   @@index([visible, sortOrder])
 }
 
+// Corporate Network logos (same table as the customer backend). Managed in the admin portal, shown on the customer Home.
+model SitePartner {
+  id        String   @id @default(cuid())
+  name      String
+  mediaId   String   @unique
+  sortOrder Int      @default(0)
+  visible   Boolean  @default(true)
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([visible, sortOrder])
+}
+
 model SiteAd {
   id                String   @id @default(cuid())
   title             String

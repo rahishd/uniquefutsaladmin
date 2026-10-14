@@ -133,6 +133,79 @@ contentRouter.delete("/gallery/:id", requirePermission("content.gallery"), handl
   send(res, null, "Photo deleted");
 }));
 
+// ---------- corporate network (partner logos) ----------
+const MAX_PARTNERS = 60;
+// A logo keeps its transparency and is stored as a small WebP, at most 600 x 360 px.
+async function processLogo(dataUrl: string) {
+  const m = DATA_URL.exec(dataUrl.trim());
+  if (!m) throw new AppError(400, "The logo must be a JPG, PNG or WebP image.");
+  const raw = Buffer.from(m[1], "base64");
+  if (raw.length === 0 || raw.length > MAX_BYTES) throw new AppError(400, "The logo is too large. The limit is 8 MB.");
+  try {
+    const { data, info } = await sharp(raw, { limitInputPixels: 80_000_000 })
+      .rotate()
+      .resize({ width: 600, height: 360, fit: "inside", withoutEnlargement: true })
+      .webp({ quality: 90, alphaQuality: 100, effort: 5 })
+      .toBuffer({ resolveWithObject: true });
+    return { data, width: info.width, height: info.height };
+  } catch {
+    throw new AppError(400, "That logo could not be read. Please choose a different image.");
+  }
+}
+const saveLogo = async (dataUrl: string, staffId: string) => {
+  const p = await processLogo(dataUrl);
+  return prisma.contentMedia.create({ data: { mime: "image/webp", data: p.data, width: p.width, height: p.height, bytes: p.data.length, createdBy: staffId } });
+};
+const partnerView = (p: Prisma.SitePartnerGetPayload<object>) => ({ id: p.id, name: p.name, visible: p.visible, sortOrder: p.sortOrder, imageUrl: mediaPath(p.mediaId), createdAt: p.createdAt });
+
+contentRouter.get("/partners", requirePermission("content.view"), handler(async (_req, res) => {
+  send(res, (await prisma.sitePartner.findMany({ orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] })).map(partnerView));
+}));
+
+contentRouter.post("/partners", requirePermission("content.partners"), handler(async (req, res) => {
+  const b = parse(z.object({ name: z.string().trim().min(1, "Write the name").max(60), image: z.string().min(50, "Choose a logo") }), req.body);
+  if ((await prisma.sitePartner.count()) >= MAX_PARTNERS) throw new AppError(409, `The list is full (${MAX_PARTNERS} logos). Delete one first.`);
+  const media = await saveLogo(b.image, req.staff!.id);
+  const last = await prisma.sitePartner.aggregate({ _max: { sortOrder: true } });
+  const item = await prisma.sitePartner.create({ data: { name: b.name, mediaId: media.id, sortOrder: (last._max.sortOrder ?? -1) + 1, createdBy: req.staff!.id } });
+  await audit(req, "create", "partner", item.id, { name: b.name });
+  send(res, partnerView(item), "Logo added", 201);
+}));
+
+contentRouter.patch("/partners/:id", requirePermission("content.partners"), handler(async (req, res) => {
+  const b = parse(z.object({ name: z.string().trim().min(1).max(60).optional(), visible: z.boolean().optional(), image: z.string().min(50).optional() }), req.body);
+  const p = await prisma.sitePartner.findUnique({ where: { id: param(req, "id") } });
+  if (!p) throw new AppError(404, "Logo not found");
+  let mediaId = p.mediaId;
+  let oldMedia: string | null = null;
+  if (b.image) {
+    // a replacement gets a new id, so browsers never show the old picture from cache
+    mediaId = (await saveLogo(b.image, req.staff!.id)).id;
+    oldMedia = p.mediaId;
+  }
+  const upd = await prisma.sitePartner.update({ where: { id: p.id }, data: { ...(b.name !== undefined ? { name: b.name } : {}), ...(b.visible !== undefined ? { visible: b.visible } : {}), mediaId } });
+  if (oldMedia) await prisma.contentMedia.deleteMany({ where: { id: oldMedia } });
+  await audit(req, "update", "partner", p.id, { ...(b.name !== undefined ? { name: b.name } : {}), ...(b.visible !== undefined ? { visible: b.visible } : {}), ...(b.image ? { picture: "replaced" } : {}) });
+  send(res, partnerView(upd), "Saved");
+}));
+
+contentRouter.post("/partners/reorder", requirePermission("content.partners"), handler(async (req, res) => {
+  const b = parse(z.object({ ids: z.array(z.string()).min(1).max(MAX_PARTNERS) }), req.body);
+  const known = new Set((await prisma.sitePartner.findMany({ select: { id: true } })).map((x) => x.id));
+  if (b.ids.some((id) => !known.has(id)) || new Set(b.ids).size !== b.ids.length) throw new AppError(400, "That list does not match the logos");
+  await prisma.$transaction(b.ids.map((id, i) => prisma.sitePartner.update({ where: { id }, data: { sortOrder: i } })));
+  await audit(req, "reorder", "partner", null, { count: b.ids.length });
+  send(res, null, "Order saved");
+}));
+
+contentRouter.delete("/partners/:id", requirePermission("content.partners"), handler(async (req, res) => {
+  const p = await prisma.sitePartner.findUnique({ where: { id: param(req, "id") } });
+  if (!p) throw new AppError(404, "Logo not found");
+  await prisma.$transaction([prisma.sitePartner.delete({ where: { id: p.id } }), prisma.contentMedia.deleteMany({ where: { id: p.mediaId } })]);
+  await audit(req, "delete", "partner", p.id, { name: p.name });
+  send(res, null, "Logo deleted");
+}));
+
 // ---------- ads ----------
 const link = z.string().trim().max(300).refine((v) => v === "" || /^\/[A-Za-z0-9\-._~/?=&%#]*$/.test(v) || /^https:\/\/[^\s]+$/i.test(v), "Use a page of the app such as /book, or an address starting with https://");
 const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "use HH:mm");
