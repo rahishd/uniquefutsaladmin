@@ -1,5 +1,5 @@
 import { API_BASE, api, ApiError } from "./api";
-import { withBase } from "./base";
+import { BASE_PATH, withBase } from "./base";
 
 export type Side = "home" | "away";
 export type MatchStatus = "upcoming" | "live" | "finished";
@@ -75,3 +75,18 @@ export const nepalTime = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString("en-GB", { timeZone: "Asia/Kathmandu", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "";
 
 export const hostUrl = (token: string) => `${typeof window === "undefined" ? "" : window.location.origin}${withBase("/host/" + token)}`;
+
+/* ---------- team registrations (teams that signed up from the shareable link on the customer site) ---------- */
+export type RegStatus = "pending" | "approved" | "rejected";
+export type TeamRegistration = { id: string; teamName: string; captainName: string; contactPhone: string; contactEmail: string | null; players: string[]; status: RegStatus; createdAt: string };
+export const listRegistrations = (id: string) => api<{ maxTeams: number; items: TeamRegistration[] }>(`/admin/tournaments/${id}/registrations`);
+export const setRegistration = (id: string, rid: string, status: RegStatus) =>
+  api<TeamRegistration>(`/admin/tournaments/${id}/registrations/${rid}`, { method: "PATCH", body: JSON.stringify({ status }) });
+
+// The link customers use is a page of the CUSTOMER site. In production both sites share one domain (the portal lives under
+// a base path), so it is this address; locally set NEXT_PUBLIC_CUSTOMER_SITE if the customer site is not on port 3000.
+export const registrationUrl = (id: string) => {
+  const env = process.env.NEXT_PUBLIC_CUSTOMER_SITE;
+  const origin = env ? env : typeof window === "undefined" ? "" : BASE_PATH ? window.location.origin : "http://localhost:3000";
+  return `${origin.replace(/\/+$/, "")}/tournaments/${encodeURIComponent(id)}/register`;
+};

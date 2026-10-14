@@ -110,6 +110,7 @@ export const SECTIONS: Section[] = [
     { key: "tournaments.view", label: "View Tournaments & Tie-sheet" },
     { key: "tournaments.edit", label: "Edit Tie-sheet, Live Scores & Goals" },
     { key: "tournaments.share", label: "Create / Revoke the Host Link" },
+    { key: "tournaments.registrations", label: "Approve / Reject Team Registrations" },
     { key: "tournaments.create", label: "Register / Cancel a Hosted Tournament" },
     { key: "tournaments.bill", label: "Tournament Bill: Add Goods, Charges, Receive Payments" },
   ] },

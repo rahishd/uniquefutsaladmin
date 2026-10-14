@@ -6,6 +6,7 @@ import { ChevronLeft } from "lucide-react";
 import { Badge } from "../bookings/Badge";
 import BillingPanel from "./BillingPanel";
 import HostLinkCard from "./HostLinkCard";
+import RegistrationsCard from "./RegistrationsCard";
 import TieSheetEditor from "./TieSheetEditor";
 import { canDo } from "@/lib/access";
 import { prettyDate, rs } from "@/lib/bookings";
@@ -46,6 +47,8 @@ export default function TournamentDetail({ id }: { id: string }) {
           </div>
 
           {data.tournament.hostedEvent && <BillingPanel id={id} canBill={canDo("tournaments.bill")} />}
+
+          <RegistrationsCard tournamentId={id} name={data.tournament.name} finished={data.tournament.state === "completed"} />
 
           {data.canShare && <HostLinkCard tournamentId={id} name={data.tournament.name} link={data.hostLink} onChanged={reload} />}
 

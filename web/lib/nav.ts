@@ -189,6 +189,7 @@ export const modules: Module[] = [
     clientFeatures: ["Current tournament and tie-sheet", "Tournament Popular tile and notices"],
     adminTasks: ["See every tournament with registrations and live matches", "Edit rounds, teams, times and venues", "Kick off, add goals (minute, scorer), full time, correct scores", "Followers are notified at once (bell and phone alert)", "Share a private host link so the match-day host can do the same without signing in", "Create and edit tournaments (still in the customer backend)"],
     endpoints: [
+      e("GET", "/admin/tournaments/:id/registrations", "teams that signed up from the registration link"), e("PATCH", "/admin/tournaments/:id/registrations/:rid", "confirm or reject a team"),
       e("POST", "/admin/tournaments", "register a hosted tournament: host, rate, days and hours (dryRun checks the hours); holds the court"), e("GET", "/admin/tournaments/hosted", "hosted events with total, received and due"),
       e("GET", "/admin/tournaments/:id/billing", "the bill: court hours, goods, charges, discounts, payments"), e("POST", "/admin/tournaments/:id/items", "take goods from the shop onto the bill"),
       e("POST", "/admin/tournaments/:id/lines", "extra charge or discount"), e("POST", "/admin/tournaments/:id/payments", "receive cash and/or Fonepay"), e("POST", "/admin/tournaments/:id/final-bill", "make the final bill (reopen-bill undoes it)"),

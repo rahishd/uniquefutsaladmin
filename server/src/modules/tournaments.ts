@@ -1,9 +1,12 @@
 import { randomBytes } from "crypto";
 import { Router } from "express";
+import { z } from "zod";
 import { prisma } from "../db";
 import { addDaysKey, todayKey } from "../lib/dates";
 import { AppError, handler, param, parse, send } from "../lib/http";
 import { requirePermission } from "../middleware/auth";
+import { audit } from "../lib/audit";
+import { notify } from "../lib/customer-effects";
 import { Actor, addGoal, goalBody, loadSheet, record, removeGoal, saveStructure, setStatus, statusBody, structureBody } from "../lib/tiesheet";
 
 // Tournament page: the list, one tournament's tie-sheet with live scores and goals, and the private link a match-day host uses.
@@ -51,6 +54,44 @@ tournamentsRouter.get("/:id", requirePermission("tournaments.view"), handler(asy
     hostLink: linkView(link),
     canShare,
   });
+}));
+
+// ---- team registrations: teams that signed up from the shareable link on the customer site ----
+const players = (raw: string): string[] => { try { const v = JSON.parse(raw); return Array.isArray(v) ? v.map(String) : []; } catch { return []; } };
+const registrationView = (r: { id: string; teamName: string; captainName: string; contactPhone: string; contactEmail: string; players: string; status: string; createdAt: Date }) => ({
+  id: r.id, teamName: r.teamName, captainName: r.captainName, contactPhone: r.contactPhone, contactEmail: r.contactEmail || null, players: players(r.players), status: r.status, createdAt: r.createdAt,
+});
+
+tournamentsRouter.get("/:id/registrations", requirePermission("tournaments.view"), handler(async (req, res) => {
+  const t = await prisma.tournament.findUnique({ where: { id: param(req, "id") }, select: { id: true, maxTeams: true } });
+  if (!t) throw new AppError(404, "Tournament not found");
+  const rows = await prisma.registration.findMany({ where: { tournamentId: t.id }, orderBy: { createdAt: "asc" } });
+  send(res, { maxTeams: t.maxTeams, items: rows.map(registrationView) });
+}));
+
+tournamentsRouter.patch("/:id/registrations/:rid", requirePermission("tournaments.registrations"), handler(async (req, res) => {
+  const b = parse(z.object({ status: z.enum(["pending", "approved", "rejected"]) }), req.body);
+  const t = await prisma.tournament.findUnique({ where: { id: param(req, "id") }, select: { id: true, name: true, maxTeams: true } });
+  if (!t) throw new AppError(404, "Tournament not found");
+  const r = await prisma.registration.findFirst({ where: { id: param(req, "rid"), tournamentId: t.id } });
+  if (!r) throw new AppError(404, "Registration not found");
+  if (r.status === b.status) return send(res, registrationView(r), "Saved");
+  // bringing a rejected team back needs a free place
+  if (r.status === "rejected" && t.maxTeams > 0) {
+    const taken = await prisma.registration.count({ where: { tournamentId: t.id, status: { not: "rejected" } } });
+    if (taken >= t.maxTeams) throw new AppError(409, "All team places are taken. Reject another team first.");
+  }
+  const upd = await prisma.registration.update({ where: { id: r.id }, data: { status: b.status } });
+  await audit(req, b.status, "team-registration", r.id, { tournament: t.name, team: r.teamName });
+  if (b.status === "approved" || b.status === "rejected") {
+    await notify(prisma, {
+      userId: r.contactPhone, type: "tournament", href: "/tournaments",
+      title: b.status === "approved" ? "Your team is confirmed" : "Team registration not accepted",
+      message: b.status === "approved" ? `${r.teamName} is confirmed for ${t.name}. See you there!` : `${r.teamName} could not be accepted for ${t.name}. Please call the venue if you have questions.`,
+      dedupeKey: `reg-${r.id}-${b.status}`,
+    });
+  }
+  send(res, registrationView(upd), b.status === "approved" ? "Team confirmed" : b.status === "rejected" ? "Team rejected" : "Saved");
 }));
 
 tournamentsRouter.put("/:id/tiesheet", requirePermission("tournaments.edit"), handler(async (req, res) => {
