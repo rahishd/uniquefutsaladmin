@@ -107,6 +107,16 @@ export const modules: Module[] = [
     ],
   },
   {
+    slug: "club", title: "Unique Club", group: "Customers", icon: "badge",
+    summary: "Members of Unique Club (Rs. 1,500 for 30 days, 10% off). See who is in, who is about to run out and what the discount has given.",
+    clientFeatures: ["Unique Club page in Quick Access", "Pay Rs. 1,500 with the Fonepay QR; active at once for 30 days", "10% off court bookings and Gamezone from day one", "10% off the 1-month membership plan and hosting a tournament after 15 days or 5 games", "No promo or VIP code with the club discount"],
+    adminTasks: ["See members by status: active, expiring in 7 days, expired", "Search by name or mobile number", "See when each joined, when it ends, payments made and the discount given", "See who has unlocked the membership and tournament discounts", "The Rs. 1,500 payments are in Payments > Unique Club"],
+    endpoints: [
+      e("GET", "/admin/club", "members with status, dates, payments, discount given and totals"),
+      e("GET", "/admin/payments/ledger?kind=club", "the Rs. 1,500 club payments"),
+    ],
+  },
+  {
     slug: "vip", title: "VIP Privilege", group: "Customers", icon: "crown",
     summary: "Give a customer a special code. They type it once and get a discount on every game.",
     clientFeatures: ["Promo code box on the booking screen", "The VIP code is typed once, then applied to every booking automatically", "The bigger of the VIP discount and a normal promo code is used"],

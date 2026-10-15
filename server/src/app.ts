@@ -35,6 +35,7 @@ import { promosRouter } from "./modules/promos";
 import { staffRouter } from "./modules/staff";
 import { teamsRouter } from "./modules/teams";
 import { vipRouter } from "./modules/vip";
+import { clubRouter } from "./modules/club";
 
 export const app = express();
 app.set("trust proxy", 1);
@@ -90,6 +91,7 @@ admin.use("/teams", teamsRouter);
 admin.use("/tournaments", tournamentEventsRouter); // hosted events first, so /hosted is not read as an id
 admin.use("/tournaments", tournamentsRouter);
 admin.use("/vip", vipRouter);
+admin.use("/club", clubRouter);
 admin.use("/", overviewRouter);
 app.use("/api/admin", admin);
 

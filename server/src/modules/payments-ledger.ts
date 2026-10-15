@@ -14,7 +14,7 @@ export const ledgerRouter = Router();
 
 const DEAD = ["cancelled", "expired"];
 const filters = z.object({
-  kind: z.enum(["court", "gamezone"]).default("court"),
+  kind: z.enum(["court", "gamezone", "club"]).default("court"),
   status: z.enum(["paid", "unpaid", "cancelled"]).optional(),
   mode: z.enum(["cash", "online", "esewa", "fonepay"]).optional(),
   from: dateStr.optional(),
@@ -72,6 +72,27 @@ ledgerRouter.get("/ledger", requirePermission("payments.view"), handler(async (r
         kind: "gamezone", id: r.id, ref: r.code, code: r.code, date: r.date, time: `${String(r.startHour).padStart(2, "0")}:00`,
         customer: r.guestName ?? (r.userId ? name.get(r.userId) ?? null : null), phone: r.guestPhone ?? r.userId, amount: r.total,
         status: DEAD.includes(r.status) ? "cancelled" : r.paymentStatus === "paid" ? "paid" : "unpaid", method: r.paymentMethod, mode: modeOf(r.paymentMethod), createdAt: r.createdAt,
+        clubDiscount: r.clubDiscount,
+      })),
+    });
+  }
+
+  if (f.kind === "club") {
+    // Unique Club payments (Rs. 1,500 each): one row per Fonepay order
+    const where: Prisma.PaymentOrderWhereInput = {
+      purpose: "club",
+      ...(f.status === "paid" ? { status: "paid" } : f.status === "unpaid" ? { status: "pending" } : f.status === "cancelled" ? { status: { in: ["expired", "failed", "refunded"] } } : {}),
+      ...(f.q ? { OR: [{ orderCode: { contains: f.q, mode: "insensitive" as const } }, { userId: { contains: f.q } }] } : {}),
+    };
+    const [rows, total] = await Promise.all([prisma.paymentOrder.findMany({ where, orderBy: { createdAt: "desc" }, take, skip }), prisma.paymentOrder.count({ where })]);
+    const users = await prisma.user.findMany({ where: { phoneNumber: { in: rows.flatMap((r) => (r.userId ? [r.userId] : [])) } }, select: { phoneNumber: true, name: true } });
+    const name = new Map(users.map((u) => [u.phoneNumber, u.name]));
+    return send(res, {
+      total, page: pageNo, limit,
+      items: rows.map((r) => ({
+        kind: "club", id: r.id, ref: r.orderCode, code: r.orderCode, date: (r.paidAt ?? r.createdAt).toISOString().slice(0, 10), time: "",
+        customer: r.userId ? name.get(r.userId) ?? null : null, phone: r.userId, amount: r.amount,
+        status: r.status === "paid" ? "paid" : r.status === "pending" ? "unpaid" : "cancelled", method: "fonepay", mode: "online", createdAt: r.createdAt, clubDiscount: 0,
       })),
     });
   }
@@ -84,6 +105,7 @@ ledgerRouter.get("/ledger", requirePermission("payments.view"), handler(async (r
       kind: "court", id: r.id, ref: r.id, code: r.code ?? "UF-" + r.id.slice(-6).toUpperCase(), date: r.date, time: r.startTime,
       customer: r.customerName, phone: r.customerPhone ?? r.userId, amount: r.totalPrice,
       status: DEAD.includes(r.status) ? "cancelled" : r.paymentStatus === "completed" ? "paid" : "unpaid", method: r.paymentMethod, mode: modeOf(r.paymentMethod), createdAt: r.createdAt,
+      clubDiscount: r.clubDiscount,
     })),
   });
 }));
@@ -93,6 +115,10 @@ ledgerRouter.get("/summary", requirePermission("payments.view"), handler(async (
   const f = parse(filters, req.query);
   type Row = { method: string; sum: number; count: number };
   const group = async (paid: boolean): Promise<Row[]> => {
+    if (f.kind === "club") {
+      const g = await prisma.paymentOrder.aggregate({ where: { purpose: "club", status: paid ? "paid" : "pending" }, _sum: { amount: true }, _count: { _all: true } });
+      return [{ method: "fonepay", sum: g._sum.amount ?? 0, count: g._count._all }];
+    }
     if (f.kind === "gamezone") {
       const rows = await prisma.gzBooking.findMany({ where: { AND: [gzBase(f), gzStatus(paid ? "paid" : "unpaid")] }, select: { code: true, total: true, paymentMethod: true } });
       // A part cash, part Fonepay session adds its cash to Cash and its Fonepay to Online; it is counted once, under the method that paid most.
@@ -110,7 +136,8 @@ ledgerRouter.get("/summary", requirePermission("payments.view"), handler(async (
   };
   const [paid, unpaid, cancelled] = await Promise.all([
     group(true), group(false),
-    f.kind === "gamezone" ? prisma.gzBooking.count({ where: { AND: [gzBase(f), gzStatus("cancelled")] } }) : prisma.booking.count({ where: { AND: [courtBase(f), courtStatus("cancelled")] } }),
+    f.kind === "club" ? prisma.paymentOrder.count({ where: { purpose: "club", status: { in: ["expired", "failed", "refunded"] } } })
+      : f.kind === "gamezone" ? prisma.gzBooking.count({ where: { AND: [gzBase(f), gzStatus("cancelled")] } }) : prisma.booking.count({ where: { AND: [courtBase(f), courtStatus("cancelled")] } }),
   ]);
   const tot = (rows: Row[], pick?: (m: string) => boolean) => rows.filter((r) => !pick || pick(r.method)).reduce((n, r) => ({ sum: n.sum + r.sum, count: n.count + r.count }), { sum: 0, count: 0 });
   send(res, {

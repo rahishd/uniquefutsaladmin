@@ -48,6 +48,9 @@ export const SECTIONS: Section[] = [
     { key: "customers.edit", label: "Edit Customer Details" },
     { key: "customers.suspend", label: "Suspend / Reactivate Account" },
   ] },
+  { id: "club", label: "Unique Club", permissions: [
+    { key: "club.view", label: "View Unique Club Members" },
+  ] },
   { id: "vip", label: "VIP Privilege", permissions: [
     { key: "vip.view", label: "View VIP Customers" },
     { key: "vip.manage", label: "Give / Change / Remove VIP Code" },
@@ -137,7 +140,7 @@ const EXPAND: Record<string, string[]> = {
   "bookings.read": ["bookings.view", "slots.view", "arrivals.view"],
   "bookings.write": ["bookings.create", "bookings.cancel", "bookings.complete", "bookings.noshow", "bookings.stats"],
   "payments.read": ["payments.view"], "payments.write": ["payments.collect", "payments.refund"],
-  "customers.read": ["customers.view"], "customers.write": ["customers.create", "customers.edit", "customers.suspend", "vip.view", "vip.manage"],
+  "customers.read": ["customers.view", "club.view"], "customers.write": ["customers.create", "customers.edit", "customers.suspend", "vip.view", "vip.manage"],
   "courts.read": ["courts.view"], "courts.write": ["courts.price", "courts.block"],
   "promos.read": ["promos.view"], "promos.write": ["promos.create", "promos.edit", "promos.delete"],
   "loyalty.read": ["loyalty.view"], "loyalty.write": ["loyalty.goods"],

@@ -160,7 +160,8 @@ export async function settle(inp: SettleInput) {
     const pays = resolvePays(inp.pay, total);
     await claimFonepay(tx, inp.pay, pays, code ?? "counter");
     const shares = allocate(lines.map((l) => l.amount), pays);
-    const bill: { type: "game" | "goods"; label: string; quantity: number; amount: number }[] = [];
+    const bill: { type: "game" | "goods"; label: string; quantity: number; amount: number; clubDiscount?: number }[] = [];
+    let clubSaved = 0;
     let gameTotal = 0, dueTotal = 0;
     const dueSales: { saleId: string; amount: number }[] = [];
     for (const [i, l] of lines.entries()) {
@@ -177,7 +178,10 @@ export async function settle(inp: SettleInput) {
           await tx.paymentEvent.create({ data: { orderCode: g.paymentOrderCode, source: "staff", payload: JSON.stringify({ event: "MARKED_PAID", by: inp.staffId, bill: code, split: pays }) } });
         }
         gameTotal += l.amount;
-        bill.push({ type: "game", label: gameLabel(g), quantity: 1, amount: l.amount });
+        // Unique Club: the line shows what the 10% discount took off, so the receipt and the WhatsApp bill can say so
+        const saved = Math.round(g.clubDiscount ?? 0);
+        clubSaved += saved;
+        bill.push({ type: "game", label: gameLabel(g), quantity: 1, amount: l.amount, ...(saved > 0 ? { clubDiscount: saved } : {}) });
       } else if (l.kind === "due") {
         const claimed = await tx.goodsDue.updateMany({ where: { id: l.row.id, status: "due" }, data: { status: "paid", paidAt: new Date(), paidBy: inp.staffId, checkoutCode: code, cashAmount: s.cash, onlineAmount: online(s) } });
         if (claimed.count === 0) throw new AppError(409, `The goods on credit (${l.row.items}) are already paid`);
@@ -200,7 +204,7 @@ export async function settle(inp: SettleInput) {
           data: { code: code!, userId: inp.userId, paymentMethod: pays.length > 1 ? "split" : methods.has("cash") ? "cash" : "online", goodsTotal, gameTotal, total, lines: JSON.stringify(bill), bookingIds: games.map((g) => g.id), goodsSaleId: newSale?.id ?? null, createdBy: inp.staffId },
         })
       : null;
-    return { row, bill, total, gameTotal, goodsTotal, newSale, dueSales, pays };
+    return { row, bill, total, gameTotal, goodsTotal, newSale, dueSales, pays, clubSaved };
   });
 
   // Loyalty points: goods (Rs. 100 = 1) when they are paid, each game that has been played when it is paid; a game still to be played earns its points when it is completed.
@@ -222,5 +226,5 @@ export async function settle(inp: SettleInput) {
     const how = out.pays.length > 1 ? "in cash and by Fonepay" : out.pays[0].method === "cash" ? "in cash" : "by Fonepay";
     await notify(prisma, { userId: inp.userId!, type: "payment", title: `Bill ${code}: Rs. ${out.total}`, message: `Paid ${how} at the venue.${pointsGoods + pointsGames ? ` You earned ${Math.round((pointsGoods + pointsGames) * 10) / 10} loyalty points.` : ""}`, href: "/profile", dedupeKey: `bill-${code}` });
   }
-  return { id: out.row?.id ?? null, code, total: out.total, goodsTotal: out.goodsTotal, gameTotal: out.gameTotal, lines: out.bill, pointsGoods, pointsGames, gamesWaitingForPoints: waiting, payments: out.pays, count: games.length + inp.goodsDues.length };
+  return { id: out.row?.id ?? null, code, total: out.total, goodsTotal: out.goodsTotal, gameTotal: out.gameTotal, lines: out.bill, clubDiscount: out.clubSaved, pointsGoods, pointsGames, gamesWaitingForPoints: waiting, payments: out.pays, count: games.length + inp.goodsDues.length };
 }

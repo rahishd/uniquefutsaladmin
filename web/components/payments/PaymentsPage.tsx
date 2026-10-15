@@ -73,7 +73,7 @@ export default function PaymentsPage() {
       </div>
 
       <div className="grid grid-cols-3 gap-1 rounded-2xl bg-surface p-1 shadow-sm" role="tablist" aria-label="Payment type">
-        {([["court", "Court bookings"], ["gamezone", "Gamezone"], ["goods", "Goods on credit"]] as [Kind | "goods", string][]).map(([id, label]) => {
+        {([["court", "Court bookings"], ["gamezone", "Gamezone"], ["club", "Unique Club"], ["goods", "Goods on credit"]] as [Kind | "goods", string][]).map(([id, label]) => {
           const on = id === "goods" ? view === "goods" : view === "payments" && f.kind === id;
           return (
             <button key={id} role="tab" aria-selected={on} onClick={() => { if (id === "goods") setView("goods"); else { setView("payments"); change({ kind: id }); } }}
@@ -148,11 +148,13 @@ export default function PaymentsPage() {
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   <Badge tone={st.tone}>{st.label}</Badge>
                   <Badge tone={r.mode === "cash" ? "bg-surface-2 text-foreground" : "bg-blue-500/15 text-blue-600"}>{r.mode === "cash" ? "Cash at venue" : `Online · ${METHOD_LABEL[r.method] ?? r.method}`}</Badge>
+                  {(r.clubDiscount ?? 0) > 0 && <Badge tone="bg-sky-500/15 text-sky-700">Club member −{rs(r.clubDiscount!)}</Badge>}
+                  {r.kind === "club" && <Badge tone="bg-sky-500/15 text-sky-700">Club membership</Badge>}
                 </div>
               </div>
               <div className="shrink-0 space-y-2 text-right">
                 <p className={`font-bold ${r.status === "cancelled" ? "text-muted line-through" : ""}`}>{rs(r.amount)}</p>
-                {r.status === "unpaid" && (
+                {r.status === "unpaid" && r.kind !== "club" && (
                   <button onClick={() => guard("payments.collect") && setCollecting(r)} className="rounded-full bg-brand px-3 py-1.5 text-xs font-semibold text-white">Mark paid</button>
                 )}
               </div>

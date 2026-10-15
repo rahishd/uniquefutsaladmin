@@ -1,3 +1,4 @@
+import { clubActive, clubDiscountOf } from "../lib/club";
 import { memberHolds } from "../lib/member-holds";
 import { Prisma } from "@prisma/client";
 import { Router } from "express";
@@ -139,7 +140,7 @@ bookingsRouter.post("/collect-dues", requirePermission("payments.collect"), hand
     pay: { payments: b.payments, fonepayQrId: b.fonepayQrId, single: b.payments ? undefined : b.method === "fonepay" ? ("fonepay" as const) : ("cash" as const) },
   });
   await audit(req, "collect-dues", "booking", anchor.id, { bookings: rows.map((x) => x.code ?? x.id), goodsDues: goodsDues.map((g) => g.items), total: r.total, payments: r.payments, bill: r.code });
-  send(res, { count: r.count, total: r.total, billCode: r.code, points: Math.round((r.pointsGoods + r.pointsGames) * 10) / 10, payments: r.payments, lines: r.lines }, `Collected Rs. ${r.total} for ${r.count} due${r.count === 1 ? "" : "s"}`);
+  send(res, { count: r.count, total: r.total, billCode: r.code, points: Math.round((r.pointsGoods + r.pointsGames) * 10) / 10, payments: r.payments, lines: r.lines, clubDiscount: r.clubDiscount }, `Collected Rs. ${r.total} for ${r.count} due${r.count === 1 ? "" : "s"}`);
 }));
 
 bookingsRouter.get("/:id", requirePermission("bookings.view"), handler(async (req, res) => {
@@ -174,7 +175,9 @@ bookingsRouter.post("/walk-in", requirePermission("bookings.create"), handler(as
   if (held.length) throw new AppError(409, `That hour is held for member ${held[0].name ?? held[0].userId} (${held[0].memberCode ?? "membership"})`);
   let basePrice = 0;
   for (let i = 0; i < b.duration; i++) basePrice += await getHourPrice(startHour + i);
-  const total = b.priceOverride ?? basePrice;
+  // Unique Club: 10% off for a member (a price the staff typed in is left exactly as typed)
+  const clubDiscount = b.priceOverride === undefined && (await clubActive(b.customerPhone)) ? clubDiscountOf(basePrice) : 0;
+  const total = b.priceOverride ?? basePrice - clubDiscount;
   const user = b.customerPhone ? await prisma.user.findUnique({ where: { phoneNumber: b.customerPhone }, select: { phoneNumber: true } }) : null;
   const water = await waterForBooking(b.customerPhone, b.water);
   const code = await uniqueCode();
@@ -186,10 +189,10 @@ bookingsRouter.post("/walk-in", requirePermission("bookings.create"), handler(as
         data: {
           userId: user?.phoneNumber ?? null, date: b.date, startTime: b.startTime, endTime: `${String(startHour + b.duration).padStart(2, "0")}:00`, duration: b.duration,
           customerName: b.customerName, customerPhone: b.customerPhone ?? null, basePrice, subtotal: basePrice, totalPrice: total,
-          discountAmount: Math.max(0, basePrice - total), paymentMethod: b.paymentMethod, status: ended ? "completed" : "confirmed",
+          discountAmount: Math.max(0, basePrice - total), clubDiscount, paymentMethod: b.paymentMethod, status: ended ? "completed" : "confirmed",
           paymentStatus: b.paid ? "completed" : "pending", amountPaidNow: b.paid ? total : 0, remainingAmount: b.paid ? 0 : total,
           cashAmount: b.paid && b.paymentMethod === "venue" ? total : 0, onlineAmount: b.paid && b.paymentMethod !== "venue" ? total : 0,
-          notes: ["WALK_IN", b.notes].filter(Boolean).join(" | "), code, waterBottles: water.bottles,
+          notes: ["WALK_IN", clubDiscount ? "UNIQUE_CLUB" : "", b.notes].filter(Boolean).join(" | "), code, waterBottles: water.bottles,
         },
       });
       // One row per hour; the unique (date, hour) index is the final guard against double booking.
@@ -232,7 +235,9 @@ bookingsRouter.post("/walk-in/bulk", requirePermission("bookings.create"), handl
   const hours = Array.from({ length: b.duration }, (_, i) => startHour + i);
   let basePrice = 0;
   for (const h of hours) basePrice += await getHourPrice(h);
-  const total = b.priceOverride ?? basePrice;
+  // Unique Club: 10% off per game for a member (a price the staff typed in is left exactly as typed)
+  const clubDiscount = b.priceOverride === undefined && (await clubActive(b.customerPhone)) ? clubDiscountOf(basePrice) : 0;
+  const total = b.priceOverride ?? basePrice - clubDiscount;
 
   const taken = await prisma.bookingSlot.findMany({ where: { date: { in: dates }, hour: { in: hours } }, select: { date: true } });
   const memberHeld = await memberHolds(dates, hours, b.customerPhone);
@@ -260,10 +265,10 @@ bookingsRouter.post("/walk-in/bulk", requirePermission("bookings.create"), handl
           data: {
             userId: user?.phoneNumber ?? null, date: p.date, startTime: b.startTime, endTime: `${String(startHour + b.duration).padStart(2, "0")}:00`, duration: b.duration,
             customerName: b.customerName, customerPhone: b.customerPhone ?? null, basePrice, subtotal: basePrice, totalPrice: total,
-            discountAmount: Math.max(0, basePrice - total), paymentMethod: b.paymentMethod, status: ended ? "completed" : "confirmed",
+            discountAmount: Math.max(0, basePrice - total), clubDiscount, paymentMethod: b.paymentMethod, status: ended ? "completed" : "confirmed",
             paymentStatus: b.paid ? "completed" : "pending", amountPaidNow: b.paid ? total : 0, remainingAmount: b.paid ? 0 : total,
             cashAmount: b.paid && b.paymentMethod === "venue" ? total : 0, onlineAmount: b.paid && b.paymentMethod !== "venue" ? total : 0,
-            notes: ["WALK_IN", `BULK ${bulkId}`, b.notes].filter(Boolean).join(" | "), code: codes[i], waterBottles: water.bottles,
+            notes: ["WALK_IN", clubDiscount ? "UNIQUE_CLUB" : "", `BULK ${bulkId}`, b.notes].filter(Boolean).join(" | "), code: codes[i], waterBottles: water.bottles,
           },
         });
         await tx.bookingSlot.createMany({ data: hours.map((hour) => ({ date: p.date, hour, bookingId: row.id })) });

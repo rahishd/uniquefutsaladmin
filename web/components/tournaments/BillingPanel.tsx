@@ -166,6 +166,9 @@ export default function BillingPanel({ id, canBill, onChanged }: { id: string; c
             {edit && Number(rate) >= 100 && Number(rate) !== b.rate && <button onClick={() => run(() => setRate(id, Number(rate)))} disabled={busy} className="rounded-full bg-brand px-3 py-1.5 text-xs font-semibold text-white">Change rate</button>}
             <strong className="ml-auto">{rs(b.court)}</strong>
           </div>
+          {(b.clubDiscount ?? 0) > 0 && (
+            <p className="mt-2 flex justify-between rounded-xl bg-sky-500/10 px-3 py-2 text-sm font-semibold text-sky-700"><span>Unique Club member discount (10%)</span><span>− {rs(b.clubDiscount!)}</span></p>
+          )}
         </div>
 
         <div>

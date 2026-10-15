@@ -1,7 +1,7 @@
 import { api } from "./api";
 import { shiftDate, todayKey } from "./slots";
 
-export type Kind = "court" | "gamezone";
+export type Kind = "court" | "gamezone" | "club";
 export type PayStatus = "paid" | "unpaid" | "cancelled";
 export type Mode = "cash" | "online" | "fonepay";
 export type Period = "today" | "week" | "month" | "all" | "custom";
@@ -21,6 +21,7 @@ export type Row = {
   status: PayStatus;
   method: string;
   mode: "cash" | "online";
+  clubDiscount?: number; // Unique Club member discount already taken off the amount
 };
 
 export type Ledger = { items: Row[]; total: number; page: number; limit: number };

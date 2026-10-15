@@ -220,3 +220,44 @@ describe("Membership subscriptions", () => {
     assert.equal((await api.post("/membership/subscriptions", desk.auth, body(p.id))).status, 403);
   });
 });
+
+describe("Unique Club and membership", () => {
+  it("takes 10% off the 1-month plan for a club member, not off longer plans", async () => {
+    await customer("9840000001", "Mina Member");
+    await prisma.clubMember.create({ data: { userId: "9840000001", startedAt: new Date(Date.now() - 86_400_000 * 16), validUntil: new Date(Date.now() + 86_400_000 * 10) } });
+    const mgr = await staff("manager");
+    const p = await plan();
+    const one = await api.post("/membership/subscriptions", mgr.auth, body(p.id, { dryRun: true }));
+    assert.equal(one.status, 200);
+    assert.equal(one.body.data.clubDiscount, 300);
+    assert.equal(one.body.data.total, 2700);
+    const made = await api.post("/membership/subscriptions", mgr.auth, body(p.id));
+    assert.equal(made.body.data.totalPrice, 2700);
+    assert.match(made.body.data.notes, /UNIQUE_CLUB/);
+    await customer("9840000003", "Third Member");
+    await prisma.clubMember.create({ data: { userId: "9840000003", startedAt: new Date(Date.now() - 86_400_000 * 16), validUntil: new Date(Date.now() + 86_400_000 * 10) } });
+    const three = await api.post("/membership/subscriptions", mgr.auth, body(p.id, { phone: "9840000003", length: "3_months", dryRun: true }));
+    assert.equal(three.status, 200);
+    assert.equal(three.body.data.clubDiscount, 0);
+    assert.equal(three.body.data.total, 7500, "the 3-month plan keeps its own price");
+  });
+});
+
+describe("Unique Club maturity (15 days or 5 games)", () => {
+  it("gives a brand-new member no membership discount until 15 days or 5 completed games", async () => {
+    await customer("9840000001", "New Member");
+    await prisma.clubMember.create({ data: { userId: "9840000001", validUntil: new Date(Date.now() + 86_400_000 * 20) } });
+    const mgr = await staff("manager");
+    const p = await plan();
+    const early = await api.post("/membership/subscriptions", mgr.auth, body(p.id, { dryRun: true }));
+    assert.equal(early.body.data.clubDiscount, 0);
+    assert.equal(early.body.data.total, 3000);
+
+    for (let i = 0; i < 5; i++) {
+      await prisma.booking.create({ data: { userId: "9840000001", date: today, startTime: `${String(6 + i).padStart(2, "0")}:00`, endTime: `${String(7 + i).padStart(2, "0")}:00`, duration: 1, basePrice: 1000, subtotal: 1000, totalPrice: 1000, paymentMethod: "venue", status: "completed", paymentStatus: "completed", code: `MC-${i}` } as never });
+    }
+    const later = await api.post("/membership/subscriptions", mgr.auth, body(p.id, { dryRun: true }));
+    assert.equal(later.body.data.clubDiscount, 300);
+    assert.equal(later.body.data.total, 2700);
+  });
+});

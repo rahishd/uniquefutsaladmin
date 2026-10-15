@@ -194,6 +194,7 @@ model Booking {
   cashAmount       Float     @default(0)
   onlineAmount     Float     @default(0)
   waterBottles     Int       @default(0)
+  clubDiscount     Int       @default(0) // Unique Club discount included in discountAmount
   loyaltyEnabled   Boolean   @default(true)
   source           String    @default("regular")
   challengeId      String?
@@ -646,6 +647,7 @@ model GzBooking {
   hours         Int
   players       Int
   total         Int
+  clubDiscount  Int       @default(0) // Unique Club discount already taken off total
   paymentMethod String
   paymentStatus String    @default("pending") // pending | pay_at_venue | paid | refunded
   status        String    @default("confirmed") // confirmed | completed | cancelled | expired
@@ -1085,4 +1087,92 @@ model SiteVisit {
 
   @@unique([day, visitor])
   @@index([day])
+}
+
+// Chat between registered customers: one to one ("direct") or a group. Members are User.phoneNumber values.
+model ChatThread {
+  id            String        @id @default(cuid())
+  kind          String // direct | group
+  name          String? // groups only
+  directKey     String?       @unique // "phoneA|phoneB" (sorted), direct chats only: one thread per pair
+  inviteCode    String?       @unique // groups only: the code in the share link
+  createdBy     String
+  lastMessage   String?
+  lastSenderId  String?
+  lastMessageAt DateTime      @default(now())
+  createdAt     DateTime      @default(now())
+  members       ChatMember[]
+  messages      ChatMessage[]
+
+  @@index([lastMessageAt])
+}
+
+model ChatMember {
+  id         String     @id @default(cuid())
+  threadId   String
+  userId     String
+  role       String     @default("member") // admin | member
+  lastReadAt DateTime   @default(now())
+  joinedAt   DateTime   @default(now())
+  thread     ChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@unique([threadId, userId])
+  @@index([userId])
+}
+
+model ChatMessage {
+  id        String     @id @default(cuid())
+  threadId  String
+  senderId  String
+  body      String
+  createdAt DateTime   @default(now())
+  thread    ChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([threadId, createdAt])
+}
+
+// Find Player: someone asks for more players for a game ("I need 6 players"). Every registered customer is notified;
+// they tap "I'm in" to join until the spots are full.
+model PlayerRequest {
+  id            String              @id @default(cuid())
+  userId        String // poster, User.phoneNumber
+  date          String // YYYY-MM-DD
+  startHour     Int
+  playersNeeded Int
+  note          String?
+  status        String              @default("open") // open | awaiting_advance | confirmed | cancelled
+  courtPrice    Int                 @default(0) // the court price for that hour when it was posted
+  bookingId     String? // the court booking made when the host pays the advance
+  advanceDueAt  DateTime? // once everyone has joined, the host has until then to pay the advance
+  createdAt     DateTime            @default(now())
+  joins         PlayerRequestJoin[]
+
+  @@index([date, status])
+  @@index([userId, createdAt])
+}
+
+model PlayerRequestJoin {
+  id        String        @id @default(cuid())
+  requestId String
+  userId    String // User.phoneNumber
+  createdAt DateTime      @default(now())
+  request   PlayerRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, userId])
+  @@index([userId])
+}
+
+// Unique Club: Rs. 1,500 for 30 days, 10% off court bookings, Gamezone and hosted tournaments. Promo and VIP codes are
+// not used with it. A member is active while validUntil is in the future.
+model ClubMember {
+  id         String   @id @default(cuid())
+  userId     String   @unique // User.phoneNumber
+  validUntil DateTime
+  startedAt  DateTime @default(now())
+  lastPaidAt DateTime @default(now())
+  payments   Int      @default(1) // how many monthly payments so far
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([validUntil])
 }

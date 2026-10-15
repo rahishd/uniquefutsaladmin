@@ -3,13 +3,18 @@
 import { MessageCircle } from "lucide-react";
 import { rs } from "@/lib/bookings";
 
-export type InvoiceLine = { label: string; quantity?: number; amount: number };
+export type InvoiceLine = { label: string; quantity?: number; amount: number; clubDiscount?: number };
 
 // Opens WhatsApp (app or web) with the invoice typed out, addressed to the customer's number. Staff press Send there.
 export function invoiceText(i: { code: string | null; name?: string | null; lines: InvoiceLine[]; total: number; paidBy?: string; points?: number }): string {
   const day = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
   const out = [`*Unique Futsal: Invoice${i.code ? ` ${i.code}` : ""}*`, day, i.name ? `Customer: ${i.name}` : "", ""];
-  for (const l of i.lines) out.push(`${l.quantity && l.quantity > 1 ? `${l.quantity} x ` : ""}${l.label}: ${rs(l.amount)}`);
+  let club = 0;
+  for (const l of i.lines) {
+    out.push(`${l.quantity && l.quantity > 1 ? `${l.quantity} x ` : ""}${l.label}: ${rs(l.amount)}${l.clubDiscount ? ` (after Unique Club discount -${rs(l.clubDiscount)})` : ""}`);
+    club += l.clubDiscount ?? 0;
+  }
+  if (club > 0) out.push("", `Unique Club member discount (10%): -${rs(club)} (already taken off)`);
   out.push("", `*Total paid: ${rs(i.total)}*`);
   if (i.paidBy) out.push(`Paid by: ${i.paidBy}`);
   if (i.points) out.push(`Loyalty points added: ${i.points}`);

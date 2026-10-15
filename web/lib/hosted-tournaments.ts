@@ -10,7 +10,7 @@ export type BillLine = { id: string; kind: "goods" | "extra" | "discount"; label
 export type Bill = {
   id: string; name: string; status: string; hostName: string | null; hostPhone: string | null; rate: number; closedAt: string | null;
   days: { id: string; date: string; startHour: number; endHour: number; hours: number; amount: number }[];
-  hours: number; court: number; goods: number; extras: number; discount: number; total: number; paid: number; paidCash: number; paidFonepay: number; due: number;
+  hours: number; court: number; goods: number; extras: number; discount: number; club?: boolean; clubDiscount?: number; total: number; paid: number; paidCash: number; paidFonepay: number; due: number;
   lines: BillLine[]; payments: { id: string; cash: number; fonepay: number; amount: number; note: string | null; createdAt: string }[];
 };
 
@@ -34,6 +34,7 @@ export const fmtDay = (k: string) => new Date(`${k}T00:00:00Z`).toLocaleDateStri
 // The invoice as a message for the host
 export function billText(b: Bill): string {
   const out = [`*Unique Futsal: Tournament bill*`, b.name, b.hostName ? `Host: ${b.hostName}` : "", "", "*Court*", ...b.days.map((d) => `${fmtDay(d.date)}, ${range(d)}: ${d.hours} h x ${rs(b.rate)} = ${rs(d.amount)}`)];
+  if ((b.clubDiscount ?? 0) > 0) out.push(`Unique Club member discount (10%): -${rs(b.clubDiscount!)}`);
   const goods = b.lines.filter((l) => l.kind === "goods");
   if (goods.length) out.push("", "*Goods*", ...goods.map((l) => `${l.quantity} x ${l.label}: ${rs(l.amount)}`));
   const extra = b.lines.filter((l) => l.kind !== "goods");
@@ -64,6 +65,7 @@ export async function downloadBillPdf(b: Bill) {
   heading("Court");
   b.days.forEach((d) => row(`${fmtDay(d.date)}, ${range(d)}  (${d.hours} h x ${money(b.rate)})`, money(d.amount)));
   row("Court total", money(b.court), true);
+  if ((b.clubDiscount ?? 0) > 0) row("Unique Club member discount (10%)", `-${money(b.clubDiscount!)}`);
   const goods = b.lines.filter((l) => l.kind === "goods");
   if (goods.length) { heading("Goods taken"); goods.forEach((l) => row(`${l.quantity} x ${l.label}  (${money(l.unitPrice)} each)`, money(l.amount))); row("Goods total", money(b.goods), true); }
   const other = b.lines.filter((l) => l.kind !== "goods");

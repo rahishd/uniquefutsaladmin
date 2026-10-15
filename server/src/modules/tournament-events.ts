@@ -5,6 +5,7 @@
 //   - The court charge is hours x the agreed hourly rate (minRate). Goods come from the shop stock and are written to the stock log with the
 //     reason "Tournament #id", WITHOUT cash or online amounts, so the shop sales totals do not count them: the money is the tournament payments.
 //   - Payments are cash and/or a paid Fonepay QR, the same rules as every other bill.
+import { clubDiscountOf, clubMature } from "../lib/club";
 import { Prisma } from "@prisma/client";
 import { Router } from "express";
 import { z } from "zod";
@@ -61,16 +62,19 @@ async function bill(id: string) {
   const rate = t.minRate ?? 0;
   const hours = t.days.reduce((n, d) => n + hoursOf(d), 0);
   const court = hours * rate;
+  // Unique Club: a host who is a mature club member (15 days in, or 5 games played) gets 10% off the court charge (checked at the time the bill was made, once it is closed)
+  const club = await clubMature(t.hostPhone, t.billClosedAt ?? new Date());
+  const clubDiscount = club ? clubDiscountOf(court) : 0;
   const goods = t.billLines.filter((l) => l.kind === "goods").reduce((n, l) => n + l.amount, 0);
   const extras = t.billLines.filter((l) => l.kind === "extra").reduce((n, l) => n + l.amount, 0);
   const discount = -t.billLines.filter((l) => l.kind === "discount").reduce((n, l) => n + l.amount, 0);
-  const total = court + goods + extras - discount;
+  const total = court + goods + extras - discount - clubDiscount;
   const cash = t.payments.reduce((n, p) => n + p.cash, 0);
   const fonepay = t.payments.reduce((n, p) => n + p.fonepay, 0);
   return {
     id: t.id, name: t.name, status: t.status, hostName: t.hostName, hostPhone: t.hostPhone, rate, closedAt: t.billClosedAt,
     days: t.days.map((d) => ({ id: d.id, date: d.date, startHour: d.startHour, endHour: d.endHour, hours: hoursOf(d), amount: hoursOf(d) * rate })),
-    hours, court, goods, extras, discount, total, paid: cash + fonepay, paidCash: cash, paidFonepay: fonepay, due: total - cash - fonepay,
+    hours, court, goods, extras, discount, club, clubDiscount, total, paid: cash + fonepay, paidCash: cash, paidFonepay: fonepay, due: total - cash - fonepay,
     lines: t.billLines.map(lineView),
     payments: t.payments.map((p) => ({ id: p.id, cash: p.cash, fonepay: p.fonepay, amount: p.cash + p.fonepay, note: p.note, createdAt: p.createdAt })),
   };

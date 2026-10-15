@@ -53,7 +53,8 @@ export default function BookingDetailSheet({ booking, onClose, onChanged, billin
           <Row label="Mobile">{b.customerPhone || b.userId || "—"}</Row>
           <Row label="Account">{b.userId ? "Registered" : "Guest"}</Row>
           <Row label="Court price">{rs(b.basePrice)}</Row>
-          {b.discountAmount > 0 && <Row label={`Discount${b.promoCode ? ` (${b.promoCode})` : ""}`}>− {rs(b.discountAmount)}</Row>}
+          {(b.clubDiscount ?? 0) > 0 && <Row label="Unique Club member discount (10%)">− {rs(b.clubDiscount!)}</Row>}
+          {b.discountAmount - (b.clubDiscount ?? 0) > 0 && <Row label={`Discount${b.promoCode ? ` (${b.promoCode})` : ""}`}>− {rs(b.discountAmount - (b.clubDiscount ?? 0))}</Row>}
           <Row label="Total">{rs(b.totalPrice)}</Row>
           <Row label="Paid so far">{rs(b.amountPaidNow)}</Row>
           {b.remainingAmount > 0 && <Row label="To collect">{rs(b.remainingAmount)}</Row>}

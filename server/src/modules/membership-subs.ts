@@ -2,6 +2,7 @@
 // Follows FRD-001 sections 25 to 27: a Membership ID (MEM-10291), a status (active, expiring soon, expired, suspended), payment
 // verification before activation, renewal, and notices (activated, expiring, expired).
 // A membership holds its hour on its weekdays for the whole period (the customer app blocks the hour for others; lib/member-holds.ts does it here).
+import { clubDiscountOf, clubMature } from "../lib/club";
 import { Prisma } from "@prisma/client";
 import { Request, Response, Router } from "express";
 import { z } from "zod";
@@ -44,14 +45,17 @@ export function statusOf(s: { status: string; endDate: Date }, today = todayKey(
 const daysBetween = (a: string, b: string) => Math.round((new Date(`${b}T00:00:00Z`).getTime() - new Date(`${a}T00:00:00Z`).getTime()) / 86_400_000);
 
 // ---------- price ----------
-async function priceFor(planId: string, shift: Shift, length: Length) {
+async function priceFor(planId: string, shift: Shift, length: Length, phone?: string | null) {
   const plan = await prisma.membershipPlan.findUnique({ where: { id: planId } });
   if (!plan || !plan.isActive) throw new AppError(404, "That plan was not found or is not active");
   const rec = plan as unknown as Record<string, number | null>;
   const price = rec[priceCol(shift, length)];
   if (price === null || price === undefined) throw new AppError(409, `${plan.name} is not offered for ${shift} / ${length.replace("_", " ")}`);
   const discount = rec[discountCol(shift, length)] ?? 0;
-  return { plan, price, discount, total: Math.max(0, price - discount) };
+  const planTotal = Math.max(0, price - discount);
+  // Unique Club: a member gets 10% off the 1-month plan only
+  const club = length === "1_month" && (await clubMature(phone)) ? clubDiscountOf(planTotal) : 0;
+  return { plan, price, discount: discount + club, club, total: planTotal - club };
 }
 
 // ---------- the hour must be free on every chosen weekday of the period ----------
@@ -216,10 +220,10 @@ membershipSubsRouter.post("/subscriptions", requirePermission("membership.create
   const current = await prisma.membershipSubscription.findMany({ where: { userId: b.phone, status: { in: ["active", "pending", "suspended"] } } });
   if (current.some((s) => statusOf(s, today) !== "expired")) throw new AppError(409, "This customer already has a membership. Renew or change that one instead.");
 
-  const quote = await priceFor(b.planId, shiftOf(hour), b.length);
+  const quote = await priceFor(b.planId, shiftOf(hour), b.length, b.phone);
   const end = addDaysKey(b.startDate, DAYS[b.length]);
   const check = await conflicts({ timeSlot: b.timeSlot, days: b.days, start: b.startDate, end });
-  if (b.dryRun) return send(res, { price: quote.price, discount: quote.discount, total: quote.total, advance: advanceOf(quote.total), shift: shiftOf(hour), startDate: b.startDate, endDate: end, ...check });
+  if (b.dryRun) return send(res, { price: quote.price, discount: quote.discount, clubDiscount: quote.club, total: quote.total, advance: advanceOf(quote.total), shift: shiftOf(hour), startDate: b.startDate, endDate: end, ...check });
   if (check.clashes.length) throw new AppError(409, `That hour is not free on ${check.clashes.length} of the chosen days (first: ${fmtDate(check.clashes[0].date)}, ${check.clashes[0].reason})`);
 
   const advance = !!b.pay?.advance && quote.total > 1;
@@ -233,7 +237,7 @@ membershipSubsRouter.post("/subscriptions", requirePermission("membership.create
         data: {
           planId: b.planId, userId: b.phone, startDate: new Date(`${b.startDate}T00:00:00Z`), endDate: new Date(`${end}T00:00:00Z`),
           status: pays ? "active" : "pending", paymentStatus: pays ? (advance ? "partial" : "verified") : "pending", paymentVerifiedAt: pays ? new Date() : null, paymentVerifiedBy: pays ? req.staff!.id : null,
-          timeSlot: b.timeSlot, chosenCategory: shiftOf(hour), chosenDuration: b.length, totalPrice: quote.total, discountAmount: quote.discount, chosenDays: b.days, excludeDays: [], notes: b.notes ?? null,
+          timeSlot: b.timeSlot, chosenCategory: shiftOf(hour), chosenDuration: b.length, totalPrice: quote.total, discountAmount: quote.discount, chosenDays: b.days, excludeDays: [], notes: [quote.club ? `UNIQUE_CLUB: -Rs. ${quote.club} (10% off the 1-month plan)` : null, b.notes ?? null].filter(Boolean).join(" | ") || null,
           memberCode: await nextMemberCode(tx),
         },
         include,
@@ -318,7 +322,7 @@ membershipSubsRouter.post("/subscriptions/:id/renew", requirePermission("members
   if (s.paymentStatus === "partial") throw new AppError(409, "Collect the balance of the current period before renewing");
   const length = b.length ?? ((s.chosenDuration as Length) ?? "1_month");
   const hour = slotHour(s.timeSlot);
-  const quote = await priceFor(s.planId, shiftOf(hour), length);
+  const quote = await priceFor(s.planId, shiftOf(hour), length, s.userId);
   const today = todayKey();
   const base = keyOf(s.endDate) >= today ? keyOf(s.endDate) : today; // continue after the end, or start today if it already ended
   const end = addDaysKey(base, DAYS[length]);
