@@ -1,10 +1,10 @@
 import { api } from "./api";
 
-export type Kind = "game" | "goods" | "membership" | "referral" | "captain_win" | "free_game";
+export type Kind = "game" | "goods" | "membership" | "referral" | "captain_win" | "goal_rush" | "free_game";
 export const KINDS: { id: Kind; label: string; tone: string }[] = [
   { id: "game", label: "Games", tone: "bg-green-500/15 text-green-700" }, { id: "goods", label: "Goods", tone: "bg-amber-500/15 text-amber-700" },
   { id: "membership", label: "Membership", tone: "bg-violet-500/15 text-violet-700" }, { id: "referral", label: "Referral", tone: "bg-pink-500/15 text-pink-700" },
-  { id: "captain_win", label: "Challenge win", tone: "bg-blue-500/15 text-blue-700" }, { id: "free_game", label: "Spent or adjusted", tone: "bg-red-500/15 text-red-700" },
+  { id: "captain_win", label: "Challenge win", tone: "bg-blue-500/15 text-blue-700" }, { id: "goal_rush", label: "Goal Rush game", tone: "bg-emerald-500/15 text-emerald-700" }, { id: "free_game", label: "Spent or adjusted", tone: "bg-red-500/15 text-red-700" },
 ];
 export const kindOf = (k: string) => KINDS.find((x) => x.id === k) ?? { id: k, label: k, tone: "bg-surface-2 text-muted" };
 

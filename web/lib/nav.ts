@@ -107,6 +107,16 @@ export const modules: Module[] = [
     ],
   },
   {
+    slug: "goal-rush", title: "Goal Rush", group: "Customers", icon: "trophy",
+    summary: "Unique Goal Rush, the penalty game in the customer app: games, goals, saves, the loyalty points it gave and anything that looks odd.",
+    clientFeatures: ["Home card under Quick Access: Play & Earn Now", "5 penalties against a goalkeeper played by the server", "1 loyalty point for a finished game with 3 or more goals (every 3 goals = 1 point)", "3 games a day (every game started counts), 3 points a day at most", "Guests can play practice games without points"],
+    adminTasks: ["Totals for all time, today and this month: games, players, goals, saves, misses, points", "Games per day for the last 14 days", "Every game with its result and the loyalty reward reference", "Players to look at: many perfect games, very fast games or many unfinished games", "Correct a reward in Loyalty Points > Adjust (logged with the reason)"],
+    endpoints: [
+      e("GET", "/admin/goal-rush", "totals, games per day, flags and the games list"),
+      e("GET", "/admin/goal-rush/:id", "one game shot by shot with its reward"),
+    ],
+  },
+  {
     slug: "club", title: "Unique Club", group: "Customers", icon: "badge",
     summary: "Members of Unique Club (Rs. 1,500 for 30 days, 10% off). See who is in, who is about to run out and what the discount has given.",
     clientFeatures: ["Unique Club page in Quick Access", "Pay Rs. 1,500 with the Fonepay QR; active at once for 30 days", "10% off court bookings and Gamezone from day one", "10% off the 1-month membership plan and hosting a tournament after 15 days or 5 games", "No promo or VIP code with the club discount"],

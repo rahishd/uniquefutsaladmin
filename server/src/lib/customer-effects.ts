@@ -4,14 +4,14 @@ import { Prisma } from "@prisma/client";
 import { prisma, Tx } from "../db";
 import { addMonthsKey, todayKey } from "./dates";
 
-export type LoyaltyKind = "game" | "captain_win" | "goods" | "membership" | "referral";
+export type LoyaltyKind = "game" | "captain_win" | "goods" | "membership" | "referral" | "goal_rush";
 
 export const pointsForGame = (priceRs: number) => Math.floor(Math.max(0, priceRs) / 10) / 10; // price/100, 1 decimal
 export const pointsForGoods = (amountRs: number) => Math.floor(Math.max(0, amountRs) / 100);
 export const GZ_POINTS_PER_HOUR = 5; // Gamezone: every hour played earns 5 points
 
 function expiryFor(kind: LoyaltyKind, earnedOn: string): string | null {
-  if (kind === "game" || kind === "captain_win") return addMonthsKey(earnedOn, 3);
+  if (kind === "game" || kind === "captain_win" || kind === "goal_rush") return addMonthsKey(earnedOn, 3);
   if (kind === "goods" || kind === "referral") return addMonthsKey(earnedOn, 12);
   return null; // membership never expires
 }

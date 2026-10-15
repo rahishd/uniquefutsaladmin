@@ -48,6 +48,9 @@ export const SECTIONS: Section[] = [
     { key: "customers.edit", label: "Edit Customer Details" },
     { key: "customers.suspend", label: "Suspend / Reactivate Account" },
   ] },
+  { id: "goalrush", label: "Unique Goal Rush", permissions: [
+    { key: "goalrush.view", label: "View Goal Rush Games & Statistics" },
+  ] },
   { id: "club", label: "Unique Club", permissions: [
     { key: "club.view", label: "View Unique Club Members" },
   ] },
@@ -143,7 +146,7 @@ const EXPAND: Record<string, string[]> = {
   "customers.read": ["customers.view", "club.view"], "customers.write": ["customers.create", "customers.edit", "customers.suspend", "vip.view", "vip.manage"],
   "courts.read": ["courts.view"], "courts.write": ["courts.price", "courts.block"],
   "promos.read": ["promos.view"], "promos.write": ["promos.create", "promos.edit", "promos.delete"],
-  "loyalty.read": ["loyalty.view"], "loyalty.write": ["loyalty.goods"],
+  "loyalty.read": ["loyalty.view", "goalrush.view"], "loyalty.write": ["loyalty.goods"],
   "teams.read": ["teams.view"], "teams.write": ["teams.resolve", "teams.venuepaid"],
   "gamezone.read": ["gamezone.view"], "gamezone.write": ["gamezone.collect", "gamezone.manage", "gamezone.catalog"],
   "membership.read": ["membership.view"], "membership.write": ["membership.create", "membership.edit"],

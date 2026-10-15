@@ -1176,3 +1176,43 @@ model ClubMember {
 
   @@index([validUntil])
 }
+
+// Unique Goal Rush: a 5-shot penalty game against a goalkeeper the server plays. Up to 3 games a day (every game started
+// counts); a finished game with at least one goal earns 2 loyalty points (a LoyaltyEntry of kind goal_rush, one per game).
+model GoalRushGame {
+  id         String         @id @default(cuid())
+  userId     String // User.phoneNumber
+  day        String // YYYY-MM-DD (Nepal time): the day the game counts for
+  status     String         @default("active") // active | completed | abandoned
+  shotsTaken Int            @default(0)
+  goals      Int            @default(0)
+  saves      Int            @default(0)
+  misses     Int            @default(0) // wide, over the bar or off the post
+  points     Int            @default(0) // loyalty points this game earned (0 or 2)
+  rewardId   String? // LoyaltyEntry.id of the reward
+  startedAt  DateTime       @default(now())
+  lastShotAt DateTime?
+  finishedAt DateTime?
+  shots      GoalRushShot[]
+
+  @@index([userId, day])
+  @@index([status, startedAt])
+  @@index([day])
+}
+
+model GoalRushShot {
+  id        String       @id @default(cuid())
+  gameId    String
+  no        Int // 1..5
+  aimX      Float // where the player aimed (goal units: -1..1 between the posts, 0..1 up to the bar)
+  aimY      Float
+  power     Float // 0..1
+  ballX     Float // where the ball actually went (decided by the server)
+  ballY     Float
+  keeper    String // the zone the goalkeeper dived to: TL TC TR BL BC BR
+  outcome   String // goal | save | wide | over | post
+  createdAt DateTime     @default(now())
+  game      GoalRushGame @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, no])
+}
