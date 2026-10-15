@@ -8,6 +8,7 @@ import { ApiError } from "@/lib/api";
 import { guard } from "@/lib/access";
 import { Category, Overview, Product, STATE, addCategory, addProduct, changeStock, deleteCategory, deleteProduct, editProduct, listCategories, listProducts, overview as fetchOverview, renameCategory, rs } from "@/lib/inventory";
 
+import { askConfirm } from "@/lib/confirm";
 type Tab = "products" | "sell";
 const field = "rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
 const msg = (e: unknown) => (e instanceof ApiError || e instanceof Error ? e.message : "Something went wrong");
@@ -74,7 +75,7 @@ function Products({ tick, onChanged }: { tick: number; onChanged: () => void }) 
 
   async function remove(p: Product) {
     if (!guard("inventory.products")) return;
-    if (!window.confirm(`Delete "${p.name}"? Its stock history goes with it.`)) return;
+    if (!(await askConfirm(`Delete "${p.name}"? Its stock history goes with it.`))) return;
     try { await deleteProduct(p.id); setNote("Product deleted."); reload(); } catch (e) { setError(msg(e)); }
   }
   const open = (s: Sheet, perm: string) => { if (guard(perm)) setSheet(s); };
@@ -251,7 +252,7 @@ function Categories({ cats, onClose, onChanged }: { cats: Category[]; onClose: (
                 <span className="text-sm font-medium">{c.name} <span className="font-normal text-muted">· {c.products} product{c.products === 1 ? "" : "s"}</span></span>
                 <span className="flex gap-2">
                   <button onClick={() => setEditing({ id: c.id, name: c.name })} aria-label={`Rename ${c.name}`} className="rounded-full border border-line p-1.5"><Pencil size={14} /></button>
-                  <button onClick={() => { if (window.confirm(`Delete the category "${c.name}"?`)) run(() => deleteCategory(c.id)); }} aria-label={`Delete ${c.name}`} className="rounded-full border border-red-500/40 p-1.5 text-red-600"><Trash2 size={14} /></button>
+                  <button onClick={async () => { if ((await askConfirm(`Delete the category "${c.name}"?`))) run(() => deleteCategory(c.id)); }} aria-label={`Delete ${c.name}`} className="rounded-full border border-red-500/40 p-1.5 text-red-600"><Trash2 size={14} /></button>
                 </span>
               </>
             )}

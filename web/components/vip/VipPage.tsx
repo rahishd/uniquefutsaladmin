@@ -11,6 +11,7 @@ import { prettyDate, rs } from "@/lib/bookings";
 import { removeVip, saveVip } from "@/lib/customers";
 import { PAGE_SIZE, VipItem, VipList, VipStatus, copyText, describe, listVip, shareLink } from "@/lib/vip";
 
+import { askConfirm } from "@/lib/confirm";
 const TABS: { id: VipStatus; label: string }[] = [
   { id: "", label: "All" }, { id: "active", label: "Active" }, { id: "unclaimed", label: "Not typed yet" }, { id: "paused", label: "Paused" },
 ];
@@ -57,7 +58,7 @@ export default function VipPage() {
 
   async function remove(v: VipItem) {
     if (!guard("vip.manage")) return;
-    if (!window.confirm(`Remove the VIP code ${v.code} from ${v.customerName ?? v.phone}? They will pay the normal price again.`)) return;
+    if (!(await askConfirm(`Remove the VIP code ${v.code} from ${v.customerName ?? v.phone}? They will pay the normal price again.`))) return;
     try {
       await removeVip(v.phone);
       setTick((t) => t + 1);

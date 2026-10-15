@@ -10,6 +10,7 @@ import { guard } from "@/lib/access";
 import { Booking, bookingDetail, rs } from "@/lib/bookings";
 import { Hour, OPEN_FROM, OPEN_TO, SlotBooking, getDay, hourLabel, nowHour, rejectBooking, todayKey } from "@/lib/slots";
 
+import { askConfirm } from "@/lib/confirm";
 const STATUS_LABEL: Record<string, string> = {
   confirmed: "CONFIRMED MATCH",
   pending: "PENDING PAYMENT",
@@ -114,7 +115,7 @@ export default function SlotsPage() {
   async function reject(h: Hour) {
     if (!guard("bookings.cancel")) return;
     const b = h.booking!;
-    if (!window.confirm(`Reject ${b.customerName ?? "this booking"} (${b.code})? The hour will be freed${b.paymentStatus === "completed" ? " and a refund will be marked due" : ""}.`)) return;
+    if (!(await askConfirm(`Reject ${b.customerName ?? "this booking"} (${b.code})? The hour will be freed${b.paymentStatus === "completed" ? " and a refund will be marked due" : ""}.`))) return;
     try {
       await rejectBooking(b.id);
       refresh();

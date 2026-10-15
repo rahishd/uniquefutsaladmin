@@ -9,6 +9,7 @@ import { ApiError } from "@/lib/api";
 import { guard } from "@/lib/access";
 import { Ad, PLACES, Photo, STATE, addPhoto, deleteAd, deletePhoto, editAd, editPhoto, listAds, listPhotos, overview as fetchOverview, picUrl, placeLabel, reorderPhotos, scheduleText, shrink, Overview, Place } from "@/lib/content";
 
+import { askConfirm } from "@/lib/confirm";
 type Tab = "ads" | "gallery";
 const msg = (e: unknown) => (e instanceof ApiError || e instanceof Error ? e.message : "Something went wrong");
 const field = "rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
@@ -65,7 +66,7 @@ function Ads({ tick, onChanged }: { tick: number; onChanged: () => void }) {
   }
   async function remove(a: Ad) {
     if (!guard("content.ads")) return;
-    if (!window.confirm(`Delete the ad "${a.title}"? This cannot be undone.`)) return;
+    if (!(await askConfirm(`Delete the ad "${a.title}"? This cannot be undone.`))) return;
     try { await deleteAd(a.id); setNote("Ad deleted."); reload(); } catch (e) { setError(msg(e)); }
   }
 
@@ -170,7 +171,7 @@ function Gallery({ tick, onChanged }: { tick: number; onChanged: () => void }) {
   }
   async function remove(p: Photo) {
     if (!guard("content.gallery")) return;
-    if (!window.confirm(`Delete "${p.title}"? This cannot be undone.`)) return;
+    if (!(await askConfirm(`Delete "${p.title}"? This cannot be undone.`))) return;
     try { await deletePhoto(p.id); setNote("Photo deleted."); reload(); } catch (e) { setError(msg(e)); }
   }
 

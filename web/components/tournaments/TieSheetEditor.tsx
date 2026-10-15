@@ -8,6 +8,7 @@ import {
   EditorApi, Goal, Match, MatchStatus, Round, Side, StructureRound, fromNepalInput, toNepalInput,
 } from "@/lib/tournaments";
 
+import { askConfirm } from "@/lib/confirm";
 // The tie-sheet editor, used by staff on the Tournament page and by the match-day host on the shared link.
 // Two kinds of change:
 //  - the SHAPE of the sheet (rounds, team names, times, venues, notes): edited freely, then saved with "Save changes";
@@ -89,13 +90,13 @@ export default function TieSheetEditor({ initial, api, canEdit = true, pollMs = 
   };
   const addRound = () => { setDraft((d) => [...d, { key: uid(), name: "New round", matches: [] }]); setSaved(false); };
   const addMatch = (rk: string) => { setDraft((d) => d.map((r) => (r.key === rk ? { ...r, matches: [...r.matches, { key: uid(), home: "", away: "", startsAt: "", venue: "", note: "" }] } : r))); setSaved(false); };
-  const dropMatch = (rk: string, m: DraftMatch) => {
+  const dropMatch = async (rk: string, m: DraftMatch) => {
     const hasData = m.id && ((live.get(m.id)?.goals.length ?? 0) > 0 || live.get(m.id)?.status !== "upcoming");
-    if (hasData && !window.confirm("This match already has a score or goals. Remove it and its goals?")) return;
+    if (hasData && !(await askConfirm("This match already has a score or goals. Remove it and its goals?"))) return;
     setDraft((d) => d.map((r) => (r.key === rk ? { ...r, matches: r.matches.filter((x) => x.key !== m.key) } : r))); setSaved(false);
   };
-  const dropRound = (r: DraftRound) => {
-    if (r.matches.length > 0 && !window.confirm(`Remove "${r.name}" with its ${r.matches.length} match${r.matches.length === 1 ? "" : "es"}?`)) return;
+  const dropRound = async (r: DraftRound) => {
+    if (r.matches.length > 0 && !(await askConfirm(`Remove "${r.name}" with its ${r.matches.length} match${r.matches.length === 1 ? "" : "es"}?`))) return;
     setDraft((d) => d.filter((x) => x.key !== r.key)); setSaved(false);
   };
 
@@ -156,7 +157,7 @@ export default function TieSheetEditor({ initial, api, canEdit = true, pollMs = 
                 {status === "live" && <button type="button" disabled={isBusy} onClick={() => run(`st-${m.id}`, () => api.status(m.id!, { status: "finished", note: m.note.trim() || null }))} className="rounded-full bg-surface-2 px-4 py-2 text-sm font-semibold disabled:opacity-60">Full time</button>}
                 {status === "finished" && <button type="button" disabled={isBusy} onClick={() => run(`st-${m.id}`, () => api.status(m.id!, { status: "live" }))} className="flex items-center gap-1.5 rounded-full bg-surface-2 px-4 py-2 text-sm font-semibold disabled:opacity-60"><RotateCcw size={14} /> Reopen</button>}
                 {status !== "upcoming" && <button type="button" onClick={() => { setEditScore(editScore === m.id ? null : m.id!); setScore({ h: String(home), a: String(away) }); }} className="rounded-full px-3 py-2 text-xs font-semibold text-muted">Correct the score</button>}
-                {status !== "upcoming" && <button type="button" disabled={isBusy} onClick={() => window.confirm("Put this match back to Upcoming? Its score is cleared; goals stay in the log.") && run(`st-${m.id}`, () => api.status(m.id!, { status: "upcoming" }))} className="rounded-full px-3 py-2 text-xs font-semibold text-muted">Back to upcoming</button>}
+                {status !== "upcoming" && <button type="button" disabled={isBusy} onClick={async () => (await askConfirm("Put this match back to Upcoming? Its score is cleared; goals stay in the log.")) && run(`st-${m.id}`, () => api.status(m.id!, { status: "upcoming" }))} className="rounded-full px-3 py-2 text-xs font-semibold text-muted">Back to upcoming</button>}
               </div>
 
               {open?.matchId === m.id && (
@@ -191,7 +192,7 @@ export default function TieSheetEditor({ initial, api, canEdit = true, pollMs = 
               <li key={g.id} className="flex items-center gap-2">
                 <span className="w-10 shrink-0 text-xs font-semibold tabular-nums text-muted">{g.minute !== null ? `${g.minute}'` : "-"}</span>
                 <span className="min-w-0 flex-1 truncate"><strong>{g.scorer || "Goal"}</strong> <span className="text-muted">({label(g.side)})</span></span>
-                {ready && <button type="button" onClick={() => window.confirm("Take this goal back? The score goes down by one.") && run(`goal-${m.id}`, () => api.undo(g.id))} aria-label="Remove this goal" className="rounded-full p-1 text-muted hover:bg-red-500/10 hover:text-red-600"><X size={14} /></button>}
+                {ready && <button type="button" onClick={async () => (await askConfirm("Take this goal back? The score goes down by one.")) && run(`goal-${m.id}`, () => api.undo(g.id))} aria-label="Remove this goal" className="rounded-full p-1 text-muted hover:bg-red-500/10 hover:text-red-600"><X size={14} /></button>}
               </li>
             ))}
           </ul>

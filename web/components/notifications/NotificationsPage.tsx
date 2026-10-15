@@ -7,6 +7,7 @@ import { ApiError } from "@/lib/api";
 import { guard } from "@/lib/access";
 import { AUDIENCES, Audience, Draft, LINKS, NoticeType, Sent, TYPES, history, reach, sendNotice } from "@/lib/notifications";
 
+import { askConfirm } from "@/lib/confirm";
 const EMPTY: Draft = { type: "general", audience: "all", phone: "", title: "", message: "", href: "" };
 const TONE: Record<NoticeType, string> = { general: "bg-slate-500/15 text-slate-600", promo: "bg-pink-500/15 text-pink-600", tournament: "bg-amber-500/15 text-amber-700" };
 const input = "w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
@@ -47,7 +48,7 @@ export default function NotificationsPage() {
     e.preventDefault();
     if (!guard("notifications.send") || !valid) return;
     const n = shown?.reach;
-    if (d.audience !== "customer" && !window.confirm(`Send "${d.title.trim()}" to ${n ?? "all"} ${d.audience === "captains" ? "team captains" : "customers"}? It cannot be taken back.`)) return;
+    if (d.audience !== "customer" && !(await askConfirm(`Send "${d.title.trim()}" to ${n ?? "all"} ${d.audience === "captains" ? "team captains" : "customers"}? It cannot be taken back.`))) return;
     setBusy(true); setError(""); setDone("");
     try {
       const r = await sendNotice(d);

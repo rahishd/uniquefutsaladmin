@@ -11,6 +11,7 @@ import {
   listChallenges, listDisputes, listSettlements, listTeams, markVenuePaid, resolveDispute,
 } from "@/lib/teams";
 
+import { askConfirm } from "@/lib/confirm";
 type Tab = "teams" | "challenges" | "results" | "venue";
 const input = "rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
 const msg = (e: unknown) => (e instanceof ApiError || e instanceof Error ? e.message : "Something went wrong");
@@ -225,7 +226,7 @@ function VenueTab({ onChanged }: { onChanged: () => void }) {
   useEffect(() => { let live = true; listSettlements(date).then((r) => live && (setRows(r), setError(""))).catch((e) => live && setError(msg(e))); return () => { live = false; }; }, [date, tick]);
   async function pay(s: Settlement) {
     if (!guard("teams.venuepaid")) return;
-    if (!window.confirm(`Mark ${s.challenger} vs ${s.challenged} as paid at the venue? Both captains get a "Did you win?" message.`)) return;
+    if (!(await askConfirm(`Mark ${s.challenger} vs ${s.challenged} as paid at the venue? Both captains get a "Did you win?" message.`))) return;
     setBusy(s.id); setError("");
     try { await markVenuePaid(s.id); setTick((t) => t + 1); onChanged(); } catch (e) { setError(msg(e)); } finally { setBusy(""); }
   }

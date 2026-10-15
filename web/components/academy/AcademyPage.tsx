@@ -11,6 +11,7 @@ import {
   getTerms, listClasses, listEnrollments, markAttendance, overview, saveTerms,
 } from "@/lib/academy";
 
+import { askConfirm } from "@/lib/confirm";
 type Tab = "classes" | "children" | "terms";
 const field = "rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
 const msg = (e: unknown) => (e instanceof ApiError || e instanceof Error ? e.message : "Something went wrong");
@@ -258,7 +259,7 @@ function Children({ sessionId, onClearClass, onChanged }: { sessionId: string; o
         <div className="grid place-items-center gap-2 rounded-2xl bg-surface py-12 text-center text-muted shadow-sm"><GraduationCap size={32} strokeWidth={1.5} /><p>No enrolled children match.</p></div>
       )}
       <ul className="grid items-start gap-2 xl:grid-cols-2">
-        {data?.items.map((e) => <ChildCard key={e.id} e={e} onAttend={(s) => act(() => markAttendance(e.id, s), "academy.enrollments")} onCancel={() => { if (window.confirm(`Cancel ${e.childName}'s class? The guardian is told.`)) act(() => cancelEnrollment(e.id), "academy.enrollments"); }} />)}
+        {data?.items.map((e) => <ChildCard key={e.id} e={e} onAttend={(s) => act(() => markAttendance(e.id, s), "academy.enrollments")} onCancel={async () => { if ((await askConfirm(`Cancel ${e.childName}'s class? The guardian is told.`))) act(() => cancelEnrollment(e.id), "academy.enrollments"); }} />)}
       </ul>
       {data && data.total > PAGE_SIZE && (
         <div className="flex items-center justify-between pt-2 text-sm">

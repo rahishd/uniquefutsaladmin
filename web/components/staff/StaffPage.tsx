@@ -11,6 +11,7 @@ import { ago } from "@/lib/complaints";
 import { guard } from "@/lib/access";
 import { Account, Catalog, ROLE_LABEL, deleteStaff, getCatalog, listStaff, updateStaff } from "@/lib/staff";
 
+import { askConfirm } from "@/lib/confirm";
 // Short text about what an account can do, for example "12 permissions: Bookings, Payments and 2 more".
 function summary(a: Account, c: Catalog | null) {
   if (a.accountType === "admin") return a.role === "owner" ? "Everything, including accounts" : "Everything except accounts";
@@ -42,7 +43,7 @@ export default function StaffPage() {
 
   async function toggle(a: Account) {
     if (!guard("staff.manage")) return;
-    if (!window.confirm(a.isActive ? `Disable ${a.name}? They are signed out at once and cannot sign in until you enable the account again.` : `Enable ${a.name}?`)) return;
+    if (!(await askConfirm(a.isActive ? `Disable ${a.name}? They are signed out at once and cannot sign in until you enable the account again.` : `Enable ${a.name}?`))) return;
     try {
       await updateStaff(a.id, { isActive: !a.isActive });
       setTick((t) => t + 1);
@@ -53,7 +54,7 @@ export default function StaffPage() {
 
   async function remove(a: Account) {
     if (!guard("staff.manage")) return;
-    if (!window.confirm(`Delete ${a.name} (${a.email}) for good? They are signed out at once and cannot sign in again. Their past actions stay in the audit log. This cannot be undone.`)) return;
+    if (!(await askConfirm(`Delete ${a.name} (${a.email}) for good? They are signed out at once and cannot sign in again. Their past actions stay in the audit log. This cannot be undone.`))) return;
     try {
       await deleteStaff(a.id);
       setTick((t) => t + 1);

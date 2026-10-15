@@ -16,6 +16,7 @@ import { CustomerLedger, getCustomer as getLoyalty } from "@/lib/loyalty";
 import { METHOD_LABEL } from "@/lib/payments";
 import { CustomerRow, Profile, getProfile, initials, setActive } from "@/lib/customers";
 
+import { askConfirm } from "@/lib/confirm";
 function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
   return (
     <section className="space-y-3 rounded-2xl border border-line p-4">
@@ -60,7 +61,7 @@ export default function CustomerSheet({ customer, onClose, onChanged }: { custom
     if (!guard("customers.suspend")) return;
     if (!p) return;
     const next = !p.user.isActive;
-    if (!window.confirm(next ? `Let ${p.user.name ?? p.user.phoneNumber} use the app again?` : `Suspend ${p.user.name ?? p.user.phoneNumber}? They will not be able to sign in. Their records are kept.`)) return;
+    if (!(await askConfirm(next ? `Let ${p.user.name ?? p.user.phoneNumber} use the app again?` : `Suspend ${p.user.name ?? p.user.phoneNumber}? They will not be able to sign in. Their records are kept.`))) return;
     setBusy("active");
     setError("");
     try {

@@ -8,6 +8,7 @@ import { ApiError } from "@/lib/api";
 import { guard } from "@/lib/access";
 import { Partner, addPartner, deletePartner, editPartner, fileToDataUrl, listPartners, picUrl, reorderPartners } from "@/lib/content";
 
+import { askConfirm } from "@/lib/confirm";
 const msg = (e: unknown) => (e instanceof ApiError || e instanceof Error ? e.message : "Something went wrong");
 const field = "rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
 const ACCEPT = "image/png,image/jpeg,image/webp";
@@ -43,7 +44,7 @@ export default function PartnersPage() {
   }
   async function remove(p: Partner) {
     if (!guard("content.partners")) return;
-    if (!window.confirm(`Delete "${p.name}"? This cannot be undone.`)) return;
+    if (!(await askConfirm(`Delete "${p.name}"? This cannot be undone.`))) return;
     try { await deletePartner(p.id); setNote("Logo deleted."); reload(); } catch (e) { setError(msg(e)); }
   }
 

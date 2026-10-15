@@ -12,6 +12,7 @@ import {
 } from "@/lib/promos";
 import { copyText } from "@/lib/vip";
 
+import { askConfirm } from "@/lib/confirm";
 type Filter = "all" | "active" | "paused" | "expired" | "used_up";
 const input = "w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
 const msg = (e: unknown) => (e instanceof ApiError || e instanceof Error ? e.message : "Something went wrong");
@@ -138,7 +139,7 @@ export default function PromosPage() {
   }
   async function remove(p: Promo) {
     if (!guard("promos.delete")) return;
-    if (!window.confirm(`Delete the code ${p.code}? Customers can no longer use it. Games that already used it keep their discount. To stop it for now, pause it instead.`)) return;
+    if (!(await askConfirm(`Delete the code ${p.code}? Customers can no longer use it. Games that already used it keep their discount. To stop it for now, pause it instead.`))) return;
     try { await removePromo(p.code); reload(); } catch (e) { setError(msg(e)); }
   }
   async function copy(code: string) { setCopied((await copyText(code)) ? code : ""); setTimeout(() => setCopied(""), 1800); }

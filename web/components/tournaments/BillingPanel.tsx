@@ -10,6 +10,7 @@ import { rs } from "@/lib/bookings";
 import { Bill, addItems, addLine, billLink, downloadBillPdf, fmtDay, getBill, makeFinalBill, range, receivePayment, removeLine, reopenBill, setRate } from "@/lib/hosted-tournaments";
 import { Product, listProducts } from "@/lib/inventory";
 
+import { askConfirm } from "@/lib/confirm";
 const input = "rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
 const msg = (e: unknown) => (e instanceof ApiError || e instanceof Error ? e.message : "Something went wrong");
 
@@ -193,7 +194,7 @@ export default function BillingPanel({ id, canBill, onChanged }: { id: string; c
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {canBill && !closed && <button onClick={() => guard("tournaments.bill") && window.confirm("Make the final bill? Goods and charges can no longer be changed (you can reopen it).") && run(() => makeFinalBill(id))} disabled={busy} className="flex items-center gap-1.5 rounded-full bg-brand px-5 py-2.5 text-sm font-semibold text-white"><Lock size={15} /> Make the final bill</button>}
+        {canBill && !closed && <button onClick={async () => guard("tournaments.bill") && (await askConfirm("Make the final bill? Goods and charges can no longer be changed (you can reopen it).")) && run(() => makeFinalBill(id))} disabled={busy} className="flex items-center gap-1.5 rounded-full bg-brand px-5 py-2.5 text-sm font-semibold text-white"><Lock size={15} /> Make the final bill</button>}
         {canBill && closed && <button onClick={() => run(() => reopenBill(id))} disabled={busy} className="flex items-center gap-1.5 rounded-full border border-line px-4 py-2.5 text-sm font-semibold"><LockOpen size={15} /> Reopen the bill</button>}
         <button onClick={() => downloadBillPdf(b)} className="flex items-center gap-1.5 rounded-full border border-line px-4 py-2.5 text-sm font-semibold"><Download size={15} /> Download PDF</button>
         <a href={billLink(b)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 rounded-full bg-[#25D366] px-4 py-2.5 text-sm font-semibold text-white"><MessageCircle size={15} /> Send to the host on WhatsApp</a>

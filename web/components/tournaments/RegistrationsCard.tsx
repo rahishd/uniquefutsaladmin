@@ -8,6 +8,7 @@ import { ApiError } from "@/lib/api";
 import { copyText } from "@/lib/vip";
 import { RegStatus, TeamRegistration, listRegistrations, registrationUrl, setEntryFee, setRegistration } from "@/lib/tournaments";
 
+import { askConfirm } from "@/lib/confirm";
 const TONE: Record<RegStatus, string> = { pending: "bg-amber-500/15 text-amber-600", approved: "bg-brand/15 text-brand", rejected: "bg-slate-500/15 text-slate-500" };
 const LABEL: Record<RegStatus, string> = { pending: "Waiting", approved: "Confirmed", rejected: "Rejected" };
 const waNumber = (p: string) => (p.length === 10 ? `977${p}` : p);
@@ -30,7 +31,7 @@ export default function RegistrationsCard({ tournamentId, name, finished, entryF
 
   async function decide(r: TeamRegistration, status: RegStatus) {
     if (!guard("tournaments.registrations")) return;
-    if (status === "rejected" && !window.confirm(`Reject ${r.teamName}? Their place is freed and they are told.`)) return;
+    if (status === "rejected" && !(await askConfirm(`Reject ${r.teamName}? Their place is freed and they are told.`))) return;
     setBusy(r.id); setError("");
     try { await setRegistration(tournamentId, r.id, status); load(); } catch (e) { setError(e instanceof ApiError ? e.message : "Could not save"); } finally { setBusy(""); }
   }

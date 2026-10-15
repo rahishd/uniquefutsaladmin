@@ -15,6 +15,7 @@ import {
   GzDay, GzList, GzScope, GzSession, PAGE_SIZE, PAY, STATUS, cancelGz, canCancel, canClose, completeGz, getGzDay, listGzSessions, owes, timeSpan,
 } from "@/lib/gamezone";
 
+import { askConfirm } from "@/lib/confirm";
 const TABS = [
   { id: "board", label: "Day board" },
   { id: "sessions", label: "All sessions" },
@@ -34,7 +35,7 @@ function useActions(onDone: () => void, setError: (m: string) => void, onCollect
     if (kind === "pay") return onCollect(s);
     const who = s.customerName || "this customer";
     const ask = kind === "done" ? `Mark ${s.code} as completed?` : `Cancel ${s.code} for ${who}? The console hour is freed${s.paymentStatus === "paid" ? " and a refund becomes due" : ""}, and the customer is told.`;
-    if (!window.confirm(ask)) return;
+    if (!(await askConfirm(ask))) return;
     setError("");
     try {
       await (kind === "done" ? completeGz(s.code) : cancelGz(s.code));

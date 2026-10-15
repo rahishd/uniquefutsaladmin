@@ -9,6 +9,7 @@ import { guard } from "@/lib/access";
 import { Block, HOURS, addBlock, getBlocks, previewBlock, removeBlock } from "@/lib/courts";
 import { hourLabel, todayKey } from "@/lib/slots";
 
+import { askConfirm } from "@/lib/confirm";
 const field = "w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
 
 export default function BlocksTab() {
@@ -53,7 +54,7 @@ export default function BlocksTab() {
       if (wouldCancel.length > 0) {
         const list = wouldCancel.slice(0, 8).map((x) => `• ${x.customer ?? x.phone ?? "Guest"} · ${x.time}${x.paid ? " (paid, refund due)" : ""}`).join("\n");
         const more = wouldCancel.length > 8 ? `\n…and ${wouldCancel.length - 8} more` : "";
-        const ok = window.confirm(`Blocking these hours will CANCEL ${wouldCancel.length} booking${wouldCancel.length === 1 ? "" : "s"}:\n\n${list}${more}\n\nEach customer is told the reason: "${reason.trim()}". Paid online bookings are marked for refund.\n\nBlock and cancel them?`);
+        const ok = (await askConfirm(`Blocking these hours will CANCEL ${wouldCancel.length} booking${wouldCancel.length === 1 ? "" : "s"}:\n\n${list}${more}\n\nEach customer is told the reason: "${reason.trim()}". Paid online bookings are marked for refund.\n\nBlock and cancel them?`));
         if (!ok) { setBusy(false); return; }
       }
       const r = await addBlock({ date, hours, reason: reason.trim() });
@@ -70,7 +71,7 @@ export default function BlocksTab() {
 
   async function remove(b: Block) {
     if (!guard("courts.block")) return;
-    if (!window.confirm(`Open ${hourLabel(b.hour)} on ${prettyDate(b.date)} for booking again?`)) return;
+    if (!(await askConfirm(`Open ${hourLabel(b.hour)} on ${prettyDate(b.date)} for booking again?`))) return;
     try {
       await removeBlock(b.id);
       setTick((t) => t + 1);

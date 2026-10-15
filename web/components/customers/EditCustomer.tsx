@@ -6,6 +6,7 @@ import { ApiError } from "@/lib/api";
 import { guard } from "@/lib/access";
 import { CustomerEdit, editCustomer } from "@/lib/customers";
 
+import { askConfirm } from "@/lib/confirm";
 // Staff fix a customer's details here. A new password needs no old one: customers who forget it are told to contact the venue.
 export default function EditCustomer({ phone, name, email, onSaved }: { phone: string; name: string | null; email: string | null; onSaved: (newPhone: string) => void }) {
   const [open, setOpen] = useState(false);
@@ -26,7 +27,7 @@ export default function EditCustomer({ phone, name, email, onSaved }: { phone: s
     if (f.email.trim() !== (email ?? "")) body.email = f.email.trim() || null;
     if (f.password) body.password = f.password;
     if (!Object.keys(body).length) { setOpen(false); return; }
-    if (body.phoneNumber && !window.confirm(`Change the phone number from ${phone} to ${body.phoneNumber}? The customer will sign in with the new number.`)) return;
+    if (body.phoneNumber && !(await askConfirm(`Change the phone number from ${phone} to ${body.phoneNumber}? The customer will sign in with the new number.`))) return;
     setBusy(true); setError(""); setDone(""); setShare(null);
     try {
       await editCustomer(phone, body);

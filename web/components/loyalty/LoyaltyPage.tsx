@@ -9,6 +9,7 @@ import {
   CustomerLedger, Holder, KINDS, Kind, LedgerRow, LoyaltyOverview, PAGE_SIZE, Paged, VoucherRow, adjustPoints, fmtDay, getCustomer, getOverview, kindOf, listHolders, listLedger, listVouchers, pts, voidVoucher,
 } from "@/lib/loyalty";
 
+import { askConfirm } from "@/lib/confirm";
 type Tab = "customers" | "activity" | "vouchers" | "rules";
 const input = "rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
 const msg = (e: unknown) => (e instanceof ApiError || e instanceof Error ? e.message : "Something went wrong");
@@ -67,7 +68,7 @@ function CustomerSheet({ h, onClose, onChanged }: { h: Holder; onClose: () => vo
   }
   async function voidIt(id: string) {
     if (!guard("loyalty.void")) return;
-    if (!window.confirm("Void this free-game voucher? The customer cannot use it, and the points are not given back.")) return;
+    if (!(await askConfirm("Void this free-game voucher? The customer cannot use it, and the points are not given back."))) return;
     try { await voidVoucher(id); setTick((t) => t + 1); onChanged(); } catch (e) { setErr(msg(e)); }
   }
 
@@ -217,7 +218,7 @@ function VouchersTab({ tick, onChanged }: { tick: number; onChanged: () => void 
   const { data, error } = useLoad<Paged<VoucherRow>>(() => listVouchers(status, pageNo), [status, pageNo, tick, n]);
   async function voidIt(v: VoucherRow) {
     if (!guard("loyalty.void")) return;
-    if (!window.confirm(`Void ${v.name ?? v.phone}'s ${v.period} free-game voucher? The points are not given back.`)) return;
+    if (!(await askConfirm(`Void ${v.name ?? v.phone}'s ${v.period} free-game voucher? The points are not given back.`))) return;
     try { await voidVoucher(v.id); setN((x) => x + 1); onChanged(); setErr(""); } catch (e) { setErr(msg(e)); }
   }
   return (
