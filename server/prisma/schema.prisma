@@ -1247,3 +1247,22 @@ model ServiceDeposit {
   @@index([fundId, depositedOn])
   @@index([depositedOn])
 }
+
+// Gift Card (customer app, migration 20261029000001_gift_cards in the client backend): points or a game bought for a friend.
+model Gift {
+  id        String    @id @default(cuid())
+  code      String    @unique
+  kind      String // points | game
+  buyerId   String
+  friendId  String
+  points    Int?
+  bookingId String?   @unique
+  amount    Int
+  message   String?
+  status    String    @default("pending") // pending | paid | expired | refunded
+  paidAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([buyerId, createdAt])
+  @@index([friendId])
+}

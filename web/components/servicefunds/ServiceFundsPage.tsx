@@ -77,7 +77,7 @@ export default function ServiceFundsPage() {
             <div className="rounded-2xl bg-surface p-3 shadow-sm"><p className="text-xs text-muted">Takings{view.from || view.to ? " in this period" : ""}</p><p className="text-lg font-bold">{rs(view.base.total)}</p></div>
             <div className="rounded-2xl bg-surface p-3 shadow-sm"><p className="text-xs text-muted">Deposited{view.from || view.to ? " in this period" : ""}</p><p className="text-lg font-bold">{money(view.totals.deposited)}</p></div>
             <div className="rounded-2xl bg-sky-500/10 p-3 shadow-sm"><p className="text-xs text-muted">Still to set aside (all time)</p><p className="text-lg font-bold text-sky-700">{money(view.totals.toDeposit)}</p></div>
-            <div className="rounded-2xl bg-surface p-3 text-xs text-muted shadow-sm">Takings = courts {rs(view.base.courts)}, memberships {rs(view.base.memberships)}, Gamezone {rs(view.base.gamezone)}, club {rs(view.base.club)}, tournaments {rs(view.base.tournaments)}</div>
+            <div className="rounded-2xl bg-surface p-3 text-xs text-muted shadow-sm">Takings = courts {rs(view.base.courts)}, memberships {rs(view.base.memberships)}, Gamezone {rs(view.base.gamezone)}, club {rs(view.base.club)}, tournaments {rs(view.base.tournaments)}, Gift Card points {rs(view.base.giftCards)}</div>
           </section>
 
           <ul className="grid gap-3 xl:grid-cols-2">

@@ -53,6 +53,10 @@ export const SECTIONS: Section[] = [
     { key: "servicefunds.deposit", label: "Deposit Amount to a Service" },
     { key: "servicefunds.manage", label: "Add / Edit Services" },
   ] },
+  { id: "giftcards", label: "Gift Card", permissions: [
+    { key: "giftcards.view", label: "View Gift Cards" },
+    { key: "giftcards.refund", label: "Cancel a Gift & Refund the Buyer" },
+  ] },
   { id: "goalrush", label: "Unique Goal Rush", permissions: [
     { key: "goalrush.view", label: "View Goal Rush Games & Statistics" },
   ] },
@@ -147,7 +151,7 @@ export type Permission = (typeof PERMISSIONS)[number];
 const EXPAND: Record<string, string[]> = {
   "bookings.read": ["bookings.view", "slots.view", "arrivals.view"],
   "bookings.write": ["bookings.create", "bookings.cancel", "bookings.complete", "bookings.noshow", "bookings.stats"],
-  "payments.read": ["payments.view", "servicefunds.view"], "payments.write": ["payments.collect", "payments.refund", "servicefunds.deposit"],
+  "payments.read": ["payments.view", "servicefunds.view", "giftcards.view"], "payments.write": ["payments.collect", "payments.refund", "servicefunds.deposit", "giftcards.refund"],
   "customers.read": ["customers.view", "club.view"], "customers.write": ["customers.create", "customers.edit", "customers.suspend", "vip.view", "vip.manage"],
   "courts.read": ["courts.view"], "courts.write": ["courts.price", "courts.block"],
   "promos.read": ["promos.view"], "promos.write": ["promos.create", "promos.edit", "promos.delete"],

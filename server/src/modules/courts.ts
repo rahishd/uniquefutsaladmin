@@ -8,6 +8,7 @@ import { notify } from "../lib/customer-effects";
 import { todayKey } from "../lib/dates";
 import { AppError, dateStr, handler, param, parse, send } from "../lib/http";
 import { requirePermission } from "../middleware/auth";
+import { giftBookingCancelled } from "./gifts";
 import { getHourlyPricing, getHourlyRate, setSetting } from "./settings-store";
 
 export const courtsRouter = Router();
@@ -98,6 +99,7 @@ courtsRouter.post("/blocks", requirePermission("courts.block"), handler(async (r
       return out;
     });
     for (const bk of toCancel) {
+      await giftBookingCancelled(bk.id);
       if (bk.userId) await notify(prisma, { userId: bk.userId, type: "booking", title: "Booking cancelled by the venue", message: `Your booking on ${bk.date} at ${bk.startTime} was cancelled because the court is closed: ${b.reason}.${bk.paymentStatus === "completed" ? " Your payment will be refunded." : ""} Sorry for the trouble.`, href: "/profile", dedupeKey: `blocked-${bk.id}` });
     }
     await audit(req, "block", "slot", null, { date: b.date, hours, reason: b.reason, cancelled: brief.map((x) => x.code) });

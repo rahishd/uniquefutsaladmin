@@ -1,6 +1,6 @@
 // Collect Service Payment: money that is set aside for a purpose, kept apart from the day's takings.
 //   - "percent" funds grow with the takings: the 3% Charity Fund is 3% of what customers paid for games, Gamezone,
-//     memberships, the club and hosted tournaments. What is still to be set aside = accrued - deposited.
+//     memberships, the club, hosted tournaments and Gift Card points. What is still to be set aside = accrued - deposited.
 //   - "manual" funds (maintenance, balls, anything) have no rate: staff just record what was set aside.
 // A deposit is written once and never edited or deleted, so the history can be screened later.
 import { Prisma } from "@prisma/client";
@@ -24,12 +24,13 @@ const range = z.object({ from: dateStr.optional(), to: dateStr.optional() });
 export async function takings(from?: string, to?: string) {
   const day = from || to ? { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } : undefined;
   const at = from || to ? { ...(from ? { gte: new Date(`${from}T00:00:00+05:45`) } : {}), ...(to ? { lte: new Date(`${to}T23:59:59.999+05:45`) } : {}) } : undefined;
-  const [courts, members, gamezone, club, tournaments] = await Promise.all([
+  const [courts, members, gamezone, club, tournaments, gifts] = await Promise.all([
     prisma.booking.aggregate({ where: { AND: [NOT_LEDGER, { paymentStatus: "completed", status: { notIn: DEAD } }, ...(day ? [{ date: day }] : [])] }, _sum: { totalPrice: true } }),
     prisma.booking.aggregate({ where: { notes: { contains: "MEMBERSHIP_PAYMENT" }, paymentStatus: "completed", status: { notIn: DEAD }, ...(day ? { date: day } : {}) }, _sum: { totalPrice: true } }),
     prisma.gzBooking.aggregate({ where: { paymentStatus: "paid", status: { notIn: DEAD }, ...(day ? { date: day } : {}) }, _sum: { total: true } }),
     prisma.paymentOrder.aggregate({ where: { purpose: "club", status: "paid", ...(at ? { paidAt: at } : {}) }, _sum: { amount: true } }),
     prisma.tournamentPayment.aggregate({ where: at ? { createdAt: at } : {}, _sum: { cash: true, fonepay: true } }),
+    prisma.paymentOrder.aggregate({ where: { purpose: "gift_points", status: "paid", ...(at ? { paidAt: at } : {}) }, _sum: { amount: true } }),
   ]);
   const parts = {
     courts: Math.round(courts._sum.totalPrice ?? 0),
@@ -37,8 +38,9 @@ export async function takings(from?: string, to?: string) {
     gamezone: gamezone._sum.total ?? 0,
     club: club._sum.amount ?? 0,
     tournaments: (tournaments._sum.cash ?? 0) + (tournaments._sum.fonepay ?? 0),
+    giftCards: gifts._sum.amount ?? 0,
   };
-  return { ...parts, total: parts.courts + parts.memberships + parts.gamezone + parts.club + parts.tournaments };
+  return { ...parts, total: parts.courts + parts.memberships + parts.gamezone + parts.club + parts.tournaments + parts.giftCards };
 }
 
 // The Charity Fund exists from the start (3% of the takings, as the customer app shows on every bill).

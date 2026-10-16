@@ -128,6 +128,16 @@ export const modules: Module[] = [
     ],
   },
   {
+    slug: "gift-card", title: "Gift Card", group: "Customers", icon: "gift",
+    summary: "Loyalty points and games customers bought for a friend in the app, paid with Fonepay.",
+    clientFeatures: ["Gift Card in Quick Access: Buy Loyalty Points for my friend (Rs. 10 a point, 10 to 500) or Book Game Instead (a 1-hour game in the friend's name, paid by the buyer)", "The friend must be registered; both are notified when it is paid", "Up to 5 gifts a day per customer; a gifted game cannot be cancelled in the app"],
+    adminTasks: ["See every gift: who bought it, for whom, points or game, amount, payment and delivery", "Filter by type, status and date, and search by code, name or number", "Cancel a paid gift: the game is cancelled or the points are taken back, and the buyer's money goes on Payments > Refunds"],
+    endpoints: [
+      e("GET", "/admin/gifts", "gifts with totals, filters and search"), e("GET", "/admin/gifts/:id", "one gift"),
+      e("POST", "/admin/gifts/:id/cancel", "cancel a paid gift and put the refund on the Refunds list"),
+    ],
+  },
+  {
     slug: "club", title: "Unique Club", group: "Customers", icon: "badge",
     summary: "Members of Unique Club (Rs. 1,500 for 30 days, 10% off). See who is in, who is about to run out and what the discount has given.",
     clientFeatures: ["Unique Club page in Quick Access", "Pay Rs. 1,500 with the Fonepay QR; active at once for 30 days", "10% off court bookings and Gamezone from day one", "10% off the 1-month membership plan and hosting a tournament after 15 days or 5 games", "No promo or VIP code with the club discount"],

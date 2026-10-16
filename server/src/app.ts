@@ -38,6 +38,7 @@ import { vipRouter } from "./modules/vip";
 import { clubRouter } from "./modules/club";
 import { goalRushRouter } from "./modules/goalrush";
 import { serviceFundsRouter } from "./modules/service-funds";
+import { giftsRouter } from "./modules/gifts";
 
 export const app = express();
 app.set("trust proxy", 1);
@@ -96,6 +97,7 @@ admin.use("/vip", vipRouter);
 admin.use("/club", clubRouter);
 admin.use("/goal-rush", goalRushRouter);
 admin.use("/service-funds", serviceFundsRouter);
+admin.use("/gifts", giftsRouter);
 admin.use("/", overviewRouter);
 app.use("/api/admin", admin);
 

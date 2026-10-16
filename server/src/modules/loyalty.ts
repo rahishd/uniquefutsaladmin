@@ -13,7 +13,7 @@ const phone = z.string().regex(/^9\d{9}$/, "registered mobile number like 98XXXX
 
 // ---- the Loyalty Points page ----
 // Balance as the admin sees it: valid earned points plus spent (negative) ones. The customer app is the source of truth for what is spendable.
-const KINDS = ["game", "goods", "membership", "referral", "captain_win", "goal_rush", "free_game"] as const;
+const KINDS = ["game", "goods", "membership", "referral", "captain_win", "goal_rush", "gift", "free_game"] as const;
 const SOON_DAYS = 30;
 
 type Holder = { phone: string; valid: number; spent: number; expiring: number };

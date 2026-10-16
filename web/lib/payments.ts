@@ -1,7 +1,7 @@
 import { api } from "./api";
 import { shiftDate, todayKey } from "./slots";
 
-export type Kind = "court" | "gamezone" | "club";
+export type Kind = "court" | "gamezone" | "club" | "gift";
 export type PayStatus = "paid" | "unpaid" | "cancelled";
 export type Mode = "cash" | "online" | "fonepay";
 export type Period = "today" | "week" | "month" | "all" | "custom";

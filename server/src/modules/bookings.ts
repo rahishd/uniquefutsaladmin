@@ -10,6 +10,7 @@ import { awardForCompletedBooking, notify } from "../lib/customer-effects";
 import { addDaysKey, currentHour, todayKey } from "../lib/dates";
 import { AppError, dateStr, handler, page, param, parse, send, timeStr } from "../lib/http";
 import { requirePermission } from "../middleware/auth";
+import { giftBookingCancelled } from "./gifts";
 import { DEAD, claimFonepay, gameLabel, paysSchema, settle } from "../lib/settle";
 import { getHourPrice } from "./settings-store";
 import { waterForBooking } from "../lib/water";
@@ -303,6 +304,7 @@ bookingsRouter.post("/:id/cancel", requirePermission("bookings.cancel"), handler
     }
   });
   if (b.userId) await notify(prisma, { userId: b.userId, type: "booking", title: "Booking cancelled", message: `Your booking on ${b.date} at ${b.startTime} was cancelled by the venue.${reason ? " " + reason : ""}`, href: "/book", dedupeKey: `booking-staff-cancel-${b.id}` });
+  await giftBookingCancelled(b.id);
   await audit(req, "cancel", "booking", b.id, { reason });
   send(res, null, "Booking cancelled");
 }));

@@ -14,7 +14,7 @@ export const ledgerRouter = Router();
 
 const DEAD = ["cancelled", "expired"];
 const filters = z.object({
-  kind: z.enum(["court", "gamezone", "club"]).default("court"),
+  kind: z.enum(["court", "gamezone", "club", "gift"]).default("court"),
   status: z.enum(["paid", "unpaid", "cancelled"]).optional(),
   mode: z.enum(["cash", "online", "esewa", "fonepay"]).optional(),
   from: dateStr.optional(),
@@ -77,10 +77,10 @@ ledgerRouter.get("/ledger", requirePermission("payments.view"), handler(async (r
     });
   }
 
-  if (f.kind === "club") {
-    // Unique Club payments (Rs. 1,500 each): one row per Fonepay order
+  if (f.kind === "club" || f.kind === "gift") {
+    // Unique Club payments (Rs. 1,500 each) or Gift Card points bought for a friend: one row per Fonepay order
     const where: Prisma.PaymentOrderWhereInput = {
-      purpose: "club",
+      purpose: f.kind === "gift" ? "gift_points" : "club",
       ...(f.status === "paid" ? { status: "paid" } : f.status === "unpaid" ? { status: "pending" } : f.status === "cancelled" ? { status: { in: ["expired", "failed", "refunded"] } } : {}),
       ...(f.q ? { OR: [{ orderCode: { contains: f.q, mode: "insensitive" as const } }, { userId: { contains: f.q } }] } : {}),
     };
@@ -90,7 +90,7 @@ ledgerRouter.get("/ledger", requirePermission("payments.view"), handler(async (r
     return send(res, {
       total, page: pageNo, limit,
       items: rows.map((r) => ({
-        kind: "club", id: r.id, ref: r.orderCode, code: r.orderCode, date: (r.paidAt ?? r.createdAt).toISOString().slice(0, 10), time: "",
+        kind: f.kind, id: r.id, ref: r.orderCode, code: r.orderCode, date: (r.paidAt ?? r.createdAt).toISOString().slice(0, 10), time: "",
         customer: r.userId ? name.get(r.userId) ?? null : null, phone: r.userId, amount: r.amount,
         status: r.status === "paid" ? "paid" : r.status === "pending" ? "unpaid" : "cancelled", method: "fonepay", mode: "online", createdAt: r.createdAt, clubDiscount: 0,
       })),
@@ -115,8 +115,8 @@ ledgerRouter.get("/summary", requirePermission("payments.view"), handler(async (
   const f = parse(filters, req.query);
   type Row = { method: string; sum: number; count: number };
   const group = async (paid: boolean): Promise<Row[]> => {
-    if (f.kind === "club") {
-      const g = await prisma.paymentOrder.aggregate({ where: { purpose: "club", status: paid ? "paid" : "pending" }, _sum: { amount: true }, _count: { _all: true } });
+    if (f.kind === "club" || f.kind === "gift") {
+      const g = await prisma.paymentOrder.aggregate({ where: { purpose: f.kind === "gift" ? "gift_points" : "club", status: paid ? "paid" : "pending" }, _sum: { amount: true }, _count: { _all: true } });
       return [{ method: "fonepay", sum: g._sum.amount ?? 0, count: g._count._all }];
     }
     if (f.kind === "gamezone") {
@@ -136,7 +136,7 @@ ledgerRouter.get("/summary", requirePermission("payments.view"), handler(async (
   };
   const [paid, unpaid, cancelled] = await Promise.all([
     group(true), group(false),
-    f.kind === "club" ? prisma.paymentOrder.count({ where: { purpose: "club", status: { in: ["expired", "failed", "refunded"] } } })
+    f.kind === "club" || f.kind === "gift" ? prisma.paymentOrder.count({ where: { purpose: f.kind === "gift" ? "gift_points" : "club", status: { in: ["expired", "failed", "refunded"] } } })
       : f.kind === "gamezone" ? prisma.gzBooking.count({ where: { AND: [gzBase(f), gzStatus("cancelled")] } }) : prisma.booking.count({ where: { AND: [courtBase(f), courtStatus("cancelled")] } }),
   ]);
   const tot = (rows: Row[], pick?: (m: string) => boolean) => rows.filter((r) => !pick || pick(r.method)).reduce((n, r) => ({ sum: n.sum + r.sum, count: n.count + r.count }), { sum: 0, count: 0 });

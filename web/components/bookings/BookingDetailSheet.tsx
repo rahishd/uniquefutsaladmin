@@ -61,6 +61,7 @@ export default function BookingDetailSheet({ booking, onClose, onChanged, billin
           <Row label="Paid so far">{rs(b.amountPaidNow)}</Row>
           {b.remainingAmount > 0 && <Row label="To collect">{rs(b.remainingAmount)}</Row>}
           <Row label="Payment method">{METHOD[b.paymentMethod] ?? b.paymentMethod}</Row>
+          {/GIFT_FROM:(\d{10})/.test(b.notes ?? "") && <Row label="Gift Card">Paid as a gift by {/GIFT_FROM:(\d{10})/.exec(b.notes!)![1]}</Row>}
           {b.notes && <Row label="Notes">{b.notes}</Row>}
           <Row label="Booked on">{new Date(b.createdAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}</Row>
           {b.cancelledAt && <Row label="Cancelled on">{new Date(b.cancelledAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}</Row>}

@@ -4,7 +4,7 @@ export type Fund = {
   id: string; name: string; kind: "percent" | "manual"; rate: number | null; defaultAmount: number | null; active: boolean; note: string | null;
   accrued: number | null; deposited: number; deposits: number; lastDeposit: string | null; depositedAll: number; toDeposit: number | null;
 };
-export type Takings = { courts: number; memberships: number; gamezone: number; club: number; tournaments: number; total: number };
+export type Takings = { courts: number; memberships: number; gamezone: number; club: number; tournaments: number; giftCards: number; total: number };
 export type FundsView = { base: Takings; from: string | null; to: string | null; totals: { deposited: number; toDeposit: number }; items: Fund[] };
 export type Deposit = { id: string; fundId: string; fund: string; amount: number; note: string | null; date: string; by: string; at: string };
 export type DepositList = { total: number; page: number; limit: number; sum: number; items: Deposit[] };
