@@ -1,5 +1,6 @@
 import { api } from "./api";
 import { rs } from "./bookings";
+import { CHARITY_PERCENT, charityText } from "./charity";
 
 export type HostDay = { date: string; startHour: number; endHour: number };
 export type Clash = { date: string; hour: number; reason: string };
@@ -39,6 +40,7 @@ export function billText(b: Bill): string {
   if (goods.length) out.push("", "*Goods*", ...goods.map((l) => `${l.quantity} x ${l.label}: ${rs(l.amount)}`));
   const extra = b.lines.filter((l) => l.kind !== "goods");
   if (extra.length) out.push("", "*Other*", ...extra.map((l) => `${l.label}: ${l.amount < 0 ? "-" : ""}${rs(Math.abs(l.amount))}`));
+  if (b.total > 0) out.push("", `${CHARITY_PERCENT}% Charity Fund: ${charityText(b.total)} (from our profit, not added to your bill)`);
   out.push("", `*Total: ${rs(b.total)}*`, `Paid: ${rs(b.paid)}${b.paid ? ` (cash ${rs(b.paidCash)}, Fonepay ${rs(b.paidFonepay)})` : ""}`, `*${b.due > 0 ? `Balance due: ${rs(b.due)}` : "Paid in full. Thank you!"}*`);
   return out.filter((x, i, a) => x !== "" || a[i - 1] !== "").join("\n");
 }
@@ -72,6 +74,7 @@ export async function downloadBillPdf(b: Bill) {
   if (other.length) { heading("Extra charges and discounts"); other.forEach((l) => row(l.label, `${l.amount < 0 ? "-" : ""}${money(Math.abs(l.amount))}`)); }
   heading("Total");
   row("Total bill", money(b.total), true);
+  if (b.total > 0) row(`${CHARITY_PERCENT}% Charity Fund (from our profit, not added)`, charityText(b.total));
   b.payments.forEach((p) => row(`Received ${new Date(p.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}: cash ${money(p.cash)}, Fonepay ${money(p.fonepay)}${p.note ? ` (${p.note})` : ""}`, money(p.amount)));
   row("Paid in all", money(b.paid));
   row(b.due > 0 ? "Balance due" : "Paid in full", b.due > 0 ? money(b.due) : "", true);

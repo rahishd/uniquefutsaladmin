@@ -1216,3 +1216,34 @@ model GoalRushShot {
 
   @@unique([gameId, no])
 }
+
+// Collect Service Payment (admin portal): money set aside for a purpose. A "percent" fund (the 3% Charity Fund) accrues from
+// the takings; a "manual" fund (maintenance, balls ...) only has what staff deposit. Deposits are written once, never edited.
+model ServiceFund {
+  id            String           @id @default(cuid())
+  name          String           @unique
+  kind          String // percent | manual
+  rate          Float? // percent funds: % of the takings
+  defaultAmount Int? // manual funds: the amount the Deposit button suggests
+  note          String?
+  active        Boolean          @default(true)
+  sortOrder     Int              @default(0)
+  createdBy     String
+  createdAt     DateTime         @default(now())
+  deposits      ServiceDeposit[]
+}
+
+model ServiceDeposit {
+  id            String      @id @default(cuid())
+  fundId        String
+  amount        Float
+  note          String?
+  depositedOn   String // YYYY-MM-DD, Nepal time
+  createdBy     String // staff id
+  createdByName String
+  createdAt     DateTime    @default(now())
+  fund          ServiceFund @relation(fields: [fundId], references: [id])
+
+  @@index([fundId, depositedOn])
+  @@index([depositedOn])
+}

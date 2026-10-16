@@ -8,6 +8,7 @@ import { AppError, handler, param, parse, send } from "../lib/http";
 import { requirePermission } from "../middleware/auth";
 import { NOT_LEDGER } from "./bookings";
 import { customerProfile } from "./customers";
+import { MATURE_DAYS, MATURE_GAMES } from "../lib/club";
 
 // Digital ID. A customer's QR holds only "UFID1." + a random token (customer app: GET /me/digital-id). It carries no personal
 // data, so a scan anywhere else shows nothing. Only staff signed in here can turn it into a customer.
@@ -64,7 +65,9 @@ digitalIdRouter.get("/:phone/card", requirePermission("digitalid.scan"), handler
   const u = await customerOr404(param(req, "phone"));
   const row = await ensureToken(u.phoneNumber);
   await audit(req, "digitalid-card", "customer", u.phoneNumber);
-  send(res, { name: u.name || "Player", phone: u.phoneNumber, payload: PREFIX + row.token, whatsapp: `https://wa.me/977${u.phoneNumber}` });
+  const club = await prisma.clubMember.findUnique({ where: { userId: u.phoneNumber } });
+  const member = !!club && club.validUntil.getTime() > Date.now();
+  send(res, { name: u.name || "Player", phone: u.phoneNumber, payload: PREFIX + row.token, whatsapp: `https://wa.me/977${u.phoneNumber}`, club: { member, validUntil: club && member ? club.validUntil.toISOString().slice(0, 10) : null } });
 }));
 
 // Record that this member came today. Once per day per membership.
@@ -111,7 +114,7 @@ async function customerExtras(phone: string) {
   const today = todayKey();
   const mine = { AND: [NOT_LEDGER, { OR: [{ userId: phone }, { customerPhone: phone }] }] };
   const live = { status: { notIn: DEAD } };
-  const [upcoming, addOnRows, gzRows, gzDone, gzUpcoming, ledger, vouchers, refOut, refIn, refRecent, sub, subCount] = await Promise.all([
+  const [upcoming, addOnRows, gzRows, gzDone, gzUpcoming, ledger, vouchers, refOut, refIn, refRecent, sub, subCount, clubRow, clubCourt, clubGz, doneGames, rushToday, rushAll, rushRecent, hosting, joined] = await Promise.all([
     prisma.booking.findMany({
       where: { AND: [mine, { status: { in: ["pending", "confirmed"] }, date: { gte: today } }] },
       orderBy: [{ date: "asc" }, { startTime: "asc" }], take: 10,
@@ -127,6 +130,18 @@ async function customerExtras(phone: string) {
     prisma.referral.findMany({ where: { OR: [{ referrerId: phone }, { friendId: phone }] }, orderBy: { createdAt: "desc" }, take: 5 }),
     currentMembership(phone),
     prisma.membershipSubscription.count({ where: { userId: phone } }),
+    // Unique Club: membership, what the discount has given, and the 15 days / 5 games unlock
+    prisma.clubMember.findUnique({ where: { userId: phone } }),
+    prisma.booking.aggregate({ where: { userId: phone, clubDiscount: { gt: 0 }, status: { notIn: DEAD } }, _sum: { clubDiscount: true }, _count: { _all: true } }),
+    prisma.gzBooking.aggregate({ where: { userId: phone, clubDiscount: { gt: 0 }, status: { notIn: DEAD } }, _sum: { clubDiscount: true }, _count: { _all: true } }),
+    prisma.booking.findMany({ where: { userId: phone, status: "completed" }, select: { date: true } }),
+    // Unique Goal Rush
+    prisma.goalRushGame.aggregate({ where: { userId: phone, day: today }, _count: { _all: true }, _sum: { points: true, goals: true } }),
+    prisma.goalRushGame.aggregate({ where: { userId: phone }, _count: { _all: true }, _sum: { points: true } }),
+    prisma.goalRushGame.findMany({ where: { userId: phone, status: { not: "active" } }, orderBy: { startedAt: "desc" }, take: 5 }),
+    // Find Player: games they are looking for players for, and ones they joined
+    prisma.playerRequest.findMany({ where: { userId: phone, date: { gte: today }, status: { in: ["open", "awaiting_advance", "confirmed"] } }, include: { joins: { select: { userId: true } } }, orderBy: [{ date: "asc" }, { startHour: "asc" }], take: 10 }),
+    prisma.playerRequestJoin.findMany({ where: { userId: phone, request: { date: { gte: today }, status: { in: ["open", "awaiting_advance", "confirmed"] } } }, include: { request: true }, take: 10 }),
   ]);
 
   const valid = ledger.filter((r) => Number(r.points) > 0 && (!r.expiresOn || r.expiresOn >= today)).reduce((n, r) => n + Number(r.points), 0);
@@ -152,7 +167,34 @@ async function customerExtras(phone: string) {
     };
   }
 
+  let club = null as null | {
+    member: boolean; validUntil: string; startedAt: string; daysLeft: number; payments: number; mature: boolean; daysIn: number; gamesPlayed: number;
+    matureAfterDays: number; matureAfterGames: number; discountGiven: number; discountedGames: number;
+  };
+  if (clubRow) {
+    const since = clubRow.startedAt.toISOString().slice(0, 10);
+    const gamesPlayed = doneGames.filter((g) => g.date >= since).length;
+    const daysIn = Math.max(0, Math.floor((Date.now() - clubRow.startedAt.getTime()) / 86_400_000));
+    const member = clubRow.validUntil.getTime() > Date.now();
+    club = {
+      member, validUntil: clubRow.validUntil.toISOString().slice(0, 10), startedAt: since,
+      daysLeft: member ? Math.ceil((clubRow.validUntil.getTime() - Date.now()) / 86_400_000) : 0, payments: clubRow.payments,
+      mature: member && (daysIn >= MATURE_DAYS || gamesPlayed >= MATURE_GAMES), daysIn, gamesPlayed, matureAfterDays: MATURE_DAYS, matureAfterGames: MATURE_GAMES,
+      discountGiven: (clubCourt._sum.clubDiscount ?? 0) + (clubGz._sum.clubDiscount ?? 0), discountedGames: clubCourt._count._all + clubGz._count._all,
+    };
+  }
+
   return {
+    club,
+    goalRush: {
+      gamesToday: rushToday._count._all, pointsToday: rushToday._sum.points ?? 0, goalsToday: rushToday._sum.goals ?? 0,
+      gamesTotal: rushAll._count._all, pointsTotal: rushAll._sum.points ?? 0,
+      recent: rushRecent.map((g) => ({ day: g.day, status: g.status, goals: g.goals, shots: g.shotsTaken, points: g.points })),
+    },
+    findPlayer: {
+      hosting: hosting.map((r) => ({ id: r.id, date: r.date, time: `${String(r.startHour).padStart(2, "0")}:00`, status: r.status, needed: r.playersNeeded, joined: r.joins.length })),
+      joined: joined.map((j) => ({ id: j.request.id, date: j.request.date, time: `${String(j.request.startHour).padStart(2, "0")}:00`, status: j.request.status, host: j.request.userId })),
+    },
     upcomingBookings: upcoming.map((b) => ({
       code: b.code ?? "UF-" + b.id.slice(-6).toUpperCase(), date: b.date, time: b.startTime, status: b.status, amount: b.totalPrice,
       paid: b.paymentStatus === "completed", method: b.paymentMethod,

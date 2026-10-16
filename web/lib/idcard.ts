@@ -24,7 +24,7 @@ function fit(c: CanvasRenderingContext2D, text: string, maxW: number, start: num
   } while (c.measureText(text).width > maxW && size > 20);
 }
 
-export async function drawIdCard(canvas: HTMLCanvasElement, card: { name: string; phone: string; payload: string }) {
+export async function drawIdCard(canvas: HTMLCanvasElement, card: { name: string; phone: string; payload: string; club?: { member: boolean; validUntil?: string | null } }) {
   canvas.width = CARD_W;
   canvas.height = CARD_H;
   const c = canvas.getContext("2d")!;
@@ -46,6 +46,16 @@ export async function drawIdCard(canvas: HTMLCanvasElement, card: { name: string
   c.fillStyle = "rgba(255,255,255,0.7)";
   c.font = '600 32px system-ui, -apple-system, "Segoe UI", sans-serif';
   c.fillText("DIGITAL ID", CARD_W / 2, 205);
+
+  // Unique Club members: a gold badge under the orange band
+  if (card.club?.member) {
+    c.fillStyle = "#facc15";
+    round(c, 170, 274, 460, 46, 23);
+    c.fill();
+    c.fillStyle = "#0c0b5d";
+    c.font = '800 25px system-ui, -apple-system, "Segoe UI", sans-serif';
+    c.fillText("\u2605  UNIQUE CLUB MEMBER", CARD_W / 2, 306);
+  }
 
   // QR panel
   const panel = { x: 110, y: 330, s: 580 };

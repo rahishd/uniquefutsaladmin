@@ -2,6 +2,7 @@
 
 import { MessageCircle } from "lucide-react";
 import { rs } from "@/lib/bookings";
+import { CHARITY_PERCENT, charityOf, charityText } from "@/lib/charity";
 
 export type InvoiceLine = { label: string; quantity?: number; amount: number; clubDiscount?: number };
 
@@ -16,6 +17,7 @@ export function invoiceText(i: { code: string | null; name?: string | null; line
   }
   if (club > 0) out.push("", `Unique Club member discount (10%): -${rs(club)} (already taken off)`);
   out.push("", `*Total paid: ${rs(i.total)}*`);
+  if (charityOf(i.total) > 0) out.push(`${CHARITY_PERCENT}% Charity Fund: ${charityText(i.total)} (from our profit, not added to your bill)`);
   if (i.paidBy) out.push(`Paid by: ${i.paidBy}`);
   if (i.points) out.push(`Loyalty points added: ${i.points}`);
   out.push("", "Thank you for playing with us!");

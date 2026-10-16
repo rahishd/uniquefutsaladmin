@@ -275,6 +275,20 @@ export default function DigitalIdPage() {
             {note && <p role="status" className="mt-3 rounded-xl bg-brand/10 p-3 text-sm text-brand">{note}</p>}
           </div>
 
+          <Section title="Unique Club" hint="Rs. 1,500 for 30 days: 10% off bookings and Gamezone. The membership and tournament discounts unlock after 15 days or 5 games.">
+            {x.club ? (
+              <>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <Tile label="Status" value={x.club.member ? "Member" : "Ended"} sub={x.club.member ? `${x.club.daysLeft} day${x.club.daysLeft === 1 ? "" : "s"} left` : undefined} />
+                  <Tile label={x.club.member ? "Valid until" : "Ended on"} value={prettyDate(x.club.validUntil)} sub={`joined ${prettyDate(x.club.startedAt)}`} />
+                  <Tile label="Discount given" value={rs(x.club.discountGiven)} sub={`${x.club.discountedGames} game${x.club.discountedGames === 1 ? "" : "s"}`} />
+                  <Tile label="Membership & tournament" value={x.club.mature ? "Unlocked" : x.club.member ? "Not yet" : "-"} sub={x.club.mature || !x.club.member ? undefined : `day ${Math.min(x.club.daysIn, x.club.matureAfterDays)} of ${x.club.matureAfterDays} · ${Math.min(x.club.gamesPlayed, x.club.matureAfterGames)} of ${x.club.matureAfterGames} games`} />
+                </div>
+                {x.club.member && <p className="rounded-xl bg-sky-500/10 p-3 text-center text-sm font-semibold text-sky-700">Unique Club member: give 10% off their game. A promo code is not used with it.</p>}
+              </>
+            ) : <Empty>Not a Unique Club member.</Empty>}
+          </Section>
+
           <Section title="Membership & attendance">
             {x.membership ? (
               <>
@@ -329,6 +343,27 @@ export default function DigitalIdPage() {
             </div>
             {x.referrals.recent.length > 0 && <ul className="space-y-1.5 text-sm">{x.referrals.recent.map((r) => <li key={r.code} className="flex justify-between rounded-lg bg-surface-2 px-3 py-2"><span>{r.role === "referrer" ? "Booked for" : "Booked by a friend for"} {r.teamName} · {prettyDate(r.gameDate)}</span><span className="text-muted">{r.status}</span></li>)}</ul>}
           </Section>
+
+          <Section title="Goal Rush (penalty game)" hint="3 or more goals out of 5 earn 1 point, 3 games a day.">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <Tile label="Games today" value={`${x.goalRush.gamesToday}/3`} />
+              <Tile label="Points today" value={x.goalRush.pointsToday} />
+              <Tile label="Games in total" value={x.goalRush.gamesTotal} />
+              <Tile label="Points in total" value={x.goalRush.pointsTotal} />
+            </div>
+            {x.goalRush.recent.length > 0 && (
+              <ul className="space-y-1.5 text-sm">{x.goalRush.recent.map((g, i) => <li key={i} className="flex justify-between rounded-lg bg-surface-2 px-3 py-2"><span>{prettyDate(g.day)} · {g.status === "completed" ? `${g.goals} of ${g.shots} goals` : "not finished"}</span><span className="text-muted">{g.points > 0 ? `+${g.points} point${g.points === 1 ? "" : "s"}` : "no points"}</span></li>)}</ul>
+            )}
+          </Section>
+
+          {(x.findPlayer.hosting.length > 0 || x.findPlayer.joined.length > 0) && (
+            <Section title="Find Player" hint="Games they asked players for, and games they joined">
+              <ul className="space-y-1.5 text-sm">
+                {x.findPlayer.hosting.map((r) => <li key={r.id} className="flex justify-between rounded-lg bg-surface-2 px-3 py-2"><span>Hosting {prettyDate(r.date)} · {r.time} · {r.joined}/{r.needed} joined</span><span className="text-muted">{r.status.replace("_", " ")}</span></li>)}
+                {x.findPlayer.joined.map((r) => <li key={r.id} className="flex justify-between rounded-lg bg-surface-2 px-3 py-2"><span>Joined {r.host}&apos;s game {prettyDate(r.date)} · {r.time}</span><span className="text-muted">{r.status.replace("_", " ")}</span></li>)}
+              </ul>
+            </Section>
+          )}
 
           <Section title="Gamezone (PS5)">
             <div className="grid grid-cols-2 gap-2"><Tile label="Sessions played" value={x.gamezone.completed} /><Tile label="Upcoming" value={x.gamezone.upcoming} /></div>

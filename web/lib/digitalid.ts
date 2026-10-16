@@ -4,6 +4,15 @@ import type { Profile } from "./customers";
 export type Found = { phoneNumber: string; name: string | null; isActive: boolean };
 
 export type Extras = {
+  club: null | {
+    member: boolean; validUntil: string; startedAt: string; daysLeft: number; payments: number; mature: boolean; daysIn: number; gamesPlayed: number;
+    matureAfterDays: number; matureAfterGames: number; discountGiven: number; discountedGames: number;
+  };
+  goalRush: { gamesToday: number; pointsToday: number; goalsToday: number; gamesTotal: number; pointsTotal: number; recent: { day: string; status: string; goals: number; shots: number; points: number }[] };
+  findPlayer: {
+    hosting: { id: string; date: string; time: string; status: string; needed: number; joined: number }[];
+    joined: { id: string; date: string; time: string; status: string; host: string }[];
+  };
   upcomingBookings: { code: string; date: string; time: string; status: string; amount: number; paid: boolean; method: string }[];
   addOns: { total: number; bottles: number; recent: { code: string; date: string; items: string | null; bottles: number; price: number }[] };
   gamezone: { completed: number; upcoming: number; recent: { code: string; game: string; date: string; time: string; hours: number; total: number; status: string; paymentStatus: string }[] };
@@ -21,7 +30,7 @@ export type Extras = {
   spent: { games: number; goods: number; total: number; unpaid: number };
 };
 export type DigitalView = { profile: Profile; extras: Extras };
-export type CardData = { name: string; phone: string; payload: string; whatsapp: string };
+export type CardData = { name: string; phone: string; payload: string; whatsapp: string; club?: { member: boolean; validUntil: string | null } };
 
 export const resolveCode = (code: string) => api<{ phone: string; name: string | null }>("/admin/digital-id/resolve", { method: "POST", body: JSON.stringify({ code }) });
 export const searchCustomers = (q: string) => api<Found[]>(`/admin/digital-id/search?q=${encodeURIComponent(q)}`);

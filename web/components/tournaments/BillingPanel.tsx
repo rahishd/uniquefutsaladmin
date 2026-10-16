@@ -1,5 +1,6 @@
 "use client";
 
+import { CHARITY_PERCENT, charityText } from "@/lib/charity";
 import { useCallback, useEffect, useState } from "react";
 import { CheckCircle2, Download, Lock, LockOpen, MessageCircle, Minus, Plus, Search, Trash2, X } from "lucide-react";
 import { Badge } from "../bookings/Badge";
@@ -186,6 +187,7 @@ export default function BillingPanel({ id, canBill, onChanged }: { id: string; c
         </div>
 
         <div className="flex justify-between border-t border-line pt-3 text-base font-bold"><span>Total</span><span>{rs(b.total)}</span></div>
+        {b.total > 0 && <p className="flex justify-between text-sm font-medium text-sky-700"><span>{CHARITY_PERCENT}% Charity Fund (from our profit)</span><span>{charityText(b.total)}</span></p>}
       </div>
 
       <div className="space-y-3 rounded-2xl bg-surface p-4 shadow-sm">

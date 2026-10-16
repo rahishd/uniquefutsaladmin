@@ -1,5 +1,6 @@
 "use client";
 
+import { CHARITY_PERCENT, charityText } from "@/lib/charity";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
@@ -56,6 +57,7 @@ export default function BookingDetailSheet({ booking, onClose, onChanged, billin
           {(b.clubDiscount ?? 0) > 0 && <Row label="Unique Club member discount (10%)">− {rs(b.clubDiscount!)}</Row>}
           {b.discountAmount - (b.clubDiscount ?? 0) > 0 && <Row label={`Discount${b.promoCode ? ` (${b.promoCode})` : ""}`}>− {rs(b.discountAmount - (b.clubDiscount ?? 0))}</Row>}
           <Row label="Total">{rs(b.totalPrice)}</Row>
+          {b.totalPrice > 0 && <Row label={`${CHARITY_PERCENT}% Charity Fund`}>{charityText(b.totalPrice)}</Row>}
           <Row label="Paid so far">{rs(b.amountPaidNow)}</Row>
           {b.remainingAmount > 0 && <Row label="To collect">{rs(b.remainingAmount)}</Row>}
           <Row label="Payment method">{METHOD[b.paymentMethod] ?? b.paymentMethod}</Row>

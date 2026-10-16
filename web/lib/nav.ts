@@ -55,6 +55,17 @@ export const modules: Module[] = [
     ],
   },
   {
+    slug: "service-funds", title: "Collect Service Payment", group: "Operations", icon: "receipt",
+    summary: "Money set aside for a purpose: the 3% Charity Fund, maintenance, balls or anything else. Deposit it and keep the record.",
+    clientFeatures: ["3% Charity Fund shown with its exact amount on every booking, Gamezone, membership and bill"],
+    adminTasks: ["See what each service has collected and what is still to be set aside (the Charity Fund is 3% of the takings)", "Add a service such as Maintenance or Ball amounts, with a percentage of the takings or a manual amount", "Press Deposit Amount to record money set aside, with a note and a date", "Screen every deposit later by service, date and who recorded it"],
+    endpoints: [
+      e("GET", "/admin/service-funds", "services with accrued, deposited and still to deposit"),
+      e("POST", "/admin/service-funds/funds", "add a service"), e("PATCH", "/admin/service-funds/funds/:id", "edit or switch off a service"),
+      e("POST", "/admin/service-funds/funds/:id/deposit", "Deposit Amount"), e("GET", "/admin/service-funds/deposits", "deposit history"),
+    ],
+  },
+  {
     slug: "payments", title: "Payments", group: "Operations", icon: "wallet",
     summary: "Fonepay QR orders, pay-at-venue and refunds.",
     clientFeatures: ["QR with remarks, valid 10 minutes", "Status polling (paid is never trusted from the browser)", "Pay at venue (registered only)", "Free cancel creates a refund due"],

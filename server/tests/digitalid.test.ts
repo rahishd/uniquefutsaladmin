@@ -107,3 +107,33 @@ describe("Digital ID: membership attendance", () => {
     assert.equal(view.body.data.extras.membership.attendanceCount, 1);
   });
 });
+
+describe("Digital ID: Unique Club, Goal Rush and Find Player on the scan result", () => {
+  it("shows the club, the Goal Rush games and the Find Player games of the customer", async () => {
+    const day = todayKey();
+    await prisma.clubMember.create({ data: { userId: P, startedAt: new Date(Date.now() - 20 * 86400000), validUntil: new Date(Date.now() + 10 * 86400000), payments: 2 } });
+    await prisma.goalRushGame.create({ data: { userId: P, day, status: "completed", shotsTaken: 5, goals: 3, saves: 2, points: 1 } });
+    await prisma.playerRequest.create({ data: { userId: P, date: day, startHour: 23, playersNeeded: 4, status: "open", courtPrice: 1500 } });
+
+    const r = await api.get(`/digital-id/${P}`, owner.auth);
+    assert.equal(r.status, 200);
+    const x = r.body.data.extras;
+    assert.equal(x.club.member, true);
+    assert.equal(x.club.payments, 2);
+    assert.equal(x.club.mature, true, "20 days in");
+    assert.ok(x.club.daysLeft >= 9 && x.club.daysLeft <= 10);
+    assert.deepEqual([x.goalRush.gamesToday, x.goalRush.pointsToday, x.goalRush.pointsTotal], [1, 1, 1]);
+    assert.equal(x.findPlayer.hosting.length, 1);
+    assert.deepEqual([x.findPlayer.hosting[0].needed, x.findPlayer.hosting[0].joined], [4, 0]);
+
+    // the card to send carries the club badge
+    const card = await api.get(`/digital-id/${P}/card`, owner.auth);
+    assert.equal(card.body.data.club.member, true);
+  });
+
+  it("says nothing about a club for a customer who never joined", async () => {
+    await prisma.clubMember.deleteMany({ where: { userId: P } });
+    const r = await api.get(`/digital-id/${P}`, owner.auth);
+    assert.equal(r.body.data.extras.club, null);
+  });
+});
