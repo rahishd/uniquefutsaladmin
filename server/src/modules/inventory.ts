@@ -11,6 +11,7 @@ import { DEAD, Tx, creditGoods, lockProducts, paysSchema, sellGoods, settle } fr
 import { addDaysKey, todayKey } from "../lib/dates";
 import { AppError, handler, page, param, parse, send } from "../lib/http";
 import { requirePermission } from "../middleware/auth";
+import { ensurePaymentCode } from "./verify";
 
 export const inventoryRouter = Router();
 
@@ -289,7 +290,8 @@ inventoryRouter.post("/checkout", requirePermission("inventory.sell"), handler(a
 
   const r = await settle({ staffId, userId: b.phone, bookings: games, goodsDues, items: merged, pay: { payments: b.payments, fonepayQrId: b.fonepayQrId, single: b.payment === "online" ? "fonepay" : b.payment === "cash" ? "cash" : undefined } });
   await audit(req, "checkout", "inventory_bill", r.id, { code: r.code, customer: b.phone, goods: r.goodsTotal, games: r.gameTotal, payments: r.payments, pointsGoods: r.pointsGoods, pointsGames: r.pointsGames });
-  send(res, { ...r, customerName: customer.name }, "Bill saved", 201);
+  const verifyCode = r.id ? await ensurePaymentCode("checkout", r.id, req.staff!.name) : null;
+  send(res, { ...r, customerName: customer.name, verifyCode }, "Bill saved", 201);
 }));
 
 inventoryRouter.get("/bills", requirePermission("inventory.view"), handler(async (req, res) => {

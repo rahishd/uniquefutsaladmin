@@ -7,7 +7,7 @@ import { CHARITY_PERCENT, charityOf, charityText } from "@/lib/charity";
 export type InvoiceLine = { label: string; quantity?: number; amount: number; clubDiscount?: number };
 
 // Opens WhatsApp (app or web) with the invoice typed out, addressed to the customer's number. Staff press Send there.
-export function invoiceText(i: { code: string | null; name?: string | null; lines: InvoiceLine[]; total: number; paidBy?: string; points?: number }): string {
+export function invoiceText(i: { code: string | null; name?: string | null; lines: InvoiceLine[]; total: number; paidBy?: string; points?: number; verifyCode?: string | null }): string {
   const day = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
   const out = [`*Unique Futsal: Invoice${i.code ? ` ${i.code}` : ""}*`, day, i.name ? `Customer: ${i.name}` : "", ""];
   let club = 0;
@@ -20,6 +20,7 @@ export function invoiceText(i: { code: string | null; name?: string | null; line
   if (charityOf(i.total) > 0) out.push(`${CHARITY_PERCENT}% Charity Fund: ${charityText(i.total)} (from our profit, not added to your bill)`);
   if (i.paidBy) out.push(`Paid by: ${i.paidBy}`);
   if (i.points) out.push(`Loyalty points added: ${i.points}`);
+  if (i.verifyCode) out.push("", `Verification code: *${i.verifyCode}*`, "To check this bill is genuine, open Verify Documents in the Unique Futsal app and type this code.");
   out.push("", "Thank you for playing with us!");
   return out.filter((x, k, a) => x !== "" || a[k - 1] !== "").join("\n");
 }

@@ -56,13 +56,15 @@ export const modules: Module[] = [
   },
   {
     slug: "service-funds", title: "Collect Service Payment", group: "Operations", icon: "receipt",
-    summary: "Money set aside for a purpose: the 3% Charity Fund, maintenance, balls or anything else. Deposit it and keep the record.",
+    summary: "Money set aside for a purpose: the 3% Charity Fund, a turf fund, maintenance, balls or anything else. Percent funds collect by themselves from every paid futsal game; withdraw when you need the money.",
     clientFeatures: ["3% Charity Fund shown with its exact amount on every booking, Gamezone, membership and bill"],
     adminTasks: ["See what each service has collected and what is still to be set aside (the Charity Fund is 3% of the takings)", "Add a service such as Maintenance or Ball amounts, with a percentage of the takings or a manual amount", "Press Deposit Amount to record money set aside, with a note and a date", "Screen every deposit later by service, date and who recorded it"],
     endpoints: [
-      e("GET", "/admin/service-funds", "services with accrued, deposited and still to deposit"),
+      e("GET", "/admin/service-funds", "services with today's amount, the period, withdrawals and the balance (also makes today's automatic deposits)"),
+      e("GET", "/admin/service-funds/collections", "the daily collection: games, game amount and each fund's share, for a date range"),
       e("POST", "/admin/service-funds/funds", "add a service"), e("PATCH", "/admin/service-funds/funds/:id", "edit or switch off a service"),
-      e("POST", "/admin/service-funds/funds/:id/deposit", "Deposit Amount"), e("GET", "/admin/service-funds/deposits", "deposit history"),
+      e("POST", "/admin/service-funds/funds/:id/deposit", "Deposit Amount by hand"), e("POST", "/admin/service-funds/funds/:id/withdraw", "Withdraw (a reason is required, never more than the balance)"),
+      e("GET", "/admin/service-funds/ledger", "deposits and withdrawals together, with date, service and kind filters"), e("GET", "/admin/service-funds/deposits", "deposits only"),
     ],
   },
   {
@@ -328,6 +330,17 @@ export const modules: Module[] = [
       e("GET", "/admin/content/ads", "all ads with live status"), e("POST", "/admin/content/ads", "add an ad"),
       e("PATCH", "/admin/content/ads/:id", "edit, pause, replace the picture"), e("DELETE", "/admin/content/ads/:id", "delete an ad"),
       e("GET", "/admin/content/birthdays", "customers with a birthday today, and the promo codes that can be given"), e("POST", "/admin/content/birthdays/wish", "send happy birthday (with or without a promo code) to the selected customers"),
+    ],
+  },
+  {
+    slug: "verify", title: "Verify Document", group: "Communication", icon: "shield",
+    summary: "Verification codes for bills and for documents you give to schools, banks and colleges. Anyone can check a code on the customer site.",
+    clientFeatures: ["Verify Documents in Quick Access: type a 4-digit code to see if a bill or document is genuine", "A verification code on every receipt in Payment history and its PDF", "Genuine: the bill or document details; not genuine: a clear warning"],
+    adminTasks: ["Make a code for a document (reference letter, partnership, agreement) with the organisation, notes and photos", "Withdraw a code so it no longer verifies, or restore it", "Look up any code", "See the codes of recent bills; invoices sent on WhatsApp carry the bill code"],
+    endpoints: [
+      e("GET", "/admin/verify", "document codes and the codes of recent bills"), e("GET", "/admin/verify/lookup/:code", "what a code is and whether it still verifies"),
+      e("GET", "/admin/verify/bill-code", "the code of a bill (made on first use)"), e("POST", "/admin/verify/documents", "make a code for a document, with photos"),
+      e("PATCH", "/admin/verify/:id", "withdraw or restore a code"),
     ],
   },
   {

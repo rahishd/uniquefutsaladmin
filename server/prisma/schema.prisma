@@ -1230,9 +1230,11 @@ model ServiceFund {
   note          String?
   active        Boolean          @default(true)
   sortOrder     Int              @default(0)
+  autoSince     String? // percent funds collect automatically from this day (YYYY-MM-DD)
   createdBy     String
   createdAt     DateTime         @default(now())
   deposits      ServiceDeposit[]
+  withdrawals   ServiceWithdrawal[]
 }
 
 model ServiceDeposit {
@@ -1241,13 +1243,31 @@ model ServiceDeposit {
   amount        Float
   note          String?
   depositedOn   String // YYYY-MM-DD, Nepal time
+  autoDay       String? // automatic deposit of this day (one per fund per day); null for a deposit made by hand
   createdBy     String // staff id
   createdByName String
   createdAt     DateTime    @default(now())
   fund          ServiceFund @relation(fields: [fundId], references: [id])
 
+  @@unique([fundId, autoDay])
   @@index([fundId, depositedOn])
   @@index([depositedOn])
+}
+
+// Money taken out of a service fund. Written once, never edited or deleted.
+model ServiceWithdrawal {
+  id            String      @id @default(cuid())
+  fundId        String
+  amount        Float
+  note          String
+  withdrawnOn   String // YYYY-MM-DD, Nepal time
+  createdBy     String // staff id
+  createdByName String
+  createdAt     DateTime    @default(now())
+  fund          ServiceFund @relation(fields: [fundId], references: [id])
+
+  @@index([fundId, withdrawnOn])
+  @@index([withdrawnOn])
 }
 
 // Gift Card (customer app, migration 20261029000001_gift_cards in the client backend): points or a game bought for a friend.
@@ -1306,4 +1326,25 @@ model EvPort {
   provider       String   @default("manual") // manual | webhook: what switches the plug on and off
   providerConfig String? // JSON for the provider (webhook url and secret, device id)
   createdAt DateTime @default(now())
+}
+
+// Document verification: a short code on a receipt (kind "payment") or on a document staff made for a school, bank or college
+// (kind "document"). The customer site checks it (customer backend POST /api/verify). Same table as the customer backend.
+model DocVerification {
+  id         String    @id @default(cuid())
+  code       String    @unique
+  kind       String // payment | document
+  sourceType String? // payment: checkout | booking | gamezone
+  sourceId   String?
+  title      String?
+  issuedTo   String?
+  orgType    String? // school | bank | college | company | other
+  details    String?
+  mediaIds   String[]  @default([])
+  issuedBy   String?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@unique([sourceType, sourceId])
+  @@index([kind, createdAt])
 }

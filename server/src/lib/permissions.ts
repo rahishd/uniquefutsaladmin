@@ -51,6 +51,7 @@ export const SECTIONS: Section[] = [
   { id: "servicefunds", label: "Collect Service Payment", permissions: [
     { key: "servicefunds.view", label: "View Service Funds & Deposits" },
     { key: "servicefunds.deposit", label: "Deposit Amount to a Service" },
+    { key: "servicefunds.withdraw", label: "Withdraw Amount from a Service" },
     { key: "servicefunds.manage", label: "Add / Edit Services" },
   ] },
   { id: "giftcards", label: "Gift Card", permissions: [
@@ -99,12 +100,16 @@ export const SECTIONS: Section[] = [
     { key: "inventory.stock", label: "Restock / Adjust Stock" },
     { key: "inventory.sell", label: "Sell Goods (counter sale)" },
   ] },
-  { id: "content", label: "Site Content", permissions: [
+  { id: "content", label: "Site Content & Birthdays", permissions: [
     { key: "content.view", label: "View Gallery & Ads" },
     { key: "content.gallery", label: "Add / Edit / Delete Gallery Photos" },
     { key: "content.partners", label: "Add / Edit / Delete Corporate Network Logos" },
     { key: "content.ads", label: "Add / Edit / Pause / Delete Ads" },
-    { key: "content.birthdays", label: "Send Birthday Wishes & Gifts" },
+    { key: "content.birthdays", label: "Send Birthday Wishes & Promo Gifts" },
+  ] },
+  { id: "verify", label: "Verify Documents", permissions: [
+    { key: "verify.view", label: "View Bill & Document Codes, Look Up a Code" },
+    { key: "verify.manage", label: "Make / Withdraw Document Codes (schools, banks, colleges)" },
   ] },
   { id: "refer", label: "Refer & Earn", permissions: [
     { key: "refer.view", label: "View Referrals" },
@@ -130,7 +135,7 @@ export const SECTIONS: Section[] = [
     { key: "tournaments.create", label: "Register / Cancel a Hosted Tournament" },
     { key: "tournaments.bill", label: "Tournament Bill: Add Goods, Charges, Receive Payments" },
   ] },
-  { id: "notices", label: "Notices", permissions: [{ key: "notifications.send", label: "Send Notices to Customers" }] },
+  { id: "notices", label: "Notices", permissions: [{ key: "notifications.send", label: "Send Notices to Customers (with an optional link)" }] },
   { id: "reports", label: "Reports & Audit", permissions: [
     { key: "reports.view", label: "View Reports" },
     { key: "audit.view", label: "View Audit Log" },
@@ -165,8 +170,8 @@ const EXPAND: Record<string, string[]> = {
 };
 const expand = (list: string[]) => [...new Set(list.flatMap((p) => EXPAND[p] ?? [p]))];
 
-const FRONT_DESK = expand(["dashboard.view", "bookings.read", "bookings.write", "payments.read", "payments.write", "customers.read", "vip.view", "courts.read", "promos.read", "loyalty.read", "loyalty.write", "teams.read", "teams.write", "gamezone.read", "gamezone.write", "membership.read", "complaints.read", "complaints.write", "inventory.view", "inventory.sell", "digitalid.scan", "digitalid.attendance"]);
-const ACCOUNTANT = expand(["dashboard.view", "bookings.read", "payments.read", "payments.write", "customers.read", "vip.view", "courts.read", "promos.read", "loyalty.read", "gamezone.read", "membership.read", "reports.read", "audit.read"]);
+const FRONT_DESK = expand(["dashboard.view", "verify.view", "bookings.read", "bookings.write", "payments.read", "payments.write", "customers.read", "vip.view", "courts.read", "promos.read", "loyalty.read", "loyalty.write", "teams.read", "teams.write", "gamezone.read", "gamezone.write", "membership.read", "complaints.read", "complaints.write", "inventory.view", "inventory.sell", "digitalid.scan", "digitalid.attendance"]);
+const ACCOUNTANT = expand(["dashboard.view", "verify.view", "bookings.read", "payments.read", "payments.write", "customers.read", "vip.view", "courts.read", "promos.read", "loyalty.read", "gamezone.read", "membership.read", "reports.read", "audit.read"]);
 const VIEW_ONLY = ASSIGNABLE.filter((k) => k.endsWith(".view"));
 
 // Quick starts in the "Add staff" form. The owner can still tick or untick anything afterwards.
@@ -174,6 +179,8 @@ export const PRESETS: { id: string; label: string; hint: string; permissions: st
   { id: "frontdesk", label: "Front desk", hint: "Bookings, payments, loyalty, teams, Gamezone and complaints", permissions: FRONT_DESK },
   { id: "accountant", label: "Accountant", hint: "Payments, reports and the audit log; view bookings and customers", permissions: ACCOUNTANT },
   { id: "gamezone", label: "Gamezone attendant", hint: "Gamezone sessions and rates, and who is arriving", permissions: ["dashboard.view", "slots.view", "arrivals.view", "gamezone.view", "gamezone.collect", "gamezone.manage", "gamezone.catalog"] },
+  { id: "marketing", label: "Marketing & content", hint: "Ads, gallery, birthday wishes, notices with links, promo codes", permissions: ["dashboard.view", "content.view", "content.gallery", "content.partners", "content.ads", "content.birthdays", "notifications.send", "promos.view", "promos.create", "promos.edit", "customers.view"] },
+  { id: "documents", label: "Corporate & documents", hint: "Make and withdraw verification codes for schools, banks and colleges; look up bill codes", permissions: ["dashboard.view", "verify.view", "verify.manage", "customers.view", "payments.view", "bookings.view"] },
   { id: "manager", label: "Manager", hint: "Everything on the list", permissions: ASSIGNABLE },
   { id: "viewer", label: "View only", hint: "Can look at every page but change nothing", permissions: VIEW_ONLY },
 ];

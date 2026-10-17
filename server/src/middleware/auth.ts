@@ -41,3 +41,7 @@ export async function requireStaff(req: Request, _res: Response, next: NextFunct
 
 export const requirePermission = (p: Permission) => (req: Request, _res: Response, next: NextFunction) =>
   req.staff && req.staff.permissions.includes(p) ? next() : next(new AppError(403, "You do not have permission for this"));
+
+/** Any one of these permissions is enough. */
+export const requireAnyPermission = (list: Permission[]) => (req: Request, _res: Response, next: NextFunction) =>
+  req.staff && list.some((p) => req.staff!.permissions.includes(p)) ? next() : next(new AppError(403, "You do not have permission for this"));

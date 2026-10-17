@@ -5,6 +5,7 @@ import { Crown, Pencil, Plus, ShieldCheck, Trash2, UserRound } from "lucide-reac
 import { Badge } from "../bookings/Badge";
 import Switch from "../Switch";
 import AccountSheet from "./AccountSheet";
+import RolesOverview from "./RolesOverview";
 import { ApiError } from "@/lib/api";
 import { currentAdmin } from "@/lib/auth";
 import { ago } from "@/lib/complaints";
@@ -127,6 +128,8 @@ export default function StaffPage() {
           </section>
         </>
       )}
+
+      {catalog && <RolesOverview catalog={catalog} />}
 
       {sheet && <AccountSheet edit={sheet === "new" ? null : sheet} onClose={() => setSheet(null)} onSaved={() => setTick((t) => t + 1)} />}
     </div>

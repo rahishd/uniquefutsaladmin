@@ -105,7 +105,7 @@ function CollectGoods({ group, onClose, onDone }: { group: Group; onClose: () =>
         {bill ? (
           <div className="grid place-items-center gap-3 text-center">
             <p className="font-bold text-brand">Payment saved · {bill.code}</p>
-            <WhatsAppInvoice phone={group.phone} code={bill.code} name={group.name} lines={bill.lines} total={bill.total} points={Math.round((bill.pointsGoods + bill.pointsGames) * 10) / 10} />
+            <WhatsAppInvoice phone={group.phone} code={bill.code} verifyCode={bill.verifyCode} name={group.name} lines={bill.lines} total={bill.total} points={Math.round((bill.pointsGoods + bill.pointsGames) * 10) / 10} />
             <button onClick={onClose} className="w-full rounded-xl border border-line py-3 font-semibold">Done</button>
           </div>
         ) : (

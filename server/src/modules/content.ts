@@ -40,7 +40,7 @@ async function processImage(dataUrl: string) {
 }
 
 const orientationOf = (w: number, h: number) => (w / h > 1.15 ? "landscape" : w / h < 0.87 ? "portrait" : "square");
-const saveMedia = async (dataUrl: string, staffId: string) => {
+export const saveMedia = async (dataUrl: string, staffId: string) => {
   const p = await processImage(dataUrl);
   return { media: await prisma.contentMedia.create({ data: { mime: "image/jpeg", data: p.data, width: p.width, height: p.height, bytes: p.data.length, createdBy: staffId } }), ...p };
 };

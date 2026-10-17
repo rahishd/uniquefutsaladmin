@@ -119,7 +119,7 @@ overviewRouter.get("/notifications/history", requirePermission("notifications.se
 overviewRouter.post("/notifications/broadcast", requirePermission("notifications.send"), handler(async (req, res) => {
   const b = parse(z.object({
     type: z.enum(["promo", "tournament", "general"]), title: z.string().min(2).max(60), message: z.string().min(2).max(240),
-    href: z.string().regex(/^\/[a-z0-9/_-]*$/i).optional(), audience: AUDIENCE.default("all"), phone: z.string().regex(/^\d{10}$/).optional(),
+    href: z.union([z.string().regex(/^\/[a-z0-9/_-]*$/i), z.string().url().max(300).regex(/^https:\/\//i, "A link must start with https://")]).optional(), audience: AUDIENCE.default("all"), phone: z.string().regex(/^\d{10}$/).optional(),
   }).refine((v) => v.audience !== "customer" || !!v.phone, { message: "Enter the customer's mobile number", path: ["phone"] }), req.body);
   const { targets, optedOut } = await recipients(b);
   if (b.audience === "customer" && targets.length === 0) throw new AppError(404, "No active customer with that number (or they turned off promo notices)");

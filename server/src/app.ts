@@ -11,6 +11,7 @@ import { authRouter } from "./modules/auth";
 import { bookingsRouter } from "./modules/bookings";
 import { complaintsRouter } from "./modules/complaints";
 import { contentRouter } from "./modules/content";
+import { verifyRouter } from "./modules/verify";
 import { courtsRouter } from "./modules/courts";
 import { customersRouter } from "./modules/customers";
 import { digitalIdRouter } from "./modules/digital-id";
@@ -50,7 +51,7 @@ app.use(cors({
 }));
 // Site Content takes pictures (big bodies); its own router reads them, after the staff sign-in check
 const smallJson = express.json({ limit: "100kb" });
-app.use((req, res, next) => (req.path.startsWith("/api/admin/content") ? next() : smallJson(req, res, next)));
+app.use((req, res, next) => ((req.path.startsWith("/api/admin/content") || req.path.startsWith("/api/admin/verify")) ? next() : smallJson(req, res, next)));
 
 app.get("/api/health", (_req, res) => { res.json({ success: true, message: "Admin server is running" }); });
 
@@ -80,6 +81,7 @@ admin.use("/complaints", complaintsRouter);
 admin.use("/academy", academyRouter);
 admin.use("/refer", referRouter);
 admin.use("/content", contentRouter);
+admin.use("/verify", verifyRouter);
 admin.use("/inventory", inventoryRouter);
 admin.use("/fonepay", fonepayRouter);
 admin.use("/courts", courtsRouter);

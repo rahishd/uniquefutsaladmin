@@ -11,14 +11,20 @@ import NotificationBell from "./NotificationBell";
 import { getToken } from "@/lib/api";
 import { currentAdmin, logout, refreshAdmin, type Admin } from "@/lib/auth";
 
-// Pages used all day: shown straight under Dashboard. Everything else sits behind the "More" button.
+// Pages used all day, in this order (Overview is the landing page). Everything else sits behind the "More" button.
 const frequents: { href: string; label: string; icon: React.ElementType }[] = [
+  { href: "/overview", label: "Overview", icon: BarChart3 },
+  { href: "/arrivals", label: "Arrivals", icon: icons.bell },
   { href: "/slots", label: "Slots", icon: icons.clock },
   { href: "/bookings", label: "Bookings", icon: icons.calendar },
   { href: "/sales", label: "Sales", icon: ShoppingCart },
   { href: "/payments", label: "Payments", icon: icons.wallet },
   { href: "/gamezone", label: "Gamezone", icon: icons.gamepad },
   { href: "/customers", label: "Customers", icon: icons.users },
+  { href: "/membership", label: "Membership", icon: icons.badge },
+  { href: "/tournaments", label: "Tournaments", icon: icons.trophy },
+  { href: "/ev-charging", label: "EV Charging", icon: icons.battery },
+  { href: "/verify", label: "Verify Documents", icon: icons.shield },
   { href: "/digital-id", label: "Digital ID", icon: icons.scan },
 ];
 
@@ -77,7 +83,6 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           <button className="lg:hidden" onClick={() => setOpen(false)} aria-label="Close menu"><X size={20} /></button>
         </div>
         <nav className="flex-1 space-y-5 overflow-y-auto">
-          {link("/", "Dashboard", LayoutDashboard)}
           <div>
             <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wide text-muted">Frequents</p>
             <div className="space-y-0.5">{frequents.map((f) => link(f.href, f.label, f.icon))}</div>
@@ -89,7 +94,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             </button>
             {moreOpen && (
               <div className="mt-3 space-y-5">
-                {link("/overview", "Overview", BarChart3)}
+                {link("/dashboard", "Dashboard", LayoutDashboard)}
                 {groups.map((g) => {
                   const items = modules.filter((m) => m.group === g && !frequents.some((f) => f.href === `/${m.slug}`));
                   if (!items.length) return null;
@@ -111,11 +116,29 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
       <div className="flex min-w-0 flex-col">
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between bg-header px-4 text-white lg:px-8">
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-3">
             <span className="grid h-11 w-11 place-items-center rounded-xl bg-white text-header"><User size={22} /></span>
-            <span className="text-lg font-semibold">Hi, {firstName}</span>
+            <span className="hidden text-lg font-semibold xl:inline">Hi, {firstName}</span>
           </div>
-          <div className="flex items-center gap-5">
+          {/* the frequent pages as icons, on every page, for quick switching (the name shows on hover or long press) */}
+          <nav aria-label="Frequent pages" className="mx-3 flex min-w-0 flex-1 items-center justify-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {frequents.map((f) => {
+              const on = isActive(f.href);
+              return (
+                <Link
+                  key={f.href}
+                  href={f.href}
+                  title={f.label}
+                  aria-label={f.label}
+                  aria-current={on ? "page" : undefined}
+                  className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl transition ${on ? "bg-white text-header shadow" : "text-white/75 hover:bg-white/15 hover:text-white"}`}
+                >
+                  <f.icon size={20} />
+                </Link>
+              );
+            })}
+          </nav>
+          <div className="flex shrink-0 items-center gap-5">
             <Link href="/customers" aria-label="Search customers"><Search size={24} /></Link>
             <NotificationBell />
           </div>
@@ -125,7 +148,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 z-30 flex items-end border-t border-line bg-surface lg:hidden">
-        {nav("/", "Home", LayoutDashboard)}
+        {nav("/overview", "Overview", BarChart3)}
         {nav("/bookings", "Bookings", CalendarDays)}
         <div className="flex flex-1 justify-center">
           <Link href="/slots" aria-label="Slots: book a customer" className="-mt-7 grid h-16 w-16 place-items-center rounded-full bg-brand text-white shadow-lg ring-4 ring-surface">

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, CheckCircle2, Loader2, Megaphone, Send, Users } from "lucide-react";
+import { Bell, CheckCircle2, Link2, Loader2, Megaphone, Send, Users } from "lucide-react";
 import { Badge } from "../bookings/Badge";
 import { ApiError } from "@/lib/api";
 import { guard } from "@/lib/access";
@@ -21,6 +21,7 @@ export default function NotificationsPage() {
   const [error, setError] = useState("");
   const [done, setDone] = useState("");
   const [busy, setBusy] = useState(false);
+  const [typedLink, setTypedLink] = useState(false); // "open a link I type" instead of a page of the app
   const [tick, setTick] = useState(0);
   const [count, setCount] = useState<{ reach: number; skippedOptOut: number } | null>(null);
 
@@ -42,7 +43,7 @@ export default function NotificationsPage() {
 
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => { setD((x) => ({ ...x, [k]: v })); setDone(""); setError(""); setCount(null); };
   const shown = d.audience === "customer" && !/^\d{10}$/.test(d.phone) ? null : count;
-  const valid = d.title.trim().length >= 2 && d.message.trim().length >= 2 && (d.audience !== "customer" || /^\d{10}$/.test(d.phone));
+  const valid = d.title.trim().length >= 2 && d.message.trim().length >= 2 && (d.audience !== "customer" || /^\d{10}$/.test(d.phone)) && (!typedLink || /^https:\/\/[^\s/]+\.[^\s]{2,}$/i.test(d.href.trim()));
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -54,6 +55,7 @@ export default function NotificationsPage() {
       const r = await sendNotice(d);
       setDone(`Sent to ${r.sent} ${r.sent === 1 ? "customer" : "customers"}${r.skippedOptOut ? ` (${r.skippedOptOut} skipped: promo notices off)` : ""}. ${r.pushEnabled ? `Phone alert delivered to ${r.pushed}.` : "Phone alerts are not set up on the server yet, so it shows in the bell only."}`);
       setD((x) => ({ ...EMPTY, type: x.type, audience: x.audience }));
+      setTypedLink(false);
       setTick((t) => t + 1);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not send the notice");
@@ -110,9 +112,25 @@ export default function NotificationsPage() {
           </label>
           <label className="block">
             <span className="mb-1.5 block text-sm font-semibold">When tapped, open</span>
-            <select value={d.href} onChange={(e) => set("href", e.target.value)} className={input}>
+            <select
+              value={typedLink ? "__link" : d.href}
+              onChange={(e) => {
+                if (e.target.value === "__link") { setTypedLink(true); set("href", ""); } else { setTypedLink(false); set("href", e.target.value); }
+              }}
+              className={input}
+            >
               {LINKS.map((l) => <option key={l.href} value={l.href}>{l.label}</option>)}
+              <option value="__link">A link I type (website address)</option>
             </select>
+            {typedLink && (
+              <span className="mt-2 block">
+                <span className="flex items-center gap-2">
+                  <Link2 size={16} className="shrink-0 text-muted" />
+                  <input type="url" inputMode="url" value={d.href} maxLength={300} onChange={(e) => set("href", e.target.value)} placeholder="https://example.com/offer" className={input} aria-label="Link address" />
+                </span>
+                <span className="mt-1 block text-xs text-muted">Customers who tap the notice go to this address. It must start with https://.</span>
+              </span>
+            )}
           </label>
 
           {error && <p role="alert" className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600">{error}</p>}
