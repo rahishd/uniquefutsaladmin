@@ -26,7 +26,7 @@ export default function DeniedDialog() {
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-[80] grid place-items-center bg-black/50 p-4" onClick={() => setOpen(false)}>
-      <div role="alertdialog" aria-labelledby="denied-title" aria-describedby="denied-text" onClick={(e) => e.stopPropagation()} className="w-full max-w-sm space-y-3 rounded-3xl bg-surface p-6 text-center shadow-2xl">
+      <div role="alertdialog" aria-labelledby="denied-title" aria-describedby="denied-text" onClick={(e) => e.stopPropagation()} className="w-full max-w-sm space-y-3 rounded-3xl bg-surface/85 p-6 text-center shadow-2xl">
         <span className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-amber-500/15 text-amber-600"><Lock size={26} /></span>
         <h2 id="denied-title" className="text-lg font-bold">You can&apos;t do this</h2>
         <p id="denied-text" className="text-sm text-muted">This feature is only accessible to the Owner. Please contact him.</p>

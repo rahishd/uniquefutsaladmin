@@ -6,6 +6,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { BarChart3, Bell, CalendarDays, ChevronDown, LayoutGrid, LayoutDashboard, LogOut, Plus, Search, ShoppingCart, User, X } from "lucide-react";
 import { icons } from "./icons";
 import { groups, modules } from "@/lib/nav";
+import { canSeePage } from "@/lib/access";
 import DeniedDialog from "./DeniedDialog";
 import NotificationBell from "./NotificationBell";
 import { getToken } from "@/lib/api";
@@ -52,6 +53,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
   if (!ready || !fresh) return <div className="grid min-h-screen place-items-center text-sm text-muted">Loading…</div>;
 
+  const visible = frequents.filter((f) => canSeePage(f.href.slice(1)));
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
   const link = (href: string, label: string, Icon: React.ElementType) => (
@@ -67,7 +69,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     </Link>
   );
 
-  const onFrequent = pathname === "/" || frequents.some((f) => pathname.startsWith(f.href));
+  const onFrequent = pathname === "/" || visible.some((f) => pathname.startsWith(f.href));
   const moreOpen = more ?? !onFrequent;
   const firstName = admin?.name?.split(" ")[0] ?? "Admin";
 
@@ -85,7 +87,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         <nav className="flex-1 space-y-5 overflow-y-auto">
           <div>
             <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wide text-muted">Frequents</p>
-            <div className="space-y-0.5">{frequents.map((f) => link(f.href, f.label, f.icon))}</div>
+            <div className="space-y-0.5">{visible.map((f) => link(f.href, f.label, f.icon))}</div>
           </div>
           <div>
             <button onClick={() => setMore(!moreOpen)} aria-expanded={moreOpen} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-muted hover:bg-surface-2 hover:text-foreground">
@@ -94,9 +96,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             </button>
             {moreOpen && (
               <div className="mt-3 space-y-5">
-                {link("/dashboard", "Dashboard", LayoutDashboard)}
+                {canSeePage("dashboard") && link("/dashboard", "Dashboard", LayoutDashboard)}
                 {groups.map((g) => {
-                  const items = modules.filter((m) => m.group === g && !frequents.some((f) => f.href === `/${m.slug}`));
+                  const items = modules.filter((m) => m.group === g && canSeePage(m.slug) && !frequents.some((f) => f.href === `/${m.slug}`));
                   if (!items.length) return null;
                   return (
                     <div key={g}>
@@ -109,7 +111,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             )}
           </div>
         </nav>
-        <button onClick={() => { logout(); router.replace("/login"); }} className="mt-3 flex items-center gap-3 rounded-xl px-3 py-2 text-sm text-muted hover:bg-surface-2">
+        <button onClick={() => { logout(); router.replace("/login"); }} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700">
           <LogOut size={18} /> Sign out
         </button>
       </aside>
@@ -122,7 +124,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           </div>
           {/* the frequent pages as icons, on every page, for quick switching (the name shows on hover or long press) */}
           <nav aria-label="Frequent pages" className="mx-3 flex min-w-0 flex-1 items-center justify-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {frequents.map((f) => {
+            {visible.map((f) => {
               const on = isActive(f.href);
               return (
                 <Link
@@ -139,7 +141,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             })}
           </nav>
           <div className="flex shrink-0 items-center gap-5">
-            <Link href="/customers" aria-label="Search customers"><Search size={24} /></Link>
+            {canSeePage("customers") && <Link href="/customers" aria-label="Search customers"><Search size={24} /></Link>}
             <NotificationBell />
           </div>
         </header>
@@ -148,14 +150,16 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 z-30 flex items-end border-t border-line bg-surface lg:hidden">
-        {nav("/overview", "Overview", BarChart3)}
-        {nav("/bookings", "Bookings", CalendarDays)}
+        {canSeePage("overview") && nav("/overview", "Overview", BarChart3)}
+        {canSeePage("bookings") && nav("/bookings", "Bookings", CalendarDays)}
         <div className="flex flex-1 justify-center">
-          <Link href="/slots" aria-label="Slots: book a customer" className="-mt-7 grid h-16 w-16 place-items-center rounded-full bg-brand text-white shadow-lg ring-4 ring-surface">
-            <Plus size={30} />
-          </Link>
+          {canSeePage("slots") && (
+            <Link href="/slots" aria-label="Slots: book a customer" className="-mt-7 grid h-16 w-16 place-items-center rounded-full bg-brand text-white shadow-lg ring-4 ring-surface">
+              <Plus size={30} />
+            </Link>
+          )}
         </div>
-        {nav("/arrivals", "Arrivals", Bell)}
+        {canSeePage("arrivals") && nav("/arrivals", "Arrivals", Bell)}
         <button onClick={() => setOpen(true)} className="flex flex-1 flex-col items-center gap-1 py-2 text-xs text-muted">
           <span className="grid h-9 w-12 place-items-center rounded-xl"><LayoutGrid size={22} /></span>
           More

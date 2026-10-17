@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CalendarDays, CalendarPlus, Clock, Gift, Lock, Plus, X } from "lucide-react";
+import { BadgeCheck, CalendarDays, CalendarPlus, Clock, Droplets, Gift, Hand, Lock, Plus, Tag, Trophy, UserRound, Wallet, X } from "lucide-react";
 import BookSlotModal from "./BookSlotModal";
 import BulkBookModal from "./BulkBookModal";
 import DatePicker from "./DatePicker";
@@ -39,11 +39,18 @@ function BookedCard({ h, onOpen, onReject }: { h: Hour; onOpen: () => void; onRe
   const first = Number(b.startTime.slice(0, 2)) === h.hour;
   const live = b.status === "confirmed" || b.status === "pending";
   const free = isFreeGame(b);
-  const tags: string[] = [];
-  if (free) tags.push("FREE GAME · LOYALTY POINTS");
-  if (isTournament(b)) tags.push("TOURNAMENT");
-  if (isStaffBooked(b)) tags.push(isBulk(b) ? "BOOKED BY STAFF (BULK)" : "BOOKED BY STAFF");
-  if (b.promoCode) tags.push(`PROMO ${b.promoCode}${b.discountAmount > 0 ? ` (-${rs(b.discountAmount)})` : ""}`);
+  const paid = b.paymentStatus === "completed";
+  const tournament = isTournament(b);
+  const guest = !b.userId && !tournament;
+  const waived = !tournament && !free && (b.waterBottles ?? 0) === 0;
+  const tags: { icon: React.ElementType; text: string }[] = [];
+  if (guest) tags.push({ icon: UserRound, text: "GUEST" });
+  if (tournament) tags.push({ icon: Trophy, text: "TOURNAMENT" });
+  if (free) tags.push({ icon: Gift, text: "FREE GAME · LOYALTY POINTS" });
+  else if (!tournament) tags.push(paid ? { icon: BadgeCheck, text: "PAID" } : { icon: Wallet, text: "UNPAID" });
+  if (b.promoCode) tags.push({ icon: Tag, text: `PROMO ${b.promoCode}${b.discountAmount > 0 ? ` (-${rs(b.discountAmount)})` : ""}` });
+  if (isStaffBooked(b)) tags.push({ icon: Hand, text: isBulk(b) ? "BOOKED BY STAFF (BULK)" : "BOOKED BY STAFF" });
+  if (waived) tags.push({ icon: Droplets, text: "MINERAL WATER WAIVED" });
   return (
     <div className={`flex flex-col gap-3 rounded-2xl ${c.bg} p-3 shadow-sm sm:flex-row sm:items-center sm:gap-4 sm:p-4`}>
       <button onClick={onOpen} className="flex min-w-0 flex-1 items-center gap-3 text-left sm:gap-4" aria-label={`Details for ${b.customerName ?? "booking"}`}>
@@ -55,12 +62,20 @@ function BookedCard({ h, onOpen, onReject }: { h: Hour; onOpen: () => void; onRe
             {b.duration} HOUR SESSION · {free ? "FREE GAME" : `${rs(b.totalPrice)} · ${b.paymentStatus === "completed" ? "PAID" : "UNPAID"}`} · ID: #{b.code.replace("UF-", "")}
           </span>
           {tags.length > 0 && (
-            <span className="mt-1 flex flex-wrap gap-1">
-              {tags.map((t) => <span key={t} className={`rounded-full px-2 py-0.5 text-[9px] font-extrabold tracking-wider ${c.chip}`}>{t}</span>)}
+            <span className="mt-1.5 flex flex-wrap gap-1">
+              {tags.map((t) => <span key={t.text} className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-extrabold tracking-wider ${c.chip}`}><t.icon size={11} />{t.text}</span>)}
             </span>
           )}
         </span>
       </button>
+      {first && (
+        <div className="flex shrink-0 flex-col items-end self-end text-right sm:self-center">
+          <span className="text-[9px] font-bold tracking-wider opacity-80">{free ? "GAME PRICE" : paid ? "AMOUNT PAID" : "AMOUNT DUE"}</span>
+          {!free && b.discountAmount > 0 && <span className="text-[11px] font-semibold line-through opacity-70">{rs(b.totalPrice + b.discountAmount)}</span>}
+          <span className="text-xl font-black leading-tight sm:text-2xl">{free ? "FREE" : rs(b.totalPrice)}</span>
+          {!free && b.discountAmount > 0 && <span className={`mt-0.5 flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-extrabold ${c.chip}`}><Tag size={10} /> SAVED {rs(b.discountAmount)}</span>}
+        </div>
+      )}
       {live && first && (
         <button onClick={onReject} className={`flex shrink-0 items-center gap-1 self-end rounded-full bg-white px-3 py-1.5 text-[11px] font-bold tracking-wide sm:self-auto ${c.btn}`}>
           <X size={13} /> REJECT
@@ -75,7 +90,7 @@ function Legend() {
   return (
     <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted" aria-label="Colour guide">
       {items.map(([bg, l]) => <span key={l} className="flex items-center gap-1.5"><span className={`h-3 w-3 rounded ${bg}`} />{l}</span>)}
-      <span>Tags show if staff booked it by hand or a promo code was used.</span>
+      <span>Chips on each game show Guest, Paid or Unpaid, Promo code with its amount, Free game, booked by staff and Mineral water waived.</span>
     </div>
   );
 }
