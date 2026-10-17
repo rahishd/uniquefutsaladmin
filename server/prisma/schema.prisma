@@ -21,6 +21,7 @@ model User {
   isVerified           Boolean                  @default(false)
   loyaltyEligible      Boolean                  @default(false)
   loyaltyProgress      Int                      @default(0)
+  dateOfBirth          String? // YYYY-MM-DD, asked at sign-up (customer app)
   googleSub            String?                  @unique
   googleEmail          String?
   bookings             Booking[]
@@ -1139,6 +1140,7 @@ model PlayerRequest {
   date          String // YYYY-MM-DD
   startHour     Int
   playersNeeded Int
+  ageGroup      String              @default("open") // open | 15-20 | 20-25 | 25-30 | 30-35 | 35-40 | 40+
   note          String?
   status        String              @default("open") // open | awaiting_advance | confirmed | cancelled
   courtPrice    Int                 @default(0) // the court price for that hour when it was posted

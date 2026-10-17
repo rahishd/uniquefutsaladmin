@@ -104,6 +104,7 @@ export const SECTIONS: Section[] = [
     { key: "content.gallery", label: "Add / Edit / Delete Gallery Photos" },
     { key: "content.partners", label: "Add / Edit / Delete Corporate Network Logos" },
     { key: "content.ads", label: "Add / Edit / Pause / Delete Ads" },
+    { key: "content.birthdays", label: "Send Birthday Wishes & Gifts" },
   ] },
   { id: "refer", label: "Refer & Earn", permissions: [
     { key: "refer.view", label: "View Referrals" },

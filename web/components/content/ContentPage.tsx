@@ -5,12 +5,13 @@ import { ArrowLeft, ArrowRight, ImagePlus, Megaphone, Pencil, Plus, Trash2, X } 
 import { Badge } from "../bookings/Badge";
 import Switch from "../Switch";
 import AdForm from "./AdForm";
+import BirthdaysPanel from "./BirthdaysPanel";
 import { ApiError } from "@/lib/api";
 import { guard } from "@/lib/access";
 import { Ad, PLACES, Photo, STATE, addPhoto, deleteAd, deletePhoto, editAd, editPhoto, listAds, listPhotos, overview as fetchOverview, picUrl, placeLabel, reorderPhotos, scheduleText, shrink, Overview, Place } from "@/lib/content";
 
 import { askConfirm } from "@/lib/confirm";
-type Tab = "ads" | "gallery";
+type Tab = "ads" | "gallery" | "birthdays";
 const msg = (e: unknown) => (e instanceof ApiError || e instanceof Error ? e.message : "Something went wrong");
 const field = "rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
 
@@ -18,14 +19,15 @@ export default function ContentPage() {
   const [tab, setTab] = useState<Tab>("ads");
   const [ov, setOv] = useState<Overview | null>(null);
   const [tick, setTick] = useState(0);
-  useEffect(() => { fetchOverview().then(setOv).catch(() => {}); }, [tick]);
+  const [birthdays, setBirthdays] = useState<number | null>(null);
+  useEffect(() => { fetchOverview().then((o) => { setOv(o); setBirthdays(o.birthdays); }).catch(() => {}); }, [tick]);
   const changed = () => setTick((t) => t + 1);
 
   return (
     <div className="w-full space-y-4">
       <div>
         <h1 className="text-2xl font-bold">Site Content</h1>
-        <p className="text-sm text-muted">Gallery photos and ads shown in the customer app. Ads can run at set hours, in a loop, in the header or footer, or as a pop-up.</p>
+        <p className="text-sm text-muted">Gallery photos and ads shown in the customer app, and today's customer birthdays to wish. Ads can run at set hours, in a loop, in the header or footer, or as a pop-up.</p>
       </div>
       {ov && (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -35,11 +37,11 @@ export default function ContentPage() {
         </div>
       )}
       <div className="flex gap-1 rounded-2xl bg-surface p-1 shadow-sm" role="tablist">
-        {([["ads", "Ads"], ["gallery", "Gallery"]] as const).map(([id, label]) => (
-          <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={`flex-1 rounded-xl px-3 py-2.5 text-sm font-semibold ${tab === id ? "bg-brand text-white" : "text-muted hover:bg-surface-2"}`}>{label}</button>
+        {([["ads", "Ads"], ["gallery", "Gallery"], ["birthdays", "Birthdays"]] as const).map(([id, label]) => (
+          <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={`flex-1 rounded-xl px-3 py-2.5 text-sm font-semibold ${tab === id ? "bg-brand text-white" : "text-muted hover:bg-surface-2"}`}>{label}{id === "birthdays" && birthdays ? <span className="ml-1.5 rounded-full bg-amber-500 px-1.5 py-0.5 text-[11px] font-bold text-white">{birthdays}</span> : null}</button>
         ))}
       </div>
-      {tab === "ads" ? <Ads tick={tick} onChanged={changed} /> : <Gallery tick={tick} onChanged={changed} />}
+      {tab === "ads" ? <Ads tick={tick} onChanged={changed} /> : tab === "gallery" ? <Gallery tick={tick} onChanged={changed} /> : <BirthdaysPanel onCount={setBirthdays} />}
     </div>
   );
 }

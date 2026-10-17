@@ -14,7 +14,7 @@ export type AdInput = {
   title: string; placement: Place; linkUrl: string | null; displaySeconds: number; popupDelaySeconds: number; popupFrequency: Freq;
   startDate: string | null; endDate: string | null; dailyStart: string | null; dailyEnd: string | null; days: number[]; priority: number; active: boolean;
 };
-export type Overview = { photos: number; hiddenPhotos: number; ads: number; liveAds: number; liveByPlace: Record<Place, number>; impressions: number; clicks: number };
+export type Overview = { photos: number; hiddenPhotos: number; ads: number; liveAds: number; liveByPlace: Record<Place, number>; impressions: number; clicks: number; birthdays: number };
 
 export const PLACES: { id: Place; label: string; hint: string; size: string }[] = [
   { id: "header", label: "Header", hint: "A slim banner under the company bar, on every page", size: "1200 x 185 px (wide strip)" },
@@ -112,3 +112,15 @@ export const fileToDataUrl = (file: File) =>
     r.onerror = () => reject(new Error("That file could not be read."));
     r.readAsDataURL(file);
   });
+
+/* ---------- Birthdays today ---------- */
+export type BirthdayPerson = { phone: string; name: string; dob: string; age: number | null; wished: boolean };
+export type BirthdayCode = { code: string; label: string; title: string | null; type: "percent" | "flat"; value: number; expiryDate: string | null; appliedTo: string };
+export type BirthdayList = { date: string; people: BirthdayPerson[]; promoCodes: BirthdayCode[] };
+export type WishResult = { sent: number; alreadyWished: number; skippedOptOut: number; pushed: number; pushEnabled: boolean };
+
+// {name} becomes the customer's first name (the server fills it in)
+export const DEFAULT_WISH = "Happy Birthday, {name}! Wishing you a great year of football from everyone at Unique Futsal.";
+
+export const listBirthdays = () => api<BirthdayList>("/admin/content/birthdays");
+export const sendWishes = (b: { phones: string[]; message?: string; promoCode?: string }) => api<WishResult>("/admin/content/birthdays/wish", { method: "POST", body: JSON.stringify(b) });

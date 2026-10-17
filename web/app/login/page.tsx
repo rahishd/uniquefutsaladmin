@@ -5,9 +5,10 @@ import { useState } from "react";
 import { Eye, EyeOff, Loader2, Lock, Mail } from "lucide-react";
 import { login } from "@/lib/auth";
 
-// A pill-shaped field with its icon on the left, as on the customer app.
-const field = "flex items-center gap-3 rounded-full border border-line bg-surface px-5 py-3.5 transition focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/30";
-const inputCls = "w-full bg-transparent text-[15px] outline-none placeholder:text-muted";
+// Split screen: a blue welcome panel on the left, a white sign-in form on the right (stacked on a phone).
+// Fields are underlined; the form side stays light in dark mode too.
+const field = "flex items-center gap-3 border-b border-slate-300 py-3 transition focus-within:border-[#2b2bc0]";
+const inputCls = "w-full bg-transparent text-[15px] text-slate-900 outline-none placeholder:text-slate-400";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -36,57 +37,87 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="grid min-h-screen place-items-center p-4">
-      <div className="w-full max-w-sm space-y-6">
-        {/* brand banner */}
-        <div className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-[#0c0b5d] via-[#1a1a8f] to-[#3f3fd1] p-6 text-white shadow-[0_18px_40px_-18px_rgba(12,11,93,0.8)]">
-          <p className="text-3xl font-extrabold leading-none tracking-tight">Unique<span className="text-[#ffb35c]">.</span></p>
-          <p className="mt-0.5 text-3xl font-extrabold leading-none tracking-tight text-[#ffb35c]">Futsal</p>
-          <p className="mt-3 text-sm text-white/85">Run the venue: bookings, payments,<br />members and more.</p>
-          <span className="mt-3 inline-block rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-[#0c0b5d]">Staff and admin portal</span>
+    <main className="grid min-h-screen bg-white text-slate-900 lg:grid-cols-2">
+      {/* welcome panel */}
+      <section className="relative flex flex-col justify-between overflow-hidden bg-[linear-gradient(160deg,#4547e6_0%,#2b2bc0_55%,#14158f_100%)] px-8 py-8 text-white sm:px-14 sm:py-10 lg:min-h-screen lg:px-20 lg:py-16">
+        {/* faint arcs, like the reference */}
+        <svg aria-hidden className="pointer-events-none absolute inset-0 h-full w-full opacity-[0.14]" viewBox="0 0 400 600" preserveAspectRatio="xMidYMax slice" fill="none" stroke="#fff" strokeWidth="1">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <path key={i} d={`M ${-40 + i * 26} 640 Q ${120 + i * 40} ${150 + i * 25} ${330 + i * 22} -20`} />
+          ))}
+        </svg>
+
+        <div className="relative">
+          {/* the logo picture is white on navy, so it stays a navy tile with the player as a white mark */}
+          <span
+            role="img"
+            aria-label="Unique Futsal"
+            className="block h-16 w-16 rounded-2xl bg-[#0c0b5d] bg-no-repeat shadow-lg ring-2 ring-white/80 sm:h-20 sm:w-20"
+            style={{ backgroundImage: "url(/logo.jpg)", backgroundBlendMode: "lighten", backgroundSize: "172% 172%", backgroundPosition: "43% 15%" }}
+          />
+          <h2 className="mt-5 text-4xl font-extrabold leading-[1.1] tracking-tight sm:mt-8 sm:text-6xl lg:mt-14">
+            Hello
+            <br />
+            Unique Futsal!<span aria-hidden> 👋</span>
+          </h2>
+          <p className="mt-6 max-w-md text-lg leading-snug text-white/85 sm:mt-8 sm:text-xl">
+            Run the venue: bookings, payments, members and more. Everything your team needs, in one place.
+          </p>
+          <span className="mt-6 inline-block rounded-full bg-white/15 px-4 py-1.5 text-sm font-semibold ring-1 ring-white/30">Staff and admin portal</span>
         </div>
 
-        <header className="text-center">
-          <h1 className="text-[28px] font-extrabold tracking-tight">Welcome Back</h1>
-          <p className="mt-1 text-sm text-muted">Sign in with your staff email and password.</p>
-        </header>
+        <p className="relative mt-10 hidden text-lg text-white/60 lg:block">© {new Date().getFullYear()} Unique Futsal. All rights reserved.</p>
+      </section>
 
-        <form onSubmit={submit} className="space-y-4" noValidate>
-          <div>
-            <label className={`${field} ${emailBad ? "!border-red-400 ring-2 ring-red-300/50" : ""}`}>
-              <Mail size={18} className={emailBad ? "text-red-400" : "text-muted"} />
-              <input className={inputCls} type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" aria-label="Email" aria-invalid={emailBad} />
+      {/* sign-in form */}
+      <section className="flex flex-col justify-center px-8 py-12 sm:px-14 lg:px-24">
+        <div className="mx-auto w-full max-w-sm">
+          <p className="text-3xl font-extrabold tracking-tight">Unique<span className="text-[#f5822a]">.</span>Futsal</p>
+
+          <header className="mt-10 lg:mt-24">
+            <h1 className="text-[34px] font-extrabold tracking-tight">Welcome Back!</h1>
+            <p className="mt-2 text-sm text-slate-500">Sign in with your staff email and password.</p>
+          </header>
+
+          <form onSubmit={submit} className="mt-8 space-y-5" noValidate>
+            <div>
+              <label className={`${field} ${emailBad ? "!border-red-400" : ""}`}>
+                <Mail size={18} className={emailBad ? "text-red-400" : "text-slate-400"} />
+                <input className={inputCls} type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" aria-label="Email" aria-invalid={emailBad} />
+              </label>
+              {emailBad && <p className="mt-1.5 text-sm font-medium text-red-500">That email doesn&apos;t look right</p>}
+            </div>
+
+            <label className={field}>
+              <Lock size={18} className="text-slate-400" />
+              <input className={inputCls} type={show ? "text" : "password"} autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" aria-label="Password" />
+              <button type="button" onClick={() => setShow((v) => !v)} aria-label={show ? "Hide password" : "Show password"} className="p-1 text-slate-400">
+                {show ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
             </label>
-            {emailBad && <p className="mt-1.5 px-5 text-sm font-medium text-red-500">That email doesn&apos;t look right</p>}
-          </div>
 
-          <label className={field}>
-            <Lock size={18} className="text-muted" />
-            <input className={inputCls} type={show ? "text" : "password"} autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" aria-label="Password" />
-            <button type="button" onClick={() => setShow((v) => !v)} aria-label={show ? "Hide password" : "Show password"} className="p-1 text-muted">
-              {show ? <EyeOff size={20} /> : <Eye size={20} />}
+            {forgot && (
+              <p className="rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-600" role="status">
+                Ask the owner to set a new password for you under <b>Staff</b>. Then sign in with it here.
+              </p>
+            )}
+
+            {error && <p className="rounded-xl bg-red-500/10 px-4 py-3 text-sm text-red-600" role="alert">{error}</p>}
+
+            <button
+              disabled={busy || !email.trim() || !password}
+              className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-[#111114] py-3.5 text-[15px] font-semibold text-white transition hover:bg-black disabled:opacity-50"
+            >
+              {busy ? <><Loader2 size={18} className="animate-spin" /> Signing in…</> : "Login Now"}
             </button>
-          </label>
 
-          <div className="flex justify-end px-1">
-            <button type="button" onClick={() => setForgot((v) => !v)} className="text-sm font-semibold text-brand">Forgot Password?</button>
-          </div>
-          {forgot && (
-            <p className="rounded-2xl border border-line bg-surface-2 px-4 py-3 text-sm text-muted" role="status">
-              Ask the owner to set a new password for you under <b>Staff</b>. Then sign in with it here.
+            <p className="pt-1 text-center text-sm text-slate-500">
+              Forgot password?{" "}
+              <button type="button" onClick={() => setForgot((v) => !v)} className="font-semibold text-slate-900 underline underline-offset-2">Click here</button>
             </p>
-          )}
-
-          {error && <p className="rounded-2xl bg-red-500/10 px-4 py-3 text-sm text-red-600" role="alert">{error}</p>}
-
-          <button
-            disabled={busy || !email.trim() || !password}
-            className="flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#0c0b5d] to-[#3f3fd1] py-4 text-base font-semibold text-white shadow-[0_12px_28px_-10px_rgba(12,11,93,0.7)] transition disabled:opacity-50"
-          >
-            {busy ? <><Loader2 size={18} className="animate-spin" /> Signing in…</> : "Log In"}
-          </button>
-        </form>
-      </div>
+          </form>
+        </div>
+      </section>
     </main>
   );
 }

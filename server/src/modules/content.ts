@@ -9,6 +9,7 @@ import { audit } from "../lib/audit";
 import { nowMinutes, todayKey } from "../lib/dates";
 import { AppError, dateStr, handler, param, parse, send } from "../lib/http";
 import { requirePermission } from "../middleware/auth";
+import { birthdaysRouter, birthdaysToWish } from "./birthdays";
 
 export const contentRouter = Router();
 // pictures arrive as data URLs, so this router (only reachable after sign-in) accepts bigger bodies than the rest of the API
@@ -80,13 +81,16 @@ const adView = (a: AdRow) => ({
   days: a.days, priority: a.priority, active: a.active, impressions: a.impressions, clicks: a.clicks, status: adStatus(a), createdAt: a.createdAt,
 });
 
+// ---------- birthdays today: wish and gift ----------
+contentRouter.use("/birthdays", birthdaysRouter);
+
 // ---------- overview ----------
 contentRouter.get("/overview", requirePermission("content.view"), handler(async (_req, res) => {
   const [photos, hidden, ads] = await Promise.all([prisma.siteGallery.count(), prisma.siteGallery.count({ where: { visible: false } }), prisma.siteAd.findMany()]);
   const live = ads.filter((a) => isLive(a));
   send(res, {
     photos, hiddenPhotos: hidden, ads: ads.length, liveAds: live.length, liveByPlace: Object.fromEntries(PLACEMENTS.map((p) => [p, live.filter((a) => a.placement === p).length])),
-    impressions: ads.reduce((s, a) => s + a.impressions, 0), clicks: ads.reduce((s, a) => s + a.clicks, 0),
+    impressions: ads.reduce((s, a) => s + a.impressions, 0), clicks: ads.reduce((s, a) => s + a.clicks, 0), birthdays: await birthdaysToWish(),
   });
 }));
 
