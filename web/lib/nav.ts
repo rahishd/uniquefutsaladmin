@@ -79,6 +79,17 @@ export const modules: Module[] = [
     ],
   },
   {
+    slug: "ev-charging", title: "EV Charging", group: "Operations", icon: "battery",
+    summary: "Paid AC EV charging at the venue: charging ports with QR codes, who is charging now, bills and payments.",
+    clientFeatures: ["Quick Access > EV Charging", "Scan the QR at a charging port to start charging", "Live charging time and bill, stop when done", "Charging and payment history", "Pay at the venue"],
+    adminTasks: ["Add charging ports and print each port's QR code (a new QR switches the old one off)", "See who is charging now and stop a session if the customer forgot", "Collect an unpaid charge in cash, Fonepay QR or both", "Record a walk-in charge that is paid straight away", "History with search and status, revenue today and for 30 days (also in Payments > EV charging)"],
+    endpoints: [
+      e("GET", "/admin/ev-charging", "sessions, live list, revenue and unpaid totals"), e("GET", "/admin/ev-charging/ports", "ports with in-use status"),
+      e("POST", "/admin/ev-charging/ports", "add a port (also PATCH, DELETE)"), e("POST", "/admin/ev-charging", "walk-in charge, paid now"),
+      e("POST", "/admin/ev-charging/:id/stop", "stop a running session and make the bill"), e("POST", "/admin/ev-charging/:id/pay", "collect an unpaid session"), e("POST", "/admin/ev-charging/:id/cancel", "cancel without a bill"),
+    ],
+  },
+  {
     slug: "courts", title: "Courts & Pricing", group: "Operations", icon: "grid",
     summary: "Hourly prices per shift and blocked slots.",
     clientFeatures: ["Morning / Day / Evening prices", "Free hours listed per date", "One pool of hours (court count undecided)"],

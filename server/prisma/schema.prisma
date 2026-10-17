@@ -1266,3 +1266,42 @@ model Gift {
   @@index([buyerId, createdAt])
   @@index([friendId])
 }
+
+// Paid AC EV charging at the venue (Rs. 50 per hour by default): one row per charging session, paid in cash and/or online.
+model EvCharge {
+  id           String    @id @default(cuid())
+  customerName String?
+  phone        String?
+  vehicle      String?
+  hours        Int       @default(0)
+  rate         Int
+  amount       Int
+  cashAmount   Int       @default(0)
+  onlineAmount Int       @default(0)
+  createdBy    String
+  createdAt    DateTime  @default(now())
+  portId       String? // the charging port the customer scanned (app sessions)
+  userId       String? // the customer's account (phone) for app sessions
+  status       String    @default("paid") // charging | unpaid | paid | cancelled
+  source       String    @default("staff") // staff | app
+  startedAt    DateTime?
+  endedAt      DateTime?
+  paidAt       DateTime?
+  minutes      Int       @default(0)
+
+  @@index([createdAt])
+  @@index([userId, createdAt])
+  @@index([portId, status])
+}
+
+// A charging port with its own QR code (qrToken) printed at the station. Customers scan it in the app to start charging.
+model EvPort {
+  id        String   @id @default(cuid())
+  name      String
+  note      String?
+  qrToken   String   @unique
+  isActive  Boolean  @default(true)
+  provider       String   @default("manual") // manual | webhook: what switches the plug on and off
+  providerConfig String? // JSON for the provider (webhook url and secret, device id)
+  createdAt DateTime @default(now())
+}

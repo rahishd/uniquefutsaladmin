@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { Badge } from "../bookings/Badge";
 import CollectModal from "./CollectModal";
 import GoodsDues from "./GoodsDues";
+import EvCharging from "./EvCharging";
 import CustomerSheet from "../customers/CustomerSheet";
 import { guard } from "@/lib/access";
 import { prettyDate, rs } from "@/lib/bookings";
@@ -45,7 +46,7 @@ export default function PaymentsPage() {
   const [collecting, setCollecting] = useState<Row | null>(null);
   const [viewing, setViewing] = useState<Row | null>(null);
   const [tick, setTick] = useState(0);
-  const [view, setView] = useState<"payments" | "goods">("payments"); // goods = what customers owe for items put on their account
+  const [view, setView] = useState<"payments" | "goods" | "ev">("payments"); // goods = what customers owe for items put on their account
 
   useEffect(() => {
     const t = setTimeout(() => { setF((x) => (x.q === search ? x : { ...x, q: search })); setPageNo(1); }, 300);
@@ -73,16 +74,16 @@ export default function PaymentsPage() {
       </div>
 
       <div className="grid grid-cols-3 gap-1 rounded-2xl bg-surface p-1 shadow-sm" role="tablist" aria-label="Payment type">
-        {([["court", "Court bookings"], ["gamezone", "Gamezone"], ["club", "Unique Club"], ["gift", "Gift Card"], ["goods", "Goods on credit"]] as [Kind | "goods", string][]).map(([id, label]) => {
-          const on = id === "goods" ? view === "goods" : view === "payments" && f.kind === id;
+        {([["court", "Court bookings"], ["gamezone", "Gamezone"], ["club", "Unique Club"], ["gift", "Gift Card"], ["goods", "Goods on credit"], ["ev", "EV charging"]] as [Kind | "goods" | "ev", string][]).map(([id, label]) => {
+          const on = id === "goods" || id === "ev" ? view === id : view === "payments" && f.kind === id;
           return (
-            <button key={id} role="tab" aria-selected={on} onClick={() => { if (id === "goods") setView("goods"); else { setView("payments"); change({ kind: id }); } }}
+            <button key={id} role="tab" aria-selected={on} onClick={() => { if (id === "goods" || id === "ev") setView(id); else { setView("payments"); change({ kind: id }); } }}
               className={`rounded-xl py-2.5 text-sm font-semibold ${on ? "bg-brand text-white" : "text-muted hover:bg-surface-2"}`}>{label}</button>
           );
         })}
       </div>
 
-      {view === "goods" ? <GoodsDues tick={tick} onChanged={() => setTick((t) => t + 1)} /> : (<>
+      {view === "goods" ? <GoodsDues tick={tick} onChanged={() => setTick((t) => t + 1)} /> : view === "ev" ? <EvCharging tick={tick} onChanged={() => setTick((t) => t + 1)} /> : (<>
       <div className="grid grid-cols-2 gap-3">
         <Card title="Paid" value={sum ? rs(sum.paid.sum) : "—"} sub={sum ? `${sum.paid.count} payments` : " "} tone="text-brand" />
         <Card title="Unpaid (to collect)" value={sum ? rs(sum.unpaid.sum) : "—"} sub={sum ? `${sum.unpaid.count} bookings` : " "} tone="text-amber-600" />
