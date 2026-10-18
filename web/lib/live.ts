@@ -41,11 +41,13 @@ function load() {
 }
 
 function start() {
-  if (started || typeof window === "undefined" || !canDo("dashboard.view")) return;
+  if (started || typeof window === "undefined") return;
   started = true;
-  load();
-  setInterval(() => document.visibilityState === "visible" && load(), 15000);
-  document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && load());
+  // the staff details may still be loading when the first button appears, so ask again every few seconds
+  const tick = () => { if (document.visibilityState === "visible" && canDo("dashboard.view")) load(); };
+  tick();
+  setInterval(tick, 5000);
+  document.addEventListener("visibilitychange", tick);
 }
 
 function subscribe(fn: () => void) {

@@ -22,6 +22,7 @@ export default function CustomersPage() {
   const [q, setQ] = useState("");
   const [pageNo, setPageNo] = useState(1);
   const [data, setData] = useState<CustomerList | null>(null);
+  const [totals, setTotals] = useState<CustomerList["totals"] | null>(null); // kept while the list reloads so the cards never blank out
   const [error, setError] = useState("");
   const [open, setOpen] = useState<CustomerRow | null>(null);
   const [adding, setAdding] = useState(false);
@@ -47,7 +48,7 @@ export default function CustomersPage() {
   useEffect(() => {
     let live = true;
     listCustomers({ q, mode, status, page: pageNo })
-      .then((d) => { if (live) { setData(d); setError(""); } })
+      .then((d) => { if (live) { setData(d); setTotals(d.totals); setError(""); } })
       .catch((e) => { if (live) setError(e instanceof Error ? e.message : "Could not load customers"); });
     return () => { live = false; };
   }, [q, mode, status, pageNo, tick]);
@@ -67,9 +68,20 @@ export default function CustomersPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" aria-label="Registered customers">
-        {([["Registered customers", data?.totals.registered, "text-brand"], ["Active", data?.totals.active, ""], ["Suspended", data?.totals.suspended, "text-red-600"], ["Captains", data?.totals.captains, ""]] as const).map(([label, n, tone]) => (
-          <div key={label} className="rounded-2xl bg-surface p-3 shadow-sm"><p className="text-xs text-muted">{label}</p><p className={`text-2xl font-bold ${tone}`}>{n === undefined ? "…" : n.toLocaleString("en-US")}</p></div>
-        ))}
+        {([
+          ["Registered customers", totals?.registered, "text-brand", "", ""],
+          ["Active", totals?.active, "", "", "active"],
+          ["Suspended", totals?.suspended, "text-red-600", "", "suspended"],
+          ["Captains", totals?.captains, "", "captain", ""],
+        ] as const).map(([label, n, tone, m, s]) => {
+          const on = mode === m && status === s;
+          return (
+            <button key={label} onClick={() => pick(() => { setMode(m); setStatus(s); })} aria-pressed={on} aria-label={`Show ${label.toLowerCase()}`}
+              className={`rounded-2xl bg-surface p-3 text-left shadow-sm transition hover:bg-surface-2 ${on ? "ring-2 ring-brand" : ""}`}>
+              <p className="text-xs text-muted">{label}</p><p className={`text-2xl font-bold ${tone}`}>{n === undefined ? "…" : n.toLocaleString("en-US")}</p>
+            </button>
+          );
+        })}
       </div>
 
       <div className="grid grid-cols-3 gap-1 rounded-2xl bg-surface p-1 shadow-sm" role="tablist" aria-label="Customer type">
