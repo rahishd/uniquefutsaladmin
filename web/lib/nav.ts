@@ -304,6 +304,16 @@ export const modules: Module[] = [
     ],
   },
   {
+    slug: "insurance", title: "Insurance Claims", group: "Customers", icon: "insurance",
+    summary: "Injury claims from the app with photos, the witness (in Nepali too) and the patient's emergency contact.",
+    clientFeatures: ["Quick Access > Claim Insurance", "Photo of the incident, patient name and registered number, witness name in English and Nepali, Minor or Emergency", "Emergency: slide to call the patient's emergency contact", "Emergency contact asked at sign-up, with a reminder for those who skipped it"],
+    adminTasks: ["See claims by status and injury case, emergencies first", "View the photos, the witness and the patient's emergency contact", "Start review, approve, reject or close (the filer and the patient are notified)", "Reply with a message"],
+    endpoints: [
+      e("GET", "/admin/insurance", "list, status and case filters, search"), e("GET", "/admin/insurance/counts", "counts per status"),
+      e("GET", "/admin/insurance/:id", "one claim"), e("PATCH", "/admin/insurance/:id", "status and reply, notifies the filer and the patient"),
+    ],
+  },
+  {
     slug: "refer", title: "Refer & Earn", group: "Customers", icon: "handshake",
     summary: "A customer books a game for another team: you check it and both get loyalty points.",
     clientFeatures: ["Popular > Refer & Earn", "Pick the booking made for the other team, the captain's number and team name", "Both people are told when you decide", "Withdraw while waiting"],

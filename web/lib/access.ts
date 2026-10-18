@@ -13,7 +13,7 @@ const pagePermissions: Record<string, string[]> = {
   courts: ["courts.view"], "digital-id": ["digitalid.scan", "digitalid.attendance"], customers: ["customers.view"], "goal-rush": ["goalrush.view"],
   "gift-card": ["giftcards.view"], club: ["club.view"], vip: ["vip.view"], membership: ["membership.view"], loyalty: ["loyalty.view"],
   promos: ["promos.view"], teams: ["teams.view"], disputes: ["teams.view"], tournaments: ["tournaments.view"], gamezone: ["gamezone.view"],
-  notifications: ["notifications.send"], complaints: ["complaints.view"], wheelchair: ["wheelchair.view"], refer: ["refer.view"], academy: ["academy.view"], content: ["content.view"],
+  notifications: ["notifications.send"], complaints: ["complaints.view"], wheelchair: ["wheelchair.view"], insurance: ["insurance.view"], refer: ["refer.view"], academy: ["academy.view"], content: ["content.view"],
   partners: ["content.view"], verify: ["verify.view"], inventory: ["inventory.view"], reports: ["reports.view"], staff: ["staff.manage"],
   audit: ["audit.view"], settings: ["settings.view"],
 };

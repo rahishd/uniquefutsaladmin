@@ -22,6 +22,9 @@ model User {
   loyaltyEligible      Boolean                  @default(false)
   loyaltyProgress      Int                      @default(0)
   dateOfBirth          String? // YYYY-MM-DD, asked at sign-up (customer app)
+  emergencyName        String? // emergency contact, asked at sign-up (customer migration 20261107000001_insurance_claims)
+  emergencyPhone       String?
+  emergencyRelation    String?
   googleSub            String?                  @unique
   googleEmail          String?
   bookings             Booking[]
@@ -809,6 +812,45 @@ model WheelchairRequest {
 
   @@index([userId])
   @@index([status, date])
+}
+
+// Insurance claims for injuries at the venue (customer backend migration 20261107000001_insurance_claims). Mirrored here;
+// staff review, approve, reject or close them and reply.
+model InsuranceClaim {
+  id            String    @id @default(cuid())
+  code          String    @unique
+  userId        String // who filed it
+  patientName   String
+  patientPhone  String // the injured player's registered number
+  witnessName   String
+  witnessNameNe String // in Nepali
+  witnessPhone  String?
+  severity      String // minor | emergency
+  incidentDate  String
+  description   String?
+  photos        String[]  @default([])
+  status        String    @default("submitted") // submitted | in_review | approved | rejected | closed
+  staffReply    String?
+  repliedBy     String?
+  decidedAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([patientPhone])
+  @@index([status, createdAt])
+}
+
+// "Slide to call" lookups of a player's emergency contact (customer backend). Read-only here.
+model EmergencyCall {
+  id           String   @id @default(cuid())
+  callerId     String
+  patientPhone String
+  found        Boolean
+  createdAt    DateTime @default(now())
+
+  @@index([callerId, createdAt])
+  @@index([patientPhone])
 }
 
 // VIP discount code staff give to ONE customer (customer backend migration 20261009000001_vip_codes).

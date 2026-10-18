@@ -13,7 +13,7 @@ export const activityRouter = Router();
 type Item = { id: string; type: string; title: string; text: string; href: string; at: string; ref?: string };
 const NEEDS: Record<string, string> = {
   booking: "bookings.view", payment: "payments.view", customer: "customers.view", complaint: "complaints.view", referral: "refer.view", academy: "academy.view",
-  wheelchair: "wheelchair.view", challenge: "teams.view", result: "teams.view", gamezone: "gamezone.view", membership: "membership.view", arrival: "arrivals.view",
+  wheelchair: "wheelchair.view", insurance: "insurance.view", challenge: "teams.view", result: "teams.view", gamezone: "gamezone.view", membership: "membership.view", arrival: "arrivals.view",
 };
 // audit-log entities that have a page, the key their rows carry, and actions too routine to announce
 const STAFF: Record<string, { type: string; href: string; prefix: string; label: string }> = {
@@ -25,6 +25,7 @@ const STAFF: Record<string, { type: string; href: string; prefix: string; label:
   complaint: { type: "complaint", href: "/complaints", prefix: "c-", label: "complaint" },
   referral: { type: "referral", href: "/refer", prefix: "r-", label: "referral" },
   wheelchair: { type: "wheelchair", href: "/wheelchair", prefix: "wc-", label: "wheelchair request" },
+  insurance: { type: "insurance", href: "/insurance", prefix: "ic-", label: "insurance claim" },
 };
 const QUIET = ["digitalid-card", "digitalid-scan", "player-stats"];
 const h12 = (t: string) => { const h = Number(t.slice(0, 2)); return `${h % 12 || 12}${t.slice(2, 5)} ${h < 12 ? "AM" : "PM"}`; };
@@ -57,7 +58,9 @@ activityRouter.get("/activity", requirePermission("dashboard.view"), handler(asy
   ]);
 
   const wheels = want("wheelchair") ? await prisma.wheelchairRequest.findMany({ where: { createdAt: gte }, orderBy: { createdAt: "desc" }, take }) : [];
+  const claims = want("insurance") ? await prisma.insuranceClaim.findMany({ where: { createdAt: gte }, orderBy: { createdAt: "desc" }, take }) : [];
   const ids = new Set<string>();
+  for (const c of claims) ids.add(c.userId);
   for (const w of wheels) ids.add(w.userId);
   for (const b of [...bookings, ...cancelled]) if (b.userId) ids.add(b.userId);
   for (const x of [...orders, ...complaints, ...gz, ...arrivals, ...subs, ...academy]) if (x.userId) ids.add(x.userId);
@@ -83,6 +86,7 @@ activityRouter.get("/activity", requirePermission("dashboard.view"), handler(asy
 
   const items: Item[] = [
     ...staffItems,
+    ...claims.map((c) => ({ id: `ic-${c.id}`, ref: `ic-${c.id}`, type: "insurance", title: c.severity === "emergency" ? "Insurance claim: EMERGENCY" : "Insurance claim", text: `${c.patientName} (${c.patientPhone}), injury on ${day(c.incidentDate)}, filed by ${who(c.userId)}`, href: "/insurance", at: c.createdAt.toISOString() })),
     ...wheels.map((w) => ({ id: `wc-${w.id}`, ref: `wc-${w.id}`, type: "wheelchair", title: "Wheelchair request", text: `${who(w.userId)}, ${day(w.date)} about ${h12(w.time)}${w.people > 1 ? `, ${w.people} wheelchair users` : ""}`, href: "/wheelchair", at: w.createdAt.toISOString() })),
     ...bookings.map((b) => ({ id: `b-${b.id}`, ref: `b-${b.id}`, type: "booking", title: "New booking", text: `${b.customerName ?? who(b.userId)}, ${day(b.date)} ${h12(b.startTime)}${b.status === "pending" ? " (waiting for payment)" : ""}`, href: `/slots?date=${b.date}`, at: b.createdAt.toISOString() })),
     ...cancelled.map((b) => ({ id: `bc-${b.id}-${b.updatedAt.getTime()}`, ref: `b-${b.id}`, type: "booking", title: "Booking cancelled", text: `${b.customerName ?? who(b.userId)}, ${day(b.date)} ${h12(b.startTime)}`, href: "/bookings", at: b.updatedAt.toISOString() })),
