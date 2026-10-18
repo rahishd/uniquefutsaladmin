@@ -13,7 +13,7 @@ export const activityRouter = Router();
 type Item = { id: string; type: string; title: string; text: string; href: string; at: string; ref?: string };
 const NEEDS: Record<string, string> = {
   booking: "bookings.view", payment: "payments.view", customer: "customers.view", complaint: "complaints.view", referral: "refer.view", academy: "academy.view",
-  challenge: "teams.view", result: "teams.view", gamezone: "gamezone.view", membership: "membership.view", arrival: "arrivals.view",
+  wheelchair: "wheelchair.view", challenge: "teams.view", result: "teams.view", gamezone: "gamezone.view", membership: "membership.view", arrival: "arrivals.view",
 };
 // audit-log entities that have a page, the key their rows carry, and actions too routine to announce
 const STAFF: Record<string, { type: string; href: string; prefix: string; label: string }> = {
@@ -24,6 +24,7 @@ const STAFF: Record<string, { type: string; href: string; prefix: string; label:
   customer: { type: "customer", href: "/customers", prefix: "u-", label: "customer" },
   complaint: { type: "complaint", href: "/complaints", prefix: "c-", label: "complaint" },
   referral: { type: "referral", href: "/refer", prefix: "r-", label: "referral" },
+  wheelchair: { type: "wheelchair", href: "/wheelchair", prefix: "wc-", label: "wheelchair request" },
 };
 const QUIET = ["digitalid-card", "digitalid-scan", "player-stats"];
 const h12 = (t: string) => { const h = Number(t.slice(0, 2)); return `${h % 12 || 12}${t.slice(2, 5)} ${h < 12 ? "AM" : "PM"}`; };
@@ -55,7 +56,9 @@ activityRouter.get("/activity", requirePermission("dashboard.view"), handler(asy
     want("arrival") ? prisma.arrivalCheckin.findMany({ where: { confirmedAt: gte }, orderBy: { confirmedAt: "desc" }, take }) : [],
   ]);
 
+  const wheels = want("wheelchair") ? await prisma.wheelchairRequest.findMany({ where: { createdAt: gte }, orderBy: { createdAt: "desc" }, take }) : [];
   const ids = new Set<string>();
+  for (const w of wheels) ids.add(w.userId);
   for (const b of [...bookings, ...cancelled]) if (b.userId) ids.add(b.userId);
   for (const x of [...orders, ...complaints, ...gz, ...arrivals, ...subs, ...academy]) if (x.userId) ids.add(x.userId);
   for (const r of referrals) ids.add(r.referrerId);
@@ -80,6 +83,7 @@ activityRouter.get("/activity", requirePermission("dashboard.view"), handler(asy
 
   const items: Item[] = [
     ...staffItems,
+    ...wheels.map((w) => ({ id: `wc-${w.id}`, ref: `wc-${w.id}`, type: "wheelchair", title: "Wheelchair request", text: `${who(w.userId)}, ${day(w.date)} about ${h12(w.time)}${w.people > 1 ? `, ${w.people} wheelchair users` : ""}`, href: "/wheelchair", at: w.createdAt.toISOString() })),
     ...bookings.map((b) => ({ id: `b-${b.id}`, ref: `b-${b.id}`, type: "booking", title: "New booking", text: `${b.customerName ?? who(b.userId)}, ${day(b.date)} ${h12(b.startTime)}${b.status === "pending" ? " (waiting for payment)" : ""}`, href: `/slots?date=${b.date}`, at: b.createdAt.toISOString() })),
     ...cancelled.map((b) => ({ id: `bc-${b.id}-${b.updatedAt.getTime()}`, ref: `b-${b.id}`, type: "booking", title: "Booking cancelled", text: `${b.customerName ?? who(b.userId)}, ${day(b.date)} ${h12(b.startTime)}`, href: "/bookings", at: b.updatedAt.toISOString() })),
     ...orders.map((o) => ({ id: `p-${o.id}`, ref: `pay-${o.orderCode}`, type: "payment", title: "Payment received", text: `Rs. ${o.amount} by ${o.method} from ${who(o.userId, o.guestPhone ?? "a guest")} (${o.orderCode})`, href: "/payments", at: o.paidAt!.toISOString() })),

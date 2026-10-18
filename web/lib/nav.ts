@@ -294,6 +294,16 @@ export const modules: Module[] = [
     ],
   },
   {
+    slug: "wheelchair", title: "Wheelchair Requests", group: "Customers", icon: "wheelchair",
+    summary: "Customers tell the venue when they are coming with a wheelchair, so the ramp and help are ready.",
+    clientFeatures: ["Quick Access > Wheelchair Request", "Day, about what time, how many wheelchair users, note, optional booking code", "Status and the venue's reply shown to the customer", "Customer can cancel until it is done"],
+    adminTasks: ["See requests by status, newest visit first", "Confirm, decline or mark done (the customer is notified)", "Reply with a message", "Call the customer"],
+    endpoints: [
+      e("GET", "/admin/wheelchair", "list, status filter, search"), e("GET", "/admin/wheelchair/counts", "counts per status"),
+      e("GET", "/admin/wheelchair/:id", "one request"), e("PATCH", "/admin/wheelchair/:id", "status and reply, notifies the customer"),
+    ],
+  },
+  {
     slug: "refer", title: "Refer & Earn", group: "Customers", icon: "handshake",
     summary: "A customer books a game for another team: you check it and both get loyalty points.",
     clientFeatures: ["Popular > Refer & Earn", "Pick the booking made for the other team, the captain's number and team name", "Both people are told when you decide", "Withdraw while waiting"],

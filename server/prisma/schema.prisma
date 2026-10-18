@@ -791,6 +791,26 @@ model Complaint {
   @@index([status, createdAt])
 }
 
+// Wheelchair access requests (customer backend migration 20261106000001_wheelchair_requests). Mirrored here; staff confirm, decline and reply.
+model WheelchairRequest {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  userId      String
+  date        String
+  time        String
+  people      Int      @default(1)
+  note        String?
+  bookingCode String?
+  status      String   @default("pending") // pending | confirmed | completed | declined | cancelled
+  staffReply  String?
+  repliedBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status, date])
+}
+
 // VIP discount code staff give to ONE customer (customer backend migration 20261009000001_vip_codes).
 model VipCode {
   id        String    @id @default(cuid())

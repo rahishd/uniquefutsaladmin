@@ -94,6 +94,10 @@ export const SECTIONS: Section[] = [
     { key: "complaints.view", label: "View Complaints" },
     { key: "complaints.reply", label: "Reply & Change Status" },
   ] },
+  { id: "wheelchair", label: "Wheelchair Requests", permissions: [
+    { key: "wheelchair.view", label: "View Wheelchair Requests" },
+    { key: "wheelchair.reply", label: "Confirm, Decline & Reply" },
+  ] },
   { id: "inventory", label: "Inventory & Goods", permissions: [
     { key: "inventory.view", label: "View Products, Stock & Sales" },
     { key: "inventory.products", label: "Add / Edit / Delete Products & Categories" },
@@ -166,11 +170,12 @@ const EXPAND: Record<string, string[]> = {
   "gamezone.read": ["gamezone.view"], "gamezone.write": ["gamezone.collect", "gamezone.manage", "gamezone.catalog"],
   "membership.read": ["membership.view"], "membership.write": ["membership.create", "membership.edit"],
   "complaints.read": ["complaints.view"], "complaints.write": ["complaints.reply"],
+  "wheelchair.read": ["wheelchair.view"], "wheelchair.write": ["wheelchair.reply"],
   "notifications.write": ["notifications.send"], "reports.read": ["reports.view"], "audit.read": ["audit.view"],
 };
 const expand = (list: string[]) => [...new Set(list.flatMap((p) => EXPAND[p] ?? [p]))];
 
-const FRONT_DESK = expand(["dashboard.view", "verify.view", "bookings.read", "bookings.write", "payments.read", "payments.write", "customers.read", "vip.view", "courts.read", "promos.read", "loyalty.read", "loyalty.write", "teams.read", "teams.write", "gamezone.read", "gamezone.write", "membership.read", "complaints.read", "complaints.write", "inventory.view", "inventory.sell", "digitalid.scan", "digitalid.attendance"]);
+const FRONT_DESK = expand(["dashboard.view", "verify.view", "bookings.read", "bookings.write", "payments.read", "payments.write", "customers.read", "vip.view", "courts.read", "promos.read", "loyalty.read", "loyalty.write", "teams.read", "teams.write", "gamezone.read", "gamezone.write", "membership.read", "wheelchair.read", "wheelchair.write", "complaints.read", "complaints.write", "inventory.view", "inventory.sell", "digitalid.scan", "digitalid.attendance"]);
 const ACCOUNTANT = expand(["dashboard.view", "verify.view", "bookings.read", "payments.read", "payments.write", "customers.read", "vip.view", "courts.read", "promos.read", "loyalty.read", "gamezone.read", "membership.read", "reports.read", "audit.read"]);
 const VIEW_ONLY = ASSIGNABLE.filter((k) => k.endsWith(".view"));
 

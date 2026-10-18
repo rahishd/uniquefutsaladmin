@@ -27,10 +27,11 @@ overviewRouter.get("/dashboard", requirePermission("dashboard.view"), handler(as
   ]);
   const paidRefunds = await prisma.paymentEvent.findMany({ where: { orderCode: { in: refundOrders.map((o) => o.orderCode) }, payload: { contains: "REFUND_PAID" } }, select: { orderCode: true } });
   const checkins = await prisma.arrivalCheckin.count({ where: { refId: { in: arrivals.map((a) => a.id) } } });
-  const [complaintsOpen, referralsPending, membershipPending] = await Promise.all([
+  const [complaintsOpen, referralsPending, membershipPending, wheelchairPending] = await Promise.all([
     prisma.complaint.count({ where: { status: "open" } }),
     prisma.referral.count({ where: { status: "pending" } }),
     prisma.membershipSubscription.count({ where: { status: "pending" } }),
+    prisma.wheelchairRequest.count({ where: { status: "pending" } }),
   ]);
   const refundsDue = refundOrders.length - new Set(paidRefunds.map((e) => e.orderCode)).size;
   send(res, {
@@ -39,7 +40,7 @@ overviewRouter.get("/dashboard", requirePermission("dashboard.view"), handler(as
     // open items per page, shown as the number on each dashboard icon (0 = nothing to do)
     tasks: {
       bookings: bookingsToday, payments: pendingPayments + refundsDue, arrivals: checkins, disputes, customers: newCustomers,
-      complaints: complaintsOpen, refer: referralsPending, membership: membershipPending,
+      complaints: complaintsOpen, refer: referralsPending, membership: membershipPending, wheelchair: wheelchairPending,
     },
   });
 }));
