@@ -9,7 +9,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db";
 import { audit } from "../lib/audit";
-import { notify } from "../lib/customer-effects";
+import { notify, pointsHref } from "../lib/customer-effects";
 import { todayKey } from "../lib/dates";
 import { AppError, dateStr, handler, page, param, parse, send } from "../lib/http";
 import { requirePermission } from "../middleware/auth";
@@ -155,7 +155,7 @@ giftsRouter.post("/:id/cancel", requirePermission("giftcards.refund"), handler(a
       if (r.count) await tx.paymentEvent.create({ data: { orderCode, source: "staff", payload: REFUND_EVENT(g.amount, reason) } });
       await tx.gift.update({ where: { id: g.id }, data: { status: "refunded" } });
     });
-    await notify(prisma, { userId: g.friendId, type: "points", title: "Gifted points taken back", message: `The ${pts} points ${firstName(buyer?.name)} gave you were taken back by the venue. ${reason}`, href: "/points", dedupeKey: `gift-cancel-in-${g.id}` });
+    await notify(prisma, { userId: g.friendId, type: "points", title: "Gifted points taken back", message: `The ${pts} points ${firstName(buyer?.name)} gave you were taken back by the venue. ${reason}`, href: await pointsHref(g.friendId, "gift_refund", g.id), dedupeKey: `gift-cancel-in-${g.id}` });
   }
   await notify(prisma, { userId: g.buyerId, type: "payment", title: "Gift cancelled", message: `Your gift ${g.code} to ${firstName(friend?.name)} was cancelled. Rs. ${g.amount} will be paid back to you. ${reason}`, href: "/gift-card", dedupeKey: `gift-cancel-out-${g.id}` });
   await audit(req, "cancel", "gift", g.id, { code: g.code, kind: g.kind, amount: g.amount, points: g.points, reason });

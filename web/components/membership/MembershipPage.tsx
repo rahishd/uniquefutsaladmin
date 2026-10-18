@@ -7,6 +7,7 @@ import { Badge } from "../bookings/Badge";
 import { BalanceSheet, NewMemberSheet, ReasonSheet, RenewSheet, VerifySheet } from "./MemberSheets";
 import { ApiError } from "@/lib/api";
 import { guard } from "@/lib/access";
+import { useHighlight } from "@/lib/highlight";
 import { rs } from "@/lib/bookings";
 import {
   Member, MemberList, MemberStatus, PAGE_SIZE, STATUS_LABEL, STATUS_TONE, lengthLabel, listMembers, resumeMember, shortDate, slotLabel,
@@ -28,6 +29,7 @@ const reminder = (m: Member) => {
 };
 
 export default function MembershipPage() {
+  useHighlight();
   const [status, setStatus] = useState<"" | MemberStatus>("");
   const [search, setSearch] = useState("");
   const [q, setQ] = useState("");
@@ -96,7 +98,7 @@ export default function MembershipPage() {
 
       <ul className="grid gap-3 xl:grid-cols-2">
         {data?.items.map((m) => (
-          <li key={m.id} className="space-y-3 rounded-2xl bg-surface p-4 shadow-sm">
+          <li key={m.id} data-hl={`m-${m.id}`} className="space-y-3 rounded-2xl bg-surface p-4 shadow-sm">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="truncate font-bold">{m.customer.name ?? "Customer"}</p>

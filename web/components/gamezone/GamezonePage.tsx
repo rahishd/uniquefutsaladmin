@@ -8,6 +8,7 @@ import NewSessionModal from "./NewSessionModal";
 import GamezoneTab from "../courts/GamezoneTab";
 import { ApiError } from "@/lib/api";
 import { guard } from "@/lib/access";
+import { useHighlight } from "@/lib/highlight";
 import { prettyDate, rs } from "@/lib/bookings";
 import { CollectTarget } from "@/lib/payments";
 import { shiftDate, todayKey } from "@/lib/slots";
@@ -63,7 +64,7 @@ function Card({ s, act, showDate }: { s: GzSession; act: Act; showDate?: boolean
   const st = STATUS[s.status] ?? { label: s.status, tone: "bg-surface-2 text-muted" };
   const pay = PAY[s.paymentStatus] ?? { label: s.paymentStatus, tone: "bg-surface-2 text-muted" };
   return (
-    <li className={`space-y-3 rounded-2xl bg-surface p-4 shadow-sm ${s.status === "cancelled" ? "opacity-70" : ""}`}>
+    <li data-hl={`g-${s.code}`} className={`space-y-3 rounded-2xl bg-surface p-4 shadow-sm ${s.status === "cancelled" ? "opacity-70" : ""}`}>
       <div className="flex items-start gap-3">
         <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand"><Gamepad2 size={20} /></span>
         <div className="min-w-0 flex-1">
@@ -231,6 +232,7 @@ function Sessions() {
 }
 
 export default function GamezonePage() {
+  useHighlight();
   const [tab, setTab] = useState<Tab>("board");
   const [booking, setBooking] = useState(false);
   const [version, setVersion] = useState(0); // bumping it reloads the board and the list after a new session

@@ -9,7 +9,7 @@ import { api } from "@/lib/api";
 import { canDo } from "@/lib/access";
 
 type Counts = { pendingPayments: number; disputes: number; refundsDue: number; arrivalsToday: number };
-type Item = { id: string; type: string; title: string; text: string; href: string; at: string };
+type Item = { id: string; type: string; title: string; text: string; href: string; at: string; ref?: string };
 
 // What needs attention right now, worked out from the live dashboard numbers. Items disappear when they are dealt with.
 const ITEMS: { key: keyof Counts; href: string; icon: React.ElementType; text: (n: number) => string }[] = [
@@ -37,6 +37,9 @@ const ago = (iso: string) => {
 };
 
 // The bell: what customers just did in the app (live, every 15 seconds) and what needs attention now.
+// opens the record and highlights it (lib/highlight.ts)
+const withHl = (i: Item) => `${i.href}${i.href.includes("?") ? "&" : "?"}hl=${encodeURIComponent(i.ref ?? i.id)}`;
+
 export default function NotificationBell() {
   const [c, setC] = useState<Counts | null>(null);
   const [feed, setFeed] = useState<Item[]>([]);
@@ -107,13 +110,14 @@ export default function NotificationBell() {
 
   return (
     <div ref={box} className="relative">
-      <button type="button" onClick={toggle} aria-label={badge ? `Notifications, ${badge} new or needing attention` : "Notifications"} aria-expanded={open} className="relative grid h-10 w-10 place-items-center rounded-full hover:bg-white/10">
-        <Bell size={24} />
-        {badge > 0 && <span className="absolute right-0 top-0 grid min-w-[18px] place-items-center rounded-full bg-red-500 px-1 text-[11px] font-bold leading-[18px] text-white">{badge > 9 ? "9+" : badge}</span>}
+      <button type="button" onClick={toggle} aria-label={badge ? `Notifications, ${badge} new or needing attention` : "Notifications"} aria-expanded={open} className="relative grid h-11 w-11 place-items-center rounded-2xl bg-red-600 text-white shadow-md transition hover:bg-red-700">
+        <style>{`@keyframes uf-ring{0%,60%,100%{transform:rotate(0)}5%{transform:rotate(18deg)}10%{transform:rotate(-16deg)}15%{transform:rotate(14deg)}20%{transform:rotate(-12deg)}25%{transform:rotate(8deg)}30%{transform:rotate(-6deg)}35%{transform:rotate(0)}}.uf-ring{transform-origin:50% 12%;animation:uf-ring 2.6s ease-in-out infinite}@media (prefers-reduced-motion:reduce){.uf-ring{animation:none}}`}</style>
+        <Bell size={24} className={badge > 0 ? "uf-ring" : ""} />
+        {badge > 0 && <span className="absolute -right-1.5 -top-1.5 grid min-w-[20px] place-items-center rounded-full bg-white px-1 text-[11px] font-bold leading-5 text-red-600 shadow ring-2 ring-red-600">{badge > 9 ? "9+" : badge}</span>}
       </button>
 
       {toast && !open && (
-        <Link href={toast.href} onClick={() => setToast(null)} className="fixed bottom-24 left-4 right-4 z-[60] flex items-start gap-3 rounded-2xl border border-line bg-surface p-3 text-foreground shadow-xl sm:left-auto sm:right-6 sm:w-96 lg:bottom-6" role="status">
+        <Link href={withHl(toast)} onClick={() => setToast(null)} className="fixed bottom-24 left-4 right-4 z-[60] flex items-start gap-3 rounded-2xl border border-line bg-surface p-3 text-foreground shadow-xl sm:left-auto sm:right-6 sm:w-96 lg:bottom-6" role="status">
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand/10 text-brand">{(() => { const I = ICON[toast.type] ?? Bell; return <I size={18} />; })()}</span>
           <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{toast.title}</span><span className="block truncate text-xs text-muted">{toast.text}</span></span>
           <button type="button" aria-label="Dismiss" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setToast(null); }} className="text-muted"><X size={16} /></button>
@@ -135,7 +139,7 @@ export default function NotificationBell() {
                 const isNew = !!seen && i.at > seen;
                 return (
                   <li key={i.id}>
-                    <Link href={i.href} onClick={() => setOpen(false)} className={`flex items-start gap-3 px-4 py-2.5 text-sm hover:bg-surface-2 ${isNew ? "bg-brand/5" : ""}`}>
+                    <Link href={withHl(i)} onClick={() => setOpen(false)} className={`flex items-start gap-3 px-4 py-2.5 text-sm hover:bg-surface-2 ${isNew ? "bg-brand/5" : ""}`}>
                       <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-brand/10 text-brand"><I size={16} /></span>
                       <span className="min-w-0 flex-1"><span className="flex items-center gap-2 font-semibold">{i.title}{isNew && <span className="h-2 w-2 rounded-full bg-red-500" aria-label="new" />}</span><span className="block truncate text-xs text-muted">{i.text}</span></span>
                       <span className="shrink-0 text-[11px] text-muted">{ago(i.at)}</span>

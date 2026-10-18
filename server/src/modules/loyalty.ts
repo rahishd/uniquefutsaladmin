@@ -3,7 +3,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db";
 import { audit } from "../lib/audit";
-import { awardPoints, notify, pointsForGoods } from "../lib/customer-effects";
+import { awardPoints, notify, pointsForGoods, pointsHref } from "../lib/customer-effects";
 import { addDaysKey, todayKey } from "../lib/dates";
 import { AppError, dateStr, handler, page, param, parse, send } from "../lib/http";
 import { requirePermission } from "../middleware/auth";
@@ -151,7 +151,7 @@ loyaltyRouter.post("/adjust", requirePermission("loyalty.adjust"), handler(async
     await awardPoints({ userId: b.phone, kind: "game", points: pts, sourceType: "adjustment", sourceId, detail: `Adjustment: ${b.reason}` });
   } else {
     await prisma.loyaltyEntry.create({ data: { userId: b.phone, kind: "free_game", points: new Prisma.Decimal(pts.toFixed(1)), earnedOn: todayKey(), expiresOn: null, sourceType: "adjustment", sourceId, detail: `Adjustment: ${b.reason}` } });
-    await notify(prisma, { userId: b.phone, type: "points", title: "Points adjusted", message: `${pts} points: ${b.reason}`, href: "/points" });
+    await notify(prisma, { userId: b.phone, type: "points", title: "Points adjusted", message: `${pts} points: ${b.reason}`, href: await pointsHref(b.phone, "adjustment", sourceId) });
   }
   await audit(req, "adjust", "loyalty", b.phone, { points: pts, reason: b.reason });
   send(res, null, "Points adjusted");

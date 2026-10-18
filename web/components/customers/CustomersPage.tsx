@@ -8,12 +8,14 @@ import CustomerSheet from "./CustomerSheet";
 import VipTag from "./VipTag";
 import { rs } from "@/lib/bookings";
 import { guard } from "@/lib/access";
+import { useHighlight } from "@/lib/highlight";
 import { CustomerList, CustomerRow, Mode, PAGE_SIZE, initials, listCustomers, setActive } from "@/lib/customers";
 
 import { askConfirm } from "@/lib/confirm";
 const MODES: { id: Mode | ""; label: string }[] = [{ id: "", label: "Everyone" }, { id: "captain", label: "Captains" }, { id: "player", label: "Regular players" }];
 
 export default function CustomersPage() {
+  useHighlight();
   const [mode, setMode] = useState<Mode | "">("");
   const [status, setStatus] = useState<"" | "active" | "suspended">("");
   const [search, setSearch] = useState("");
@@ -100,7 +102,7 @@ export default function CustomersPage() {
 
       <ul className="grid items-start gap-2 xl:grid-cols-2">
         {data?.items.map((c) => (
-          <li key={c.phoneNumber} className={`rounded-2xl p-3 shadow-sm ${c.vip ? "bg-amber-400/10 ring-2 ring-amber-400/70" : "bg-surface"}`}>
+          <li key={c.phoneNumber} data-hl={`u-${c.phoneNumber}`} className={`rounded-2xl p-3 shadow-sm ${c.vip ? "bg-amber-400/10 ring-2 ring-amber-400/70" : "bg-surface"}`}>
             <div className="flex items-center gap-3">
             <button onClick={() => setOpen(c)} className="flex min-w-0 flex-1 items-center gap-3 text-left" aria-label={`Open ${c.name ?? c.phoneNumber}`}>
               <span className="relative grid h-12 w-12 shrink-0 place-items-center rounded-full bg-brand/15 font-bold text-brand">

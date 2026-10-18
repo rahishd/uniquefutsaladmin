@@ -5,6 +5,7 @@ import { Gamepad2, Phone, RefreshCw, Trophy } from "lucide-react";
 import { Badge } from "../bookings/Badge";
 import CollectModal from "../payments/CollectModal";
 import { guard } from "@/lib/access";
+import { useHighlight } from "@/lib/highlight";
 import { rs } from "@/lib/bookings";
 import { METHOD_LABEL } from "@/lib/payments";
 import { ArrivalItem, ArrivalsDay, getArrivals, groupOf, span, startText } from "@/lib/arrivals";
@@ -63,6 +64,7 @@ function Section({ title, hint, count, tone, children }: { title: string; hint: 
 }
 
 export default function ArrivalsPage() {
+  useHighlight();
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [error, setError] = useState("");
   const [tick, setTick] = useState(0);
@@ -92,7 +94,7 @@ export default function ArrivalsPage() {
   const waiting = pick("waiting");
   const finished = pick("finished");
   const unpaidHere = [...onTheWay, ...waiting].filter((i) => !i.paid).length;
-  const render = (list: ArrivalItem[]) => list.map((i) => <Card key={`${i.kind}-${i.id}`} i={i} now={now} at={loaded!.at} onCollect={() => setCollecting(i)} />);
+  const render = (list: ArrivalItem[]) => list.map((i) => <div key={`${i.kind}-${i.id}`} data-hl={`ar-${i.kind === "gamezone" ? i.code : i.id}`}><Card i={i} now={now} at={loaded!.at} onCollect={() => setCollecting(i)} /></div>);
 
   return (
     <div className="w-full space-y-5">

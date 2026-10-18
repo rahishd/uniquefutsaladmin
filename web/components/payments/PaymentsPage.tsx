@@ -8,6 +8,7 @@ import GoodsDues from "./GoodsDues";
 import EvCharging from "./EvCharging";
 import CustomerSheet from "../customers/CustomerSheet";
 import { guard } from "@/lib/access";
+import { useHighlight } from "@/lib/highlight";
 import { prettyDate, rs } from "@/lib/bookings";
 import { Filters, Kind, Ledger, METHOD_LABEL, Mode, PAGE_SIZE, PayStatus, Period, Row, Summary, listPayments, paymentSummary } from "@/lib/payments";
 
@@ -37,6 +38,7 @@ function Card({ title, value, sub, tone }: { title: string; value: string; sub: 
 }
 
 export default function PaymentsPage() {
+  useHighlight();
   const [f, setF] = useState<Filters>({ kind: "court", status: "", mode: "", period: "month", from: "", to: "", q: "" });
   const [search, setSearch] = useState("");
   const [pageNo, setPageNo] = useState(1);
@@ -137,7 +139,7 @@ export default function PaymentsPage() {
         {data?.items.map((r) => {
           const st = TONE[r.status];
           return (
-            <li key={`${r.kind}-${r.id}`} className="flex items-center gap-3 rounded-2xl bg-surface p-4 shadow-sm">
+            <li key={`${r.kind}-${r.id}`} data-hl={`pay-${r.code}`} className="flex items-center gap-3 rounded-2xl bg-surface p-4 shadow-sm">
               <div className="min-w-0 flex-1">
                 {r.phone ? (
                   <button onClick={() => setViewing(r)} title="View customer details" className="line-clamp-2 break-words text-left font-semibold underline-offset-2 hover:text-brand hover:underline">{r.customer || "Guest"}</button>

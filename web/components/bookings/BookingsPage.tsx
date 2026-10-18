@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { useHighlight } from "@/lib/highlight";
 import { Badge } from "./Badge";
 import BookingDetailSheet from "./BookingDetailSheet";
 import { Booking, BookingList, METHOD, PAGE_SIZE, PAYMENT, STATUS, Scope, bookingCounts, listBookings, prettyDate, rs, tags } from "@/lib/bookings";
@@ -86,6 +87,7 @@ export default function BookingsPage() {
   const pages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1;
 
   // Group by date so a long Upcoming or Previous list is easy to scan.
+  useHighlight(!!data);
   const groups = useMemo(() => {
     const m = new Map<string, Booking[]>();
     for (const b of data?.items ?? []) m.set(b.date, [...(m.get(b.date) ?? []), b]);
@@ -136,7 +138,7 @@ export default function BookingsPage() {
         {groups.map(([date, rows]) => (
           <section key={date} className="space-y-2">
             {scope !== "today" && <h2 className="px-1 text-sm font-semibold text-muted">{prettyDate(date)}</h2>}
-            {rows.map((b) => <BookingCard key={b.id} b={b} onOpen={() => setOpen(b)} />)}
+            {rows.map((b) => <div key={b.id} data-hl={`b-${b.id}`}><BookingCard b={b} onOpen={() => setOpen(b)} /></div>)}
           </section>
         ))}
       </div>

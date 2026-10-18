@@ -5,7 +5,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db";
 import { audit } from "../lib/audit";
-import { awardPoints, notify } from "../lib/customer-effects";
+import { awardPoints, notify, pointsHref } from "../lib/customer-effects";
 import { todayKey } from "../lib/dates";
 import { AppError, handler, page, param, parse, send } from "../lib/http";
 import { requirePermission } from "../middleware/auth";
@@ -156,7 +156,7 @@ referRouter.post("/:id/adjust", requirePermission("refer.adjust"), handler(async
     if (c.delta > 0) await awardPoints({ userId: c.who, kind: "referral", points: c.delta, sourceType: "referral-adjust", sourceId: `${r.id}:${c.side}:${stamp}`, detail });
     else {
       await prisma.loyaltyEntry.create({ data: { userId: c.who, kind: "free_game", points: new Prisma.Decimal(c.delta.toFixed(1)), earnedOn: todayKey(), expiresOn: null, sourceType: "referral-adjust", sourceId: `${r.id}:${c.side}:${stamp}`, detail } });
-      await notify(prisma, { userId: c.who, type: "points", title: "Points adjusted", message: `${c.delta} points: ${b.reason}`, href: "/points" });
+      await notify(prisma, { userId: c.who, type: "points", title: "Points adjusted", message: `${c.delta} points: ${b.reason}`, href: await pointsHref(c.who, "referral-adjust", `${r.id}:${c.side}:${stamp}`) });
     }
   }
   const upd = await prisma.referral.update({ where: { id: r.id }, data: { referrerPoints: new Prisma.Decimal(b.referrerPoints.toFixed(1)), friendPoints: new Prisma.Decimal(b.friendPoints.toFixed(1)) } });

@@ -40,6 +40,27 @@ describe("Admin activity feed", () => {
     assert.equal((await api.get("/activity?since=yesterday", owner.auth)).status, 400);
   });
 
+  it("lists what other staff did, with the record to highlight, but not your own actions", async () => {
+    const owner = await staff("owner");
+    const desk = await staff("staff", "desk@test.np");
+    await customer("9880000001", "Raju Rai");
+    const b = await booking({ notes: "WALK_IN" });
+    const log = (by: { id: string }, action: string, entity: string, entityId: string) =>
+      prisma.adminAuditLog.create({ data: { staffId: by.id, staffName: by === owner ? "Owner" : "Desk", action, entity, entityId } });
+    await log(desk, "walk-in", "booking", b.id);
+    await log(desk, "digitalid-scan", "customer", "9880000001"); // routine: not announced
+    await log(owner, "update", "customer", "9880000001"); // the owner's own action
+    const items = (await api.get("/activity", owner.auth)).body.data.items as { title: string; text: string; href: string; ref?: string }[];
+    const mine = items.filter((i) => i.title.startsWith("Staff:"));
+    assert.equal(mine.length, 1);
+    assert.equal(mine[0].title, "Staff: Walk in");
+    assert.match(mine[0].text, /^Desk, booking/);
+    assert.equal(mine[0].href, `/slots?date=${today}`);
+    assert.equal(mine[0].ref, `b-${b.id}`);
+    // customer items carry the same kind of key the pages use
+    assert.equal(items.find((i) => i.title === "New customer")?.ref, "u-9880000001");
+  });
+
   it("hides the kinds a staff member may not open", async () => {
     await customer("9880000001", "Raju Rai");
     await prisma.complaint.create({ data: { code: "CP-1", userId: "9880000001", category: "Court", message: "The floor is wet" } });

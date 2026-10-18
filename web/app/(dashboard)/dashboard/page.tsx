@@ -2,32 +2,21 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Eye, EyeOff } from "lucide-react";
 import { icons } from "@/components/icons";
-import { groups, modules } from "@/lib/nav";
+import { modules } from "@/lib/nav";
 import { api } from "@/lib/api";
-import { canDo } from "@/lib/access";
+import { canDo, canSeePage } from "@/lib/access";
 import { rs } from "@/lib/bookings";
 import { getOverview } from "@/lib/overview";
 
-const quick = ["slots", "bookings", "payments", "arrivals"];
-
-type Live = { pendingPayments: number; arrivalsToday: number; disputes: number; refundsDue: number; bookingsToday: number };
-const attention: { label: string; icon: string; href: string; key: keyof Live }[] = [
-  { label: "Pending payments", icon: "wallet", href: "/payments", key: "pendingPayments" },
-  { label: "Arrivals", icon: "bell", href: "/arrivals", key: "arrivalsToday" },
-  { label: "Disputes", icon: "scale", href: "/disputes", key: "disputes" },
-  { label: "Refunds due", icon: "receipt", href: "/payments", key: "refundsDue" },
-];
-const HIDE = "uf-hide-numbers";
-const readHidden = () => { if (typeof window === "undefined") return false; try { return localStorage.getItem(HIDE) === "1"; } catch { return false; } };
+type Live = { pendingPayments: number; arrivalsToday: number; disputes: number; refundsDue: number; bookingsToday: number; tasks: Record<string, number> };
 
 function Tile({ href, label, Icon, badge }: { href: string; label: string; Icon: React.ElementType; badge?: string }) {
   return (
-    <Link href={href} className="flex flex-col items-center gap-2 text-center text-[13px] font-medium leading-tight">
-      <span className="relative grid h-12 w-12 place-items-center rounded-2xl bg-surface-2 text-foreground/75 lg:h-14 lg:w-14">
-        <Icon size={26} strokeWidth={1.6} />
-        {badge && <span className="absolute -right-2 -top-2 rounded-full bg-brand px-1.5 text-[11px] font-bold text-white">{badge}</span>}
+    <Link href={href} className="flex flex-col items-center justify-center gap-1 text-center text-[10px] font-medium leading-tight lg:gap-2 lg:text-[13px]">
+      <span className="relative grid h-10 w-10 place-items-center rounded-xl bg-surface-2 text-foreground/75 lg:h-14 lg:w-14">
+        <Icon size={22} strokeWidth={1.6} />
+        {badge && <span className="absolute -right-2 -top-2 min-w-[20px] rounded-full bg-brand px-1.5 text-center text-[11px] font-bold leading-5 text-white">{badge}</span>}
       </span>
       <span className="text-foreground/80">{label}</span>
     </Link>
@@ -35,20 +24,16 @@ function Tile({ href, label, Icon, badge }: { href: string; label: string; Icon:
 }
 
 const Card = ({ title, children }: { title?: string; children: React.ReactNode }) => (
-  <section className="rounded-2xl bg-surface p-5 shadow-sm lg:p-6">
+  <section className="flex h-[calc(100dvh-12rem)] flex-col rounded-2xl bg-surface p-3 shadow-sm lg:h-[calc(100dvh-8rem)] lg:p-6">
     {title && <h2 className="mb-4 text-lg font-semibold">{title}</h2>}
-    <div className="grid grid-cols-4 gap-x-2 gap-y-5 sm:grid-cols-5 lg:grid-cols-4 xl:grid-cols-5">{children}</div>
+    <div className="grid min-h-0 flex-1 grid-cols-4 auto-rows-fr place-items-center gap-x-1 sm:grid-cols-5 lg:grid-cols-6">{children}</div>
   </section>
 );
 
 export default function Home() {
-  // the eye hides the money and counts (for when the screen is shared); the choice is remembered on this device
-  const [hidden, setHidden] = useState(readHidden);
   const [live, setLive] = useState<Live | null>(null);
   const [sales, setSales] = useState<{ total: number; games: number; goods: number; gamezone: number } | null>(null);
   const allowed = canDo("dashboard.view");
-
-  const flip = () => { const next = !hidden; setHidden(next); try { localStorage.setItem(HIDE, next ? "1" : "0"); } catch { /* the choice just is not remembered */ } };
 
   useEffect(() => {
     if (!allowed) return;
@@ -63,53 +48,20 @@ export default function Home() {
     return () => { on = false; clearInterval(t); };
   }, [allowed]);
 
-  const money = hidden ? "XXXX.XX" : sales === null ? "—" : rs(sales.total).replace("Rs. ", "");
-  const split = hidden || !sales ? "" : `Games ${rs(sales.games)} · Goods ${rs(sales.goods)} · Gamezone ${rs(sales.gamezone)}`;
-  const count = hidden ? "XX" : live === null ? "—" : String(live.bookingsToday);
+  const money = sales === null ? "—" : rs(sales.total).replace("Rs. ", "");
+  const split = !sales ? "" : `Games ${rs(sales.games)} · Goods ${rs(sales.goods)} · Gamezone ${rs(sales.gamezone)}`;
+  const count = live === null ? "—" : String(live.bookingsToday);
 
   return (
     <div className="w-full space-y-4 lg:space-y-6">
-      {/* green curve behind the summary card */}
-      <div className="-mx-4 -mt-4 h-14 rounded-b-[2rem] bg-brand lg:hidden" />
 
-      <section className="-mt-12 overflow-hidden rounded-2xl bg-surface shadow-sm lg:mt-0">
-        <div className="relative grid grid-cols-2 bg-surface-2 px-5 py-4 lg:px-8 lg:py-6">
-          <Link href="/overview" aria-label="Revenue today: open the Overview" className="block min-w-0 rounded-xl pr-6 hover:bg-black/5">
-            <p className="text-xs text-muted">NPR · Revenue today</p>
-            <p className="text-xl font-bold lg:text-3xl">{money}</p>
-            <p className="mt-0.5 truncate text-[11px] text-muted">{split || (hidden ? "All sales: games, goods and Gamezone" : "")}</p>
-            <p className="text-[11px] font-semibold text-brand">See more in Overview</p>
-          </Link>
-          <Link href="/bookings" aria-label="Bookings today: open the Bookings page" className="block min-w-0 rounded-xl pl-6 hover:bg-black/5">
-            <p className="text-xs text-muted">Bookings today</p>
-            <p className="text-xl font-bold lg:text-3xl">{count}</p>
-            <p className="text-[11px] font-semibold text-brand">Open Bookings</p>
-          </Link>
-          <button onClick={flip} aria-label={hidden ? "Show numbers" : "Hide numbers"} className="absolute left-1/2 top-1/2 grid h-12 w-12 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-surface shadow lg:left-auto lg:right-8 lg:translate-x-0">
-            {hidden ? <EyeOff size={22} /> : <Eye size={22} />}
-          </button>
-        </div>
-        <div className="grid grid-cols-4 gap-2 px-3 py-4 lg:grid-cols-4 lg:gap-4 lg:px-8 lg:py-6">
-          {quick.map((slug) => {
-            const m = modules.find((x) => x.slug === slug)!;
-            return <Tile key={slug} href={`/${slug}`} label={m.title} Icon={icons[m.icon]} />;
-          })}
-        </div>
-      </section>
 
-      <Link href="/overview" className="flex items-center justify-between rounded-2xl bg-surface p-4 text-sm font-semibold shadow-sm"><span>Overview: today&apos;s sales, a week chart and what needs attention</span><span className="text-brand">Open</span></Link>
-
-      <Card title="Needs attention">
-        {attention.map((a) => <Tile key={a.label} href={a.href} label={a.label} Icon={icons[a.icon]} badge={live && live[a.key] > 0 ? String(live[a.key]) : undefined} />)}
+      <Card>
+        {modules.filter((m) => canSeePage(m.slug)).map((m) => {
+          const n = live?.tasks?.[m.slug] ?? 0;
+          return <Tile key={m.slug} href={`/${m.slug}`} label={m.title} Icon={icons[m.icon]} badge={n > 0 ? String(n) : undefined} />;
+        })}
       </Card>
-
-      <div className="grid items-start gap-4 lg:grid-cols-2 lg:gap-6">
-        {groups.map((g) => (
-          <Card key={g} title={g}>
-            {modules.filter((m) => m.group === g).map((m) => <Tile key={m.slug} href={`/${m.slug}`} label={m.title} Icon={icons[m.icon]} />)}
-          </Card>
-        ))}
-      </div>
     </div>
   );
 }

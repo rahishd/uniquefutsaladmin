@@ -7,6 +7,7 @@ import BulkBookModal from "./BulkBookModal";
 import DatePicker from "./DatePicker";
 import BookingDetailSheet from "../bookings/BookingDetailSheet";
 import { guard } from "@/lib/access";
+import { useHighlight } from "@/lib/highlight";
 import { Booking, bookingDetail, rs } from "@/lib/bookings";
 import { Hour, OPEN_FROM, OPEN_TO, SlotBooking, getDay, hourLabel, nowHour, rejectBooking, todayKey } from "@/lib/slots";
 
@@ -96,7 +97,11 @@ function Legend() {
 }
 
 export default function SlotsPage() {
-  const [date, setDate] = useState(todayKey());
+  // a live notification opens the day of the booking (?date=YYYY-MM-DD) and highlights it (?hl=)
+  const [date, setDate] = useState(() => {
+    const d = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("date") : null;
+    return d && /^d{4}-d{2}-d{2}$/.test(d) ? d : todayKey();
+  });
   const [hours, setHours] = useState<Hour[] | null>(null);
   const [error, setError] = useState("");
   const [book, setBook] = useState<number | null>(null);
@@ -125,6 +130,7 @@ export default function SlotsPage() {
 
   const go = (d: string) => { setDate(d); setHours(null); setError(""); };
   const isPast = (hour: number) => date < todayKey() || (date === todayKey() && hour < nowHour());
+  useHighlight(!!hours);
   const shown = hours?.filter((h) => (h.hour >= OPEN_FROM && h.hour < OPEN_TO) || h.state !== "free") ?? [];
 
   async function reject(h: Hour) {
@@ -177,7 +183,7 @@ export default function SlotsPage() {
           {shown.map((h) => {
             const past = isPast(h.hour);
             return (
-              <li key={h.hour} className="flex items-center gap-3 sm:gap-4">
+              <li key={h.hour} data-hl={h.booking && Number(h.booking.startTime.slice(0, 2)) === h.hour ? `b-${h.booking.id}` : undefined} className="flex items-center gap-3 sm:gap-4">
                 <span className="w-16 shrink-0 text-xs font-extrabold sm:w-20 sm:text-sm">{hourLabel(h.hour)}</span>
                 <div className="min-w-0 flex-1">
                   {h.state === "booked" && h.booking && <BookedCard h={h} onOpen={() => open(h)} onReject={() => reject(h)} />}

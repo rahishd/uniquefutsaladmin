@@ -71,6 +71,13 @@ describe("Loyalty points page", () => {
     await customer("9890000001", "Raju Rai");
     assert.equal((await api.post("/loyalty/adjust", mgr.auth, { phone: "9890000001", points: 15, reason: "Goodwill for the rain" })).status, 200);
     assert.equal((await api.get("/loyalty/customers", mgr.auth)).body.data.items[0].balance, 15);
+    // the customer's notice opens the Points page on exactly this ledger row, and a deduction does too
+    const plus = await prisma.loyaltyEntry.findFirstOrThrow({ where: { userId: "9890000001", sourceType: "adjustment" } });
+    assert.equal((await prisma.notification.findFirstOrThrow({ where: { userId: "9890000001", type: "points" } })).href, `/points?hl=${plus.id}`);
+    assert.equal((await api.post("/loyalty/adjust", mgr.auth, { phone: "9890000001", points: -5, reason: "Entered twice by mistake" })).status, 200);
+    const minus = await prisma.loyaltyEntry.findFirstOrThrow({ where: { userId: "9890000001", sourceType: "adjustment", points: { lt: 0 } } });
+    assert.equal((await prisma.notification.findFirstOrThrow({ where: { userId: "9890000001", title: "Points adjusted" } })).href, `/points?hl=${minus.id}`);
+    assert.equal((await api.post("/loyalty/adjust", mgr.auth, { phone: "9890000001", points: 5, reason: "Put the five points back" })).status, 200);
     const v = await prisma.freeGameVoucher.create({ data: { userId: "9890000001", period: "Evening", cost: 10, status: "unused" } });
     assert.equal((await api.post(`/loyalty/vouchers/${v.id}/void`, mgr.auth)).status, 200);
     const acc = await staff("accountant");

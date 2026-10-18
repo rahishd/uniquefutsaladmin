@@ -28,6 +28,12 @@ export async function notify(db: Tx | typeof prisma, n: { userId: string; type: 
   }
 }
 
+// Where a points notice opens: the Points page with this ledger row highlighted (?hl=<row id>).
+export async function pointsHref(userId: string, sourceType: string, sourceId: string): Promise<string> {
+  const e = await prisma.loyaltyEntry.findFirst({ where: { userId, sourceType, sourceId }, select: { id: true } });
+  return e ? `/points?hl=${e.id}` : "/points";
+}
+
 // Adds points once per (kind, source type, source id). Calling again for the same source changes nothing.
 export async function awardPoints(p: { userId: string; kind: LoyaltyKind; points: number; sourceType: string; sourceId: string; detail: string; earnedOn?: string }): Promise<boolean> {
   if (p.points <= 0) return false;
@@ -43,7 +49,7 @@ export async function awardPoints(p: { userId: string; kind: LoyaltyKind; points
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return false;
     throw e;
   }
-  await notify(prisma, { userId: p.userId, type: "points", title: "Points earned", message: `+${p.points} loyalty points: ${p.detail}`, href: "/points", dedupeKey: `points-${p.kind}-${p.sourceType}-${p.sourceId}` });
+  await notify(prisma, { userId: p.userId, type: "points", title: "Points earned", message: `+${p.points} loyalty points: ${p.detail}`, href: await pointsHref(p.userId, p.sourceType, p.sourceId), dedupeKey: `points-${p.kind}-${p.sourceType}-${p.sourceId}` });
   return true;
 }
 

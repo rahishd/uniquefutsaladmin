@@ -9,11 +9,23 @@ import { requirePermission } from "../middleware/auth";
 
 export const activityRouter = Router();
 
-type Item = { id: string; type: string; title: string; text: string; href: string; at: string };
+// ref names the record (the same key the page puts in data-hl), so a click can highlight it
+type Item = { id: string; type: string; title: string; text: string; href: string; at: string; ref?: string };
 const NEEDS: Record<string, string> = {
   booking: "bookings.view", payment: "payments.view", customer: "customers.view", complaint: "complaints.view", referral: "refer.view", academy: "academy.view",
   challenge: "teams.view", result: "teams.view", gamezone: "gamezone.view", membership: "membership.view", arrival: "arrivals.view",
 };
+// audit-log entities that have a page, the key their rows carry, and actions too routine to announce
+const STAFF: Record<string, { type: string; href: string; prefix: string; label: string }> = {
+  booking: { type: "booking", href: "/bookings", prefix: "b-", label: "booking" },
+  gamezone: { type: "gamezone", href: "/gamezone", prefix: "g-", label: "Gamezone session" },
+  membership: { type: "membership", href: "/membership", prefix: "m-", label: "membership" },
+  payment: { type: "payment", href: "/payments", prefix: "pay-", label: "payment" },
+  customer: { type: "customer", href: "/customers", prefix: "u-", label: "customer" },
+  complaint: { type: "complaint", href: "/complaints", prefix: "c-", label: "complaint" },
+  referral: { type: "referral", href: "/refer", prefix: "r-", label: "referral" },
+};
+const QUIET = ["digitalid-card", "digitalid-scan", "player-stats"];
 const h12 = (t: string) => { const h = Number(t.slice(0, 2)); return `${h % 12 || 12}${t.slice(2, 5)} ${h < 12 ? "AM" : "PM"}`; };
 const day = (k: string) => new Date(`${k}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
 const hour = (n: number) => `${n % 12 || 12}:00 ${n < 12 ? "AM" : "PM"}`;
@@ -51,19 +63,35 @@ activityRouter.get("/activity", requirePermission("dashboard.view"), handler(asy
   const who = (id: string | null | undefined, fallback = "A customer") => (id && names.get(id)) || id || fallback;
   const teamNames = new Map((await prisma.team.findMany({ where: { id: { in: [...challenges.flatMap((c) => [c.challengerTeamId, c.challengedTeamId]), ...results.map((r) => r.submittedByTeamId)] } }, select: { id: true, name: true } })).map((t) => [t.id, t.name]));
 
+  const staffLog = await prisma.adminAuditLog.findMany({
+    where: { createdAt: gte, staffId: { not: req.staff!.id }, entity: { in: Object.keys(STAFF).filter((e) => want(STAFF[e].type)) }, action: { notIn: QUIET } },
+    orderBy: { createdAt: "desc" }, take,
+  });
+  const bookingIds = staffLog.filter((l) => l.entity === "booking" && l.entityId).map((l) => l.entityId!);
+  const bookingDay = new Map((bookingIds.length ? await prisma.booking.findMany({ where: { id: { in: bookingIds } }, select: { id: true, date: true } }) : []).map((b) => [b.id, b.date]));
+  const staffItems: Item[] = staffLog.map((l) => {
+    const m = STAFF[l.entity];
+    const date = l.entity === "booking" && l.entityId ? bookingDay.get(l.entityId) : undefined;
+    return {
+      id: `s-${l.id}`, type: m.type, title: `Staff: ${l.action.replace(/-/g, " ").replace(/^w/, (c) => c.toUpperCase())}`,
+      text: `${l.staffName}, ${m.label}`, href: date ? `/slots?date=${date}` : m.href, ref: l.entityId ? `${m.prefix}${l.entityId}` : undefined, at: l.createdAt.toISOString(),
+    };
+  });
+
   const items: Item[] = [
-    ...bookings.map((b) => ({ id: `b-${b.id}`, type: "booking", title: "New booking", text: `${b.customerName ?? who(b.userId)}, ${day(b.date)} ${h12(b.startTime)}${b.status === "pending" ? " (waiting for payment)" : ""}`, href: "/bookings", at: b.createdAt.toISOString() })),
-    ...cancelled.map((b) => ({ id: `bc-${b.id}-${b.updatedAt.getTime()}`, type: "booking", title: "Booking cancelled", text: `${b.customerName ?? who(b.userId)}, ${day(b.date)} ${h12(b.startTime)}`, href: "/bookings", at: b.updatedAt.toISOString() })),
-    ...orders.map((o) => ({ id: `p-${o.id}`, type: "payment", title: "Payment received", text: `Rs. ${o.amount} by ${o.method} from ${who(o.userId, o.guestPhone ?? "a guest")} (${o.orderCode})`, href: "/payments", at: o.paidAt!.toISOString() })),
-    ...users.map((u) => ({ id: `u-${u.phoneNumber}`, type: "customer", title: "New customer", text: `${u.name ?? "Someone"} signed up (${u.phoneNumber})`, href: "/customers", at: u.createdAt.toISOString() })),
+    ...staffItems,
+    ...bookings.map((b) => ({ id: `b-${b.id}`, ref: `b-${b.id}`, type: "booking", title: "New booking", text: `${b.customerName ?? who(b.userId)}, ${day(b.date)} ${h12(b.startTime)}${b.status === "pending" ? " (waiting for payment)" : ""}`, href: `/slots?date=${b.date}`, at: b.createdAt.toISOString() })),
+    ...cancelled.map((b) => ({ id: `bc-${b.id}-${b.updatedAt.getTime()}`, ref: `b-${b.id}`, type: "booking", title: "Booking cancelled", text: `${b.customerName ?? who(b.userId)}, ${day(b.date)} ${h12(b.startTime)}`, href: "/bookings", at: b.updatedAt.toISOString() })),
+    ...orders.map((o) => ({ id: `p-${o.id}`, ref: `pay-${o.orderCode}`, type: "payment", title: "Payment received", text: `Rs. ${o.amount} by ${o.method} from ${who(o.userId, o.guestPhone ?? "a guest")} (${o.orderCode})`, href: "/payments", at: o.paidAt!.toISOString() })),
+    ...users.map((u) => ({ id: `u-${u.phoneNumber}`, ref: `u-${u.phoneNumber}`, type: "customer", title: "New customer", text: `${u.name ?? "Someone"} signed up (${u.phoneNumber})`, href: "/customers", at: u.createdAt.toISOString() })),
     ...complaints.map((c) => ({ id: `c-${c.id}`, type: "complaint", title: "New complaint", text: `${who(c.userId)}: ${c.category}`, href: "/complaints", at: c.createdAt.toISOString() })),
     ...referrals.map((r) => ({ id: `r-${r.id}`, type: "referral", title: "Referral to review", text: `${who(r.referrerId)} referred ${r.teamName}`, href: "/refer", at: r.createdAt.toISOString() })),
     ...academy.map((a) => ({ id: `a-${a.id}`, type: "academy", title: "Academy sign-up", text: `${a.childName}, guardian ${a.guardianName}`, href: "/academy", at: a.createdAt.toISOString() })),
     ...challenges.map((c) => ({ id: `ch-${c.id}`, type: "challenge", title: "New challenge", text: `${teamNames.get(c.challengerTeamId) ?? "A team"} challenged ${teamNames.get(c.challengedTeamId) ?? "a team"}, ${day(c.date)} ${hour(c.startHour)}`, href: "/teams", at: c.createdAt.toISOString() })),
     ...results.map((r) => ({ id: `rs-${r.id}`, type: "result", title: r.status === "disputed" ? "Score disputed" : "Score uploaded", text: `${teamNames.get(r.submittedByTeamId) ?? "A team"} ${r.scoreSubmitter}-${r.scoreOther}`, href: r.status === "disputed" ? "/disputes" : "/teams", at: r.createdAt.toISOString() })),
-    ...gz.map((g) => ({ id: `g-${g.id}`, type: "gamezone", title: "Gamezone booking", text: `${g.userId ? who(g.userId) : g.guestName ?? "A guest"}, ${g.gameTitle}, ${day(g.date)} ${hour(g.startHour)}`, href: "/gamezone", at: g.createdAt.toISOString() })),
-    ...subs.map((s) => ({ id: `m-${s.id}`, type: "membership", title: "Membership request", text: `${who(s.userId)} asked for ${s.plan.name}${s.totalPrice ? ` (Rs. ${Math.round(s.totalPrice)})` : ""}`, href: "/membership", at: s.createdAt.toISOString() })),
-    ...arrivals.map((a) => ({ id: `ar-${a.refId}-${a.confirmedAt.getTime()}`, type: "arrival", title: "Customer is coming", text: `${who(a.userId)} confirmed they are on the way`, href: "/arrivals", at: a.confirmedAt.toISOString() })),
+    ...gz.map((g) => ({ id: `g-${g.id}`, ref: `g-${g.code}`, type: "gamezone", title: "Gamezone booking", text: `${g.userId ? who(g.userId) : g.guestName ?? "A guest"}, ${g.gameTitle}, ${day(g.date)} ${hour(g.startHour)}`, href: "/gamezone", at: g.createdAt.toISOString() })),
+    ...subs.map((s) => ({ id: `m-${s.id}`, ref: `m-${s.id}`, type: "membership", title: "Membership request", text: `${who(s.userId)} asked for ${s.plan.name}${s.totalPrice ? ` (Rs. ${Math.round(s.totalPrice)})` : ""}`, href: "/membership", at: s.createdAt.toISOString() })),
+    ...arrivals.map((a) => ({ id: `ar-${a.refId}-${a.confirmedAt.getTime()}`, ref: `ar-${a.refId}`, type: "arrival", title: "Customer is coming", text: `${who(a.userId)} confirmed they are on the way`, href: "/arrivals", at: a.confirmedAt.toISOString() })),
   ].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 40);
 
   send(res, { items, now: new Date().toISOString() });

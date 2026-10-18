@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Eye, EyeOff, Loader2, Lock, Mail } from "lucide-react";
 import { login } from "@/lib/auth";
+import NamasteBoy from "@/components/NamasteBoy";
 
 // Split screen: a blue welcome panel on the left, a white sign-in form on the right (stacked on a phone).
 // Fields are underlined; the form side stays light in dark mode too.
@@ -39,7 +40,7 @@ export default function LoginPage() {
   return (
     <main className="grid min-h-screen bg-white text-slate-900 lg:grid-cols-2">
       {/* welcome panel */}
-      <section className="relative flex flex-col justify-between overflow-hidden bg-[linear-gradient(160deg,#4547e6_0%,#2b2bc0_55%,#14158f_100%)] px-8 py-8 text-white sm:px-14 sm:py-10 lg:min-h-screen lg:px-20 lg:py-16">
+      <section className="relative flex flex-col justify-between overflow-hidden bg-[linear-gradient(160deg,#0c0b5d_0%,#090851_55%,#06053a_100%)] px-8 py-8 text-white sm:px-14 sm:py-10 lg:min-h-screen lg:px-20 lg:py-16">
         {/* faint arcs, like the reference */}
         <svg aria-hidden className="pointer-events-none absolute inset-0 h-full w-full opacity-[0.14]" viewBox="0 0 400 600" preserveAspectRatio="xMidYMax slice" fill="none" stroke="#fff" strokeWidth="1">
           {[0, 1, 2, 3, 4].map((i) => (
@@ -48,33 +49,27 @@ export default function LoginPage() {
         </svg>
 
         <div className="relative">
-          {/* the logo picture is white on navy, so it stays a navy tile with the player as a white mark */}
-          <span
-            role="img"
-            aria-label="Unique Futsal"
-            className="block h-16 w-16 rounded-2xl bg-[#0c0b5d] bg-no-repeat shadow-lg ring-2 ring-white/80 sm:h-20 sm:w-20"
-            style={{ backgroundImage: "url(/logo.jpg)", backgroundBlendMode: "lighten", backgroundSize: "172% 172%", backgroundPosition: "43% 15%" }}
-          />
+          {/* the player alone, no tile; the navy mark is turned white so it reads on the blue panel */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo-mark.png" alt="Unique Futsal" className="h-20 w-auto brightness-0 invert sm:h-24" />
           <h2 className="mt-5 text-4xl font-extrabold leading-[1.1] tracking-tight sm:mt-8 sm:text-6xl lg:mt-14">
             Hello
             <br />
-            Unique Futsal!<span aria-hidden> 👋</span>
+            Unique Futsal!
           </h2>
           <p className="mt-6 max-w-md text-lg leading-snug text-white/85 sm:mt-8 sm:text-xl">
             Run the venue: bookings, payments, members and more. Everything your team needs, in one place.
           </p>
-          <span className="mt-6 inline-block rounded-full bg-white/15 px-4 py-1.5 text-sm font-semibold ring-1 ring-white/30">Staff and admin portal</span>
         </div>
 
         <p className="relative mt-10 hidden text-lg text-white/60 lg:block">© {new Date().getFullYear()} Unique Futsal. All rights reserved.</p>
       </section>
 
       {/* sign-in form */}
-      <section className="flex flex-col justify-center px-8 py-12 sm:px-14 lg:px-24">
+      <section className="relative flex flex-col justify-start px-8 pb-24 pt-12 sm:px-14 lg:px-24 lg:pt-16">
         <div className="mx-auto w-full max-w-sm">
-          <p className="text-3xl font-extrabold tracking-tight">Unique<span className="text-[#f5822a]">.</span>Futsal</p>
-
-          <header className="mt-10 lg:mt-24">
+          <header className="mt-10 lg:mt-0">
+            <NamasteBoy className="-ml-2 mb-2" />
             <h1 className="text-[34px] font-extrabold tracking-tight">Welcome Back!</h1>
             <p className="mt-2 text-sm text-slate-500">Sign in with your staff email and password.</p>
           </header>
@@ -106,7 +101,7 @@ export default function LoginPage() {
 
             <button
               disabled={busy || !email.trim() || !password}
-              className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-[#111114] py-3.5 text-[15px] font-semibold text-white transition hover:bg-black disabled:opacity-50"
+              className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-[#0c0b5d] py-3.5 text-[15px] font-semibold text-white transition hover:bg-[#090851] disabled:opacity-50"
             >
               {busy ? <><Loader2 size={18} className="animate-spin" /> Signing in…</> : "Login Now"}
             </button>
@@ -117,6 +112,7 @@ export default function LoginPage() {
             </p>
           </form>
         </div>
+        <p className="absolute inset-x-0 bottom-5 text-center text-sm font-bold text-[#0c0b5d]">Designed &amp; developed by Rahish Dumre</p>
       </section>
     </main>
   );
