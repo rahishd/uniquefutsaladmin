@@ -1043,6 +1043,7 @@ model StaffUser {
   isActive     Boolean   @default(true)
   lastLoginAt  DateTime?
   sessionVersion Int @default(0) // sign-in tokens carry this number; a password change raises it and so signs everyone out
+  avatar       String? // profile picture as a small JPEG data URL (256px square), set by the person from the sidebar
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 }

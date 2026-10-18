@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { BarChart3, Bell, CalendarDays, ChevronDown, LayoutGrid, LayoutDashboard, LogOut, Plus, ShoppingCart, Star, X } from "lucide-react";
 import { icons } from "./icons";
 import { groups, modules } from "@/lib/nav";
@@ -11,7 +11,7 @@ import { useLive } from "@/lib/live";
 import DeniedDialog from "./DeniedDialog";
 import NotificationBell from "./NotificationBell";
 import { getToken } from "@/lib/api";
-import { currentAdmin, logout, refreshAdmin, type Admin } from "@/lib/auth";
+import { currentAdmin, logout, refreshAdmin, setAvatar, type Admin } from "@/lib/auth";
 
 // Pages used all day, in this order (Overview is the landing page). Everything else sits behind the "More" button.
 const frequents: { href: string; label: string; icon: React.ElementType }[] = [
@@ -42,6 +42,27 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const [frequentsOpen, setFrequentsOpen] = useState(false);
   const [fresh, setFresh] = useState(false);
   const live = useLive(); // permissions re-read from the server for this page load
+  const [photo, setPhoto] = useState<string | null | undefined>(undefined); // set once the person changes their picture here
+  const [photoErr, setPhotoErr] = useState("");
+  const picker = useRef<HTMLInputElement>(null);
+
+  async function choosePhoto(file?: File) {
+    if (!file) return;
+    setPhotoErr("");
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type)) return setPhotoErr("Choose a JPG, PNG or WebP picture.");
+    if (file.size > 8 * 1024 * 1024) return setPhotoErr("The picture is too large (8 MB limit).");
+    try {
+      const image = await new Promise<string>((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result));
+        r.onerror = () => reject(r.error);
+        r.readAsDataURL(file);
+      });
+      setPhoto(await setAvatar(image));
+    } catch (e) {
+      setPhotoErr(e instanceof Error ? e.message : "Could not save the picture.");
+    }
+  }
 
   useEffect(() => {
     if (signedIn === false) router.replace("/login");
@@ -60,6 +81,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const hour = Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kathmandu", hour: "2-digit", hourCycle: "h23" }).format(new Date()));
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
   const who = admin?.role === "owner" ? "Owner" : admin?.role === "admin" ? "Admin" : "Staff";
+  const avatar = photo === undefined ? admin?.avatar ?? null : photo;
+  const initials = (admin?.name ?? who).split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || who[0];
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
   const link = (href: string, label: string, Icon: React.ElementType) => (
@@ -79,7 +102,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[264px_minmax(0,1fr)]">
-        <header className="sticky top-0 z-30 flex h-auto min-h-16 min-w-0 items-center pb-2 pt-[calc(env(safe-area-inset-top)+2rem)] md:h-16 md:pb-0 md:pt-0 justify-between gap-3 bg-header pl-2 pr-4 text-white lg:col-span-2 lg:pl-3 lg:pr-8">
+        <header className="sticky top-0 z-30 flex h-auto min-h-16 min-w-0 items-center pb-2 pt-[calc(env(safe-area-inset-top)+3.25rem)] md:h-16 md:pb-0 md:pt-0 justify-between gap-3 bg-header pl-2 pr-4 text-white lg:col-span-2 lg:pl-3 lg:pr-8">
           <div className="flex shrink-0 items-center gap-3 pr-2">
             {/* the player alone, turned white for the navy bar */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -155,9 +178,21 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             )}
           </div>
         </nav>
-        <div className="mt-3 shrink-0 rounded-2xl bg-[#87ceeb] px-4 py-3 text-center text-[#0c0b5d] shadow-sm">
-          <p className="text-xs text-[#0c0b5d]/80">{greeting}</p>
-          <p className="text-base font-bold">{who}</p>
+        <div className="mt-3 flex shrink-0 items-center gap-3 rounded-2xl bg-[#87ceeb] px-4 py-3 text-[#0c0b5d] shadow-sm">
+          <button type="button" onClick={() => picker.current?.click()} title="Change profile picture" aria-label="Change profile picture" className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-full bg-[#0c0b5d] ring-2 ring-white">
+            {avatar ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={avatar} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <span className="text-lg font-bold text-white">{initials}</span>
+            )}
+          </button>
+          <input ref={picker} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" aria-label="Choose profile picture" onChange={(e) => { void choosePhoto(e.target.files?.[0]); e.target.value = ""; }} />
+          <div className="min-w-0 text-left">
+            <p className="text-xs text-[#0c0b5d]/80">{greeting}</p>
+            <p className="truncate text-base font-bold">{who}</p>
+            {photoErr && <p role="alert" className="mt-1 text-xs font-medium text-red-700">{photoErr}</p>}
+          </div>
         </div>
         <button onClick={() => { logout(); router.replace("/login"); }} className="mt-3 flex w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-red-600 px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700">
           <LogOut size={18} /> Sign out
@@ -169,7 +204,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         <DeniedDialog />
       </div>
 
-      <nav className="fixed inset-x-3 bottom-4 z-30 flex items-end rounded-3xl bg-[#0c0b5d] px-2 pb-1 shadow-xl lg:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-30 flex items-end bg-[#0c0b5d] px-2 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] pt-1 shadow-xl lg:hidden">
         {canSeePage("dashboard") && nav("/dashboard", "Dashboard", LayoutDashboard)}
         {canSeePage("payments") && nav("/payments", "Payments", icons.wallet)}
         <div className="flex flex-1 justify-center">

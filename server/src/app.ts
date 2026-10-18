@@ -53,7 +53,7 @@ app.use(cors({
 }));
 // Site Content takes pictures (big bodies); its own router reads them, after the staff sign-in check
 const smallJson = express.json({ limit: "100kb" });
-app.use((req, res, next) => ((req.path.startsWith("/api/admin/content") || req.path.startsWith("/api/admin/verify")) ? next() : smallJson(req, res, next)));
+app.use((req, res, next) => ((req.path.startsWith("/api/admin/content") || req.path.startsWith("/api/admin/verify") || req.path.startsWith("/api/admin/auth/avatar")) ? next() : smallJson(req, res, next)));
 
 app.get("/api/health", (_req, res) => { res.json({ success: true, message: "Admin server is running" }); });
 
