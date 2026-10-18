@@ -79,7 +79,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[264px_minmax(0,1fr)]">
-        <header className="sticky top-0 z-30 flex h-16 min-w-0 items-center justify-between gap-3 bg-header pl-2 pr-4 text-white lg:col-span-2 lg:pl-3 lg:pr-8">
+        <header className="sticky top-0 z-30 flex h-auto min-h-16 min-w-0 items-center pb-2 pt-[calc(env(safe-area-inset-top)+2rem)] md:h-16 md:pb-0 md:pt-0 justify-between gap-3 bg-header pl-2 pr-4 text-white lg:col-span-2 lg:pl-3 lg:pr-8">
           <div className="flex shrink-0 items-center gap-3 pr-2">
             {/* the player alone, turned white for the navy bar */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -88,7 +88,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           </div>
           <span aria-hidden className="hidden h-8 w-px shrink-0 bg-white/30 sm:block" />
           {/* the frequent pages as icons, on every page, for quick switching (the name shows on hover or long press) */}
-          <nav aria-label="Frequent pages" className="mx-3 flex min-w-0 flex-1 items-center justify-center gap-2.5 overflow-x-auto py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <nav aria-label="Frequent pages" className="mx-2 flex min-w-0 flex-1 items-center justify-start gap-1.5 overflow-x-auto py-1 [mask-image:linear-gradient(to_right,transparent,#000_10px,#000_calc(100%-10px),transparent)] md:mx-3 md:justify-center md:gap-2.5 md:[mask-image:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {visible.map((f) => {
               const on = isActive(f.href);
               const n = live.unseenFor(f.href).length;
@@ -104,9 +104,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
                     const go = live.openLive(f.href);
                     if (go) { e.preventDefault(); router.push(go); }
                   }}
-                  className={`relative grid h-11 w-11 shrink-0 place-items-center rounded-2xl ring-1 backdrop-blur-md transition ${on ? "bg-[#f5822a] text-white shadow-lg ring-[#f5822a]" : "bg-white/10 text-white/85 ring-white/20 hover:bg-white/20 hover:text-white"}`}
+                  className={`relative grid h-9 w-9 shrink-0 place-items-center rounded-xl md:h-11 md:w-11 md:rounded-2xl transition ${on ? "bg-[#f5822a] text-white shadow-lg ring-[#f5822a]" : "bg-[#1e2d5e] text-white/90 hover:bg-[#2a3c74] hover:text-white"}`}
                 >
-                  <f.icon size={22} />
+                  <f.icon size={18} className="md:h-[22px] md:w-[22px]" />
                   {n > 0 && <span className="absolute -right-1.5 -top-1.5 grid min-w-[20px] place-items-center rounded-full bg-red-600 px-1 text-[11px] font-bold leading-5 text-white ring-2 ring-header">{n > 9 ? "9+" : n}</span>}
                 </Link>
               );
