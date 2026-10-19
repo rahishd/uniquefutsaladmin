@@ -1411,3 +1411,16 @@ model DocVerification {
   @@unique([sourceType, sourceId])
   @@index([kind, createdAt])
 }
+
+// A staff member's browser or phone that agreed to alerts while the portal is closed (Web Push). Separate from the customers' PushSubscription.
+model StaffPushSubscription {
+  id        String   @id @default(cuid())
+  staffId   String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([staffId])
+}

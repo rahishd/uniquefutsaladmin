@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Accessibility, Baby, Bell, CalendarCheck, CalendarPlus, CreditCard, Gamepad2, HeartHandshake, Megaphone, MessageSquareWarning, RotateCcw, Scale, ShieldPlus, Swords, UserPlus, Users, X,
+  Accessibility, Baby, Bell, ShoppingBag, CalendarCheck, CalendarPlus, CreditCard, Gamepad2, HeartHandshake, Megaphone, MessageSquareWarning, RotateCcw, Scale, ShieldPlus, Swords, UserPlus, Users, X,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { canDo } from "@/lib/access";
+import { isSirenMuted, startSiren, stopSiren, unlockSirenOnFirstTouch } from "@/lib/siren";
 
 type Counts = { pendingPayments: number; disputes: number; refundsDue: number; arrivalsToday: number };
 type Item = { id: string; type: string; title: string; text: string; href: string; at: string; ref?: string };
@@ -21,7 +22,7 @@ const ITEMS: { key: keyof Counts; href: string; icon: React.ElementType; text: (
 
 const ICON: Record<string, React.ElementType> = {
   booking: CalendarPlus, payment: CreditCard, customer: UserPlus, complaint: MessageSquareWarning, referral: HeartHandshake, academy: Baby,
-  challenge: Swords, result: Scale, gamezone: Gamepad2, membership: Users, arrival: CalendarCheck, wheelchair: Accessibility, insurance: ShieldPlus,
+  challenge: Swords, result: Scale, gamezone: Gamepad2, membership: Users, arrival: CalendarCheck, wheelchair: Accessibility, insurance: ShieldPlus, order: ShoppingBag,
 };
 
 const SEEN = "uf-activity-seen";
@@ -54,14 +55,22 @@ export default function NotificationBell() {
   const box = useRef<HTMLDivElement>(null);
   const first = useRef(true);
   const known = useRef(new Set<string>());
+  const prevCounts = useRef<Counts | null>(null);
   const allowed = canDo("dashboard.view");
 
   useEffect(() => {
     if (!allowed) return;
     let live = true;
-    const load = () => api<Counts>("/admin/dashboard").then((d) => live && setC(d)).catch(() => {});
+    const load = () => api<Counts>("/admin/dashboard").then((d) => {
+      if (!live) return;
+      // a new payment, refund, dispute or arrival waiting also sounds the siren
+      const p = prevCounts.current;
+      if (p && (["pendingPayments", "disputes", "refundsDue", "arrivalsToday"] as const).some((k) => d[k] > p[k])) startSiren(4000);
+      prevCounts.current = d;
+      setC(d);
+    }).catch(() => {});
     load();
-    const t = setInterval(load, 60000);
+    const t = setInterval(load, 15000);
     const vis = () => document.visibilityState === "visible" && load();
     document.addEventListener("visibilitychange", vis);
     return () => { live = false; clearInterval(t); document.removeEventListener("visibilitychange", vis); };
@@ -72,7 +81,12 @@ export default function NotificationBell() {
       const fresh = items.filter((i) => !known.current.has(i.id));
       items.forEach((i) => known.current.add(i.id));
       setFeed(items);
-      if (!first.current && fresh.length > 0) setToast(fresh[0]); // something new arrived while the portal was open
+      if (!first.current && fresh.length > 0) {
+        // something new arrived while the portal was open: every new item sounds the siren (unless muted); a customer order is louder and stays up longer
+        const order = fresh.find((i) => i.type === "order");
+        setToast(order ?? fresh[0]);
+        startSiren(order ? 8000 : 4000);
+      }
       first.current = false;
     }).catch(() => {});
   }, []);
@@ -80,13 +94,21 @@ export default function NotificationBell() {
   useEffect(() => {
     if (!allowed) return;
     loadFeed();
-    const t = setInterval(() => document.visibilityState === "visible" && loadFeed(), 15000);
+    const t = setInterval(loadFeed, 15000); // also while the tab is in the background, so the siren still sounds
     const vis = () => document.visibilityState === "visible" && loadFeed();
     document.addEventListener("visibilitychange", vis);
     return () => { clearInterval(t); document.removeEventListener("visibilitychange", vis); };
   }, [allowed, loadFeed]);
 
-  useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 7000); return () => clearTimeout(t); }, [toast]);
+  // the first click or key press in the portal unlocks sound (browsers block it until then)
+  useEffect(() => unlockSirenOnFirstTouch(), []);
+
+  useEffect(() => {
+    if (!toast || isSirenMuted()) { stopSiren(); if (!toast) return; }
+    // orders stay up longer (a minute) so nobody misses them; everything else goes after 7 seconds
+    const t = setTimeout(() => setToast(null), toast.type === "order" ? 60000 : 7000);
+    return () => clearTimeout(t);
+  }, [toast]);
 
   useEffect(() => {
     if (!open) return;
@@ -122,10 +144,10 @@ export default function NotificationBell() {
       </button>
 
       {toast && !open && (
-        <Link href={withHl(toast)} onClick={() => { const next = [...read, toast.id]; setRead(next); saveIds(next); setToast(null); }} className="fixed bottom-24 left-4 right-4 z-[60] flex items-start gap-3 rounded-2xl border border-line bg-surface p-3 text-foreground shadow-xl sm:left-auto sm:right-6 sm:w-96 lg:bottom-6" role="status">
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand/10 text-brand">{(() => { const I = ICON[toast.type] ?? Bell; return <I size={18} />; })()}</span>
-          <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{toast.title}</span><span className="block truncate text-xs text-muted">{toast.text}</span></span>
-          <button type="button" aria-label="Dismiss" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setToast(null); }} className="text-muted"><X size={16} /></button>
+        <Link href={withHl(toast)} onClick={() => { const next = [...read, toast.id]; setRead(next); saveIds(next); setToast(null); }} className={`fixed bottom-24 left-4 right-4 z-[60] flex items-start gap-3 rounded-2xl border p-3 shadow-xl sm:left-auto sm:right-6 sm:w-96 lg:bottom-6 ${toast.type === "order" ? "animate-pulse border-red-700 bg-red-600 text-white" : "border-line bg-surface text-foreground"}`} role={toast.type === "order" ? "alert" : "status"}>
+          <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${toast.type === "order" ? "bg-white text-red-600" : "bg-brand/10 text-brand"}`}>{(() => { const I = ICON[toast.type] ?? Bell; return <I size={18} />; })()}</span>
+          <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{toast.title}</span><span className={`block text-xs ${toast.type === "order" ? "text-white/90" : "truncate text-muted"}`}>{toast.text}</span></span>
+          <button type="button" aria-label="Dismiss" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setToast(null); }} className={toast.type === "order" ? "text-white" : "text-muted"}><X size={16} /></button>
         </Link>
       )}
 

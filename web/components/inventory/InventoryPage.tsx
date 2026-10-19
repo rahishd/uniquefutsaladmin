@@ -17,6 +17,7 @@ export default function InventoryPage({ initialTab = "products" }: { initialTab?
   const [tab, setTab] = useState<Tab>(initialTab);
   const [ov, setOv] = useState<Overview | null>(null);
   const [tick, setTick] = useState(0);
+  const [stockPreset, setStockPreset] = useState<"" | "low">("");
   useEffect(() => { fetchOverview().then(setOv).catch(() => {}); }, [tick]);
   const changed = () => setTick((t) => t + 1);
 
@@ -29,13 +30,15 @@ export default function InventoryPage({ initialTab = "products" }: { initialTab?
       {ov && (
         <div className="grid grid-cols-2 gap-2 lg:grid-cols-6">
           {([
-            ["Products", String(ov.products), ""],
-            ["Low or out of stock", String(ov.lowStock + ov.outOfStock), ov.lowStock + ov.outOfStock > 0 ? "ring-2 ring-amber-500/50" : ""],
-            ["Stock value (cost)", rs(ov.stockCostValue), ""],
-            ["Goods on credit (unpaid)", `${rs(ov.goodsDue.amount)} · ${ov.goodsDue.count}`, ov.goodsDue.count > 0 ? "ring-2 ring-red-500/40" : ""],
-            ["Sales today", `${rs(ov.salesToday.amount)} · ${ov.salesToday.count}`, ""],
-            ["Sales, last 7 days", `${rs(ov.salesWeek.amount)} · ${ov.salesWeek.count}`, ""],
-          ] as const).map(([l, n, ring]) => <div key={l} className={`rounded-2xl bg-surface p-3 shadow-sm ${ring}`}><p className="text-lg font-bold sm:text-xl">{n}</p><p className="text-xs text-muted">{l}</p></div>)}
+            ["Products", String(ov.products), "", "products", ""],
+            ["Low or out of stock", String(ov.lowStock + ov.outOfStock), ov.lowStock + ov.outOfStock > 0 ? "ring-2 ring-amber-500/50" : "", "products", "low"],
+            ["Stock value (cost)", rs(ov.stockCostValue), "", "products", ""],
+            ["Goods on credit (unpaid)", `${rs(ov.goodsDue.amount)} · ${ov.goodsDue.count}`, ov.goodsDue.count > 0 ? "ring-2 ring-red-500/40" : "", "sell", ""],
+            ["Sales today", `${rs(ov.salesToday.amount)} · ${ov.salesToday.count}`, "", "sell", ""],
+            ["Sales, last 7 days", `${rs(ov.salesWeek.amount)} · ${ov.salesWeek.count}`, "", "sell", ""],
+          ] as const).map(([l, n, ring, to, stock]) => (
+            <button key={l} type="button" onClick={() => { setTab(to); setStockPreset(stock); }} aria-label={`${l}: ${n}. Open`} className={`rounded-2xl bg-surface p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-2 focus-visible:outline-brand active:scale-[0.98] ${ring}`}><p className="text-lg font-bold sm:text-xl">{n}</p><p className="text-xs text-muted">{l}</p></button>
+          ))}
         </div>
       )}
       <div className="flex gap-1 overflow-x-auto rounded-2xl bg-surface p-1 shadow-sm" role="tablist">
@@ -43,7 +46,7 @@ export default function InventoryPage({ initialTab = "products" }: { initialTab?
           <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={`flex-1 whitespace-nowrap rounded-xl px-3 py-2.5 text-sm font-semibold ${tab === id ? "bg-brand text-white" : "text-muted hover:bg-surface-2"}`}>{label}</button>
         ))}
       </div>
-      {tab === "products" && <Products tick={tick} onChanged={changed} />}
+      {tab === "products" && <Products tick={tick} onChanged={changed} stockPreset={stockPreset} />}
       {tab === "sell" && <Sell tick={tick} onChanged={changed} />}
     </div>
   );
@@ -52,13 +55,14 @@ export default function InventoryPage({ initialTab = "products" }: { initialTab?
 /* ---------------- products ---------------- */
 type Sheet = { kind: "product"; p: Product | null } | { kind: "stock"; p: Product } | { kind: "categories" } | null;
 
-function Products({ tick, onChanged }: { tick: number; onChanged: () => void }) {
+function Products({ tick, onChanged, stockPreset }: { tick: number; onChanged: () => void; stockPreset: "" | "low" }) {
   const [items, setItems] = useState<Product[] | null>(null);
   const [cats, setCats] = useState<Category[]>([]);
   const [search, setSearch] = useState("");
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("");
-  const [stock, setStock] = useState<"" | "low" | "out">("");
+  const [stock, setStock] = useState<"" | "low" | "out">(stockPreset);
+  useEffect(() => { setStock(stockPreset); setItems(null); }, [stockPreset]);
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
   const [sheet, setSheet] = useState<Sheet>(null);

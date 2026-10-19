@@ -52,3 +52,26 @@ export async function pushToUsers(userIds: string[], payload: PushPayload): Prom
     return { customers: 0, devices: 0 };
   }
 }
+
+// Sends one alert to every saved device of a staff member (portal closed or asleep). Never throws; dead devices are removed.
+export async function pushToStaff(staffId: string, payload: PushPayload & { urgent?: boolean }): Promise<number> {
+  if (!pushEnabled()) return 0;
+  try {
+    configure();
+    const subs = await prisma.staffPushSubscription.findMany({ where: { staffId } });
+    const body = JSON.stringify(payload);
+    let devices = 0;
+    for (const s of subs) {
+      try {
+        await sender({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, body);
+        devices++;
+      } catch (err) {
+        const status = (err as { statusCode?: number }).statusCode;
+        if (status === 404 || status === 410) await prisma.staffPushSubscription.deleteMany({ where: { endpoint: s.endpoint } });
+      }
+    }
+    return devices;
+  } catch {
+    return 0;
+  }
+}

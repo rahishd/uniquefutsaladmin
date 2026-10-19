@@ -10,6 +10,7 @@ import { canSeePage } from "@/lib/access";
 import { useLive } from "@/lib/live";
 import DeniedDialog from "./DeniedDialog";
 import NotificationBell from "./NotificationBell";
+import SirenToggle from "./SirenToggle";
 import { getToken } from "@/lib/api";
 import { currentAdmin, logout, refreshAdmin, setAvatar, type Admin } from "@/lib/auth";
 
@@ -136,6 +137,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             })}
           </nav>
           <div className="flex shrink-0 items-center gap-3 pl-4">
+            <SirenToggle />
             <NotificationBell />
           </div>
         </header>

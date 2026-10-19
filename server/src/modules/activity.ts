@@ -10,7 +10,7 @@ import { requirePermission } from "../middleware/auth";
 export const activityRouter = Router();
 
 // ref names the record (the same key the page puts in data-hl), so a click can highlight it
-type Item = { id: string; type: string; title: string; text: string; href: string; at: string; ref?: string };
+export type Item = { id: string; type: string; title: string; text: string; href: string; at: string; ref?: string };
 const NEEDS: Record<string, string> = {
   booking: "bookings.view", payment: "payments.view", customer: "customers.view", complaint: "complaints.view", referral: "refer.view", academy: "academy.view",
   wheelchair: "wheelchair.view", insurance: "insurance.view", challenge: "teams.view", result: "teams.view", gamezone: "gamezone.view", membership: "membership.view", arrival: "arrivals.view",
@@ -33,11 +33,9 @@ const day = (k: string) => new Date(`${k}T00:00:00Z`).toLocaleDateString("en-GB"
 const hour = (n: number) => `${n % 12 || 12}:00 ${n < 12 ? "AM" : "PM"}`;
 const NOT_LEDGER = { AND: [{ OR: [{ notes: null }, { notes: { not: { contains: "MEMBERSHIP_PAYMENT" } } }] }, { paymentMethod: { not: "membership" } }] };
 
-activityRouter.get("/activity", requirePermission("dashboard.view"), handler(async (req, res) => {
-  const q = parse(z.object({ since: z.string().datetime().optional() }), req.query);
-  const floor = new Date(Date.now() - 7 * 86_400_000);
-  const since = q.since ? new Date(Math.max(new Date(q.since).getTime(), floor.getTime())) : new Date(Date.now() - 24 * 3_600_000);
-  const can = new Set(req.staff!.permissions as string[]);
+// The feed for one staff member (what they may open, without their own actions). Also used to push new items while the portal is closed.
+export async function buildActivity(staff: { id: string; permissions: string[] }, since: Date): Promise<Item[]> {
+  const can = new Set(staff.permissions);
   const want = (t: string) => can.has(NEEDS[t]);
   const gte = { gte: since };
   const take = 25;
@@ -70,7 +68,7 @@ activityRouter.get("/activity", requirePermission("dashboard.view"), handler(asy
   const teamNames = new Map((await prisma.team.findMany({ where: { id: { in: [...challenges.flatMap((c) => [c.challengerTeamId, c.challengedTeamId]), ...results.map((r) => r.submittedByTeamId)] } }, select: { id: true, name: true } })).map((t) => [t.id, t.name]));
 
   const staffLog = await prisma.adminAuditLog.findMany({
-    where: { createdAt: gte, staffId: { not: req.staff!.id }, entity: { in: Object.keys(STAFF).filter((e) => want(STAFF[e].type)) }, action: { notIn: QUIET } },
+    where: { createdAt: gte, staffId: { not: staff.id }, entity: { in: Object.keys(STAFF).filter((e) => want(STAFF[e].type)) }, action: { notIn: QUIET } },
     orderBy: { createdAt: "desc" }, take,
   });
   const bookingIds = staffLog.filter((l) => l.entity === "booking" && l.entityId).map((l) => l.entityId!);
@@ -101,6 +99,12 @@ activityRouter.get("/activity", requirePermission("dashboard.view"), handler(asy
     ...subs.map((s) => ({ id: `m-${s.id}`, ref: `m-${s.id}`, type: "membership", title: "Membership request", text: `${who(s.userId)} asked for ${s.plan.name}${s.totalPrice ? ` (Rs. ${Math.round(s.totalPrice)})` : ""}`, href: "/membership", at: s.createdAt.toISOString() })),
     ...arrivals.map((a) => ({ id: `ar-${a.refId}-${a.confirmedAt.getTime()}`, ref: `ar-${a.refId}`, type: "arrival", title: "Customer is coming", text: `${who(a.userId)} confirmed they are on the way`, href: "/arrivals", at: a.confirmedAt.toISOString() })),
   ].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 40);
+  return items;
+}
 
-  send(res, { items, now: new Date().toISOString() });
+activityRouter.get("/activity", requirePermission("dashboard.view"), handler(async (req, res) => {
+  const q = parse(z.object({ since: z.string().datetime().optional() }), req.query);
+  const floor = new Date(Date.now() - 7 * 86_400_000);
+  const since = q.since ? new Date(Math.max(new Date(q.since).getTime(), floor.getTime())) : new Date(Date.now() - 24 * 3_600_000);
+  send(res, { items: await buildActivity(req.staff!, since), now: new Date().toISOString() });
 }));
