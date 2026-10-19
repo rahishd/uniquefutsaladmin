@@ -53,7 +53,7 @@ export async function pushNewActivity(now = new Date()): Promise<number> {
     const known = pushed.get(id);
     pushed.set(id, new Set(items.map((i) => i.id).concat([...(known ?? [])]).slice(0, 400)));
     if (!known) continue;
-    const fresh = items.filter((i) => !known.has(i.id));
+    const fresh = items.filter((i) => !known.has(i.id) && !i.id.startsWith("s-")); // only customer activity alerts staff devices
     if (fresh.length === 0) continue;
     const orders = fresh.some((i) => i.type === "order" || i.title.includes("EMERGENCY"));
     if (fresh.length <= 3) {

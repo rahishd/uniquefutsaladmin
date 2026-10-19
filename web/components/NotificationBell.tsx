@@ -55,7 +55,6 @@ export default function NotificationBell() {
   const box = useRef<HTMLDivElement>(null);
   const first = useRef(true);
   const known = useRef(new Set<string>());
-  const prevCounts = useRef<Counts | null>(null);
   const allowed = canDo("dashboard.view");
 
   useEffect(() => {
@@ -63,10 +62,7 @@ export default function NotificationBell() {
     let live = true;
     const load = () => api<Counts>("/admin/dashboard").then((d) => {
       if (!live) return;
-      // a new payment, refund, dispute or arrival waiting also sounds the siren
-      const p = prevCounts.current;
-      if (p && (["pendingPayments", "disputes", "refundsDue", "arrivalsToday"] as const).some((k) => d[k] > p[k])) startSiren(4000);
-      prevCounts.current = d;
+      // counts only feed the badge; sound comes from the customer activity feed below
       setC(d);
     }).catch(() => {});
     load();
@@ -82,10 +78,15 @@ export default function NotificationBell() {
       items.forEach((i) => known.current.add(i.id));
       setFeed(items);
       if (!first.current && fresh.length > 0) {
-        // something new arrived while the portal was open: every new item sounds the siren (unless muted); a customer order is louder and stays up longer
-        const order = fresh.find((i) => i.type === "order");
-        setToast(order ?? fresh[0]);
-        startSiren(order ? 8000 : 4000);
+        // only what customers did in their app sounds the siren (unless muted); staff actions (ids "s-...") show quietly.
+        // A payment just detected as paid is announced first; a customer order is louder and stays up longer.
+        const byCustomer = fresh.filter((i) => !i.id.startsWith("s-"));
+        const order = byCustomer.find((i) => i.type === "order");
+        const paid = byCustomer.find((i) => i.type === "payment");
+        setToast(order ?? paid ?? byCustomer[0] ?? fresh[0]);
+        // new bookings and Gamezone sessions ring for 5 seconds; everything else is one 1-second beep
+        const rings = byCustomer.some((i) => i.type === "gamezone" || (i.type === "booking" && i.title === "New booking"));
+        if (byCustomer.length > 0) startSiren(rings ? 5000 : 1000);
       }
       first.current = false;
     }).catch(() => {});

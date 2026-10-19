@@ -72,3 +72,20 @@ describe("Admin activity feed", () => {
     assert.equal((await api.get("/activity", {})).status, 401);
   });
 });
+
+describe("Orders customers make at the venue", () => {
+  it("shows an app order for staff to bring, not the goods staff gave on credit themselves", async () => {
+    const owner = await staff("owner");
+    await customer("9880000001", "Raju Rai");
+    const due = (saleId: string, createdBy: string, items: string, amount: number) =>
+      prisma.goodsDue.create({ data: { userId: "9880000001", saleId, amount, items, lines: "[]", createdBy } });
+    await due("s-app", "app:9880000001", "2 x Mineral Water Bottle, 1 x Frooty", 115);
+    await due("s-staff", owner.id, "5 x Gloves", 500);
+    const items = (await api.get("/activity", owner.auth)).body.data.items as { type: string; title: string; text: string; href: string }[];
+    const orders = items.filter((i) => i.type === "order");
+    assert.equal(orders.length, 1, "only the customer's own app order is announced");
+    assert.equal(orders[0].title, "Order for the venue");
+    assert.match(orders[0].text, /Raju Rai: 2 x Mineral Water Bottle, 1 x Frooty \(Rs\. 115\)/);
+    assert.equal(orders[0].href, "/payments");
+  });
+});

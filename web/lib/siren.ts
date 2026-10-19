@@ -73,10 +73,10 @@ export function startSiren(ms = 6000) {
       const a = new Audio(SOUND_URL);
       a.volume = getSirenVolume();
       clip = a;
-      // a long alert (a customer order) plays the sound three times
-      let left = ms > 3000 ? 2 : 0;
+      // the sound repeats until `ms` is up, then is cut off (1000 = a single short beep, 5000 = ringing)
       a.addEventListener("error", () => { fileMissing = true; if (clip === a) { clip = null; synthSiren(ms); } }, { once: true });
-      a.addEventListener("ended", () => { if (left-- > 0 && clip === a) { a.currentTime = 0; void a.play().catch(() => {}); } });
+      a.addEventListener("ended", () => { if (clip === a) { a.currentTime = 0; void a.play().catch(() => {}); } });
+      stopAt = setTimeout(stopSiren, ms);
       void a.play().catch(() => { /* blocked until the first click, or the error event above handles a missing file */ });
       try { navigator.vibrate?.([300, 150, 300]); } catch { /* not supported */ }
       return;

@@ -49,15 +49,15 @@ describe("Final bill: goods and games together", () => {
     assert.match(r.body.data.code, /^CB-[A-Z2-9]{6}$/);
     assert.deepEqual([r.body.data.gameTotal, r.body.data.goodsTotal, r.body.data.total], [1250, 200, 1450]);
     assert.deepEqual(r.body.data.lines.map((l: { type: string }) => l.type), ["game", "goods"]);
-    assert.deepEqual([r.body.data.pointsGames, r.body.data.pointsGoods], [12.5, 2]);
+    assert.deepEqual([r.body.data.pointsGames, r.body.data.pointsGoods], [125, 2]);
     const b = await prisma.booking.findUnique({ where: { id: g.id } });
     assert.deepEqual([b!.paymentStatus, b!.cashAmount, b!.remainingAmount], ["completed", 1250, 0]);
     assert.equal((await prisma.product.findUnique({ where: { id: water.id } }))!.inventory, 92);
-    assert.equal(await pts(), 14.5);
+    assert.equal(await pts(), 127);
     const bill = await prisma.checkout.findUnique({ where: { code: r.body.data.code } });
     assert.equal(bill!.userId, P);
     assert.deepEqual(bill!.bookingIds, [g.id]);
-    assert.equal(Number(bill!.pointsGames), 12.5);
+    assert.equal(Number(bill!.pointsGames), 125);
     assert.ok(await prisma.notification.findFirst({ where: { userId: P, type: "payment", title: { contains: r.body.data.code } } }));
     const list = (await api.get("/inventory/bills", mgr.auth)).body.data;
     assert.equal(list.total, 1);
@@ -75,7 +75,7 @@ describe("Final bill: goods and games together", () => {
     assert.equal(again.status, 409);
     assert.equal((await prisma.product.findUnique({ where: { id: water.id } }))!.inventory, 100, "goods were not taken");
     assert.equal(await prisma.checkout.count(), 1);
-    assert.equal(await pts(), 12.5, "points once");
+    assert.equal(await pts(), 125, "points once");
     assert.equal((await api.post("/inventory/checkout", mgr.auth, { phone: P, payment: "cash" })).status, 400);
     assert.equal((await api.post("/inventory/checkout", mgr.auth, { phone: "9899999999", payment: "cash", items: [{ productId: water.id, quantity: 1 }] })).status, 404);
   });
@@ -90,7 +90,7 @@ describe("Final bill: goods and games together", () => {
     assert.equal(await pts(), 0);
     const done = await api.post(`/bookings/${g.id}/complete`, mgr.auth);
     assert.equal(done.status, 200);
-    assert.equal(await pts(), 12.5);
+    assert.equal(await pts(), 125);
   });
 
   it("goods only still make a bill for the customer; collecting a game needs the payments tick too", async () => {
@@ -217,7 +217,7 @@ describe("Dues: everything one customer still owes", () => {
     assert.equal((await prisma.booking.findUnique({ where: { id: skipped.id } }))!.paymentStatus, "pending", "the skipped one stays unpaid");
     const bill = await prisma.checkout.findFirst({ where: { userId: P } });
     assert.deepEqual([bill!.total, bill!.bookingIds.length], [3000, 3]);
-    assert.equal(await pts(), 20, "the two played games earn 10 each; the upcoming one earns when it is played");
+    assert.equal(await pts(), 200, "the two played games earn 100 each; the upcoming one earns when it is played");
     assert.equal((await api.post("/bookings/collect-dues", mgr.auth, { anchorId: cur.id, bookingIds: [old.id] })).status, 409, "never twice");
   });
 
@@ -296,7 +296,7 @@ describe("Split payment and goods on credit", () => {
     const r = await api.post("/bookings/collect-dues", mgr.auth, { anchorId: g.id, bookingIds: [g.id, up.id], goodsDueIds: dues.goods.map((x: { id: string }) => x.id), payments: [{ method: "cash", amount: 2000 }, { method: "fonepay", amount: 1600 }], fonepayQrId: await paidQr(mgr.auth, 1600) });
     assert.equal(r.status, 200);
     assert.deepEqual([r.body.data.count, r.body.data.total], [3, 3600]);
-    assert.equal(await pts(), 22.5, "goods 10 + the played game 12.5; the upcoming game earns when played");
+    assert.equal(await pts(), 135, "goods 10 + the played game 125; the upcoming game earns when played");
     const bill = await prisma.checkout.findFirst({ where: { userId: P } });
     assert.deepEqual([bill!.total, bill!.goodsTotal, bill!.gameTotal, bill!.paymentMethod], [3600, 1000, 2600, "split"]);
     assert.equal((await prisma.goodsDue.findFirst({ where: { userId: P } }))!.status, "paid");

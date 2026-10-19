@@ -163,7 +163,7 @@ export default function VerifyAdminPage() {
         <div className="space-y-3 rounded-2xl bg-surface p-4 shadow-sm">
           <h2 className="flex items-center gap-2 font-semibold"><Search size={16} /> Check a code</h2>
           <form onSubmit={look} className="flex gap-2">
-            <input className={`${field} font-mono text-lg tracking-[0.3em]`} inputMode="numeric" maxLength={6} value={q} onChange={(e) => { setQ(e.target.value.replace(/\D/g, "")); setFound(null); }} placeholder="4821" aria-label="Verification code" />
+            <input className={`${field} font-mono text-lg tracking-[0.3em]`} autoCapitalize="characters" maxLength={6} value={q} onChange={(e) => { setQ(e.target.value.replace(/[^0-9a-z]/gi, "").toUpperCase()); setFound(null); }} placeholder="1234A" aria-label="Verification code" />
             <button disabled={q.length < 4 || looking} className="shrink-0 rounded-full bg-brand px-5 text-sm font-semibold text-white disabled:opacity-50">{looking ? <Loader2 size={16} className="animate-spin" /> : "Check"}</button>
           </form>
           {found && (found.found ? (

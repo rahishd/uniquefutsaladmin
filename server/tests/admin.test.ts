@@ -88,7 +88,7 @@ describe("bookings", () => {
     const retro = await api.post("/bookings/walk-in", fd.auth, { date: addDaysKey(today, -1), startTime: "10:00", customerName: "Ram", customerPhone: "9877000001", paid: true, priceOverride: 1150 });
     assert.equal(retro.status, 201);
     assert.equal(retro.body.data.status, "completed");
-    assert.equal(Number((await prisma.loyaltyEntry.findFirstOrThrow({ where: { userId: "9877000001" } })).points), 11.5);
+    assert.equal(Number((await prisma.loyaltyEntry.findFirstOrThrow({ where: { userId: "9877000001" } })).points), 115);
     assert.equal((await api.post("/bookings/walk-in", fd.auth, { date: tomorrow, startTime: "10:00", customerName: "Ram", customerPhone: "123" })).status, 400);
   });
 
@@ -101,7 +101,7 @@ describe("bookings", () => {
     assert.equal(paid.status, "completed");
     const entries = await prisma.loyaltyEntry.findMany({ where: { userId: "9822222222" } });
     assert.equal(entries.length, 1);
-    assert.equal(Number(entries[0].points), 12.5);
+    assert.equal(Number(entries[0].points), 125);
     assert.equal((await api.post(`/bookings/${paid.id}/complete`, fd.auth)).status, 409, "already completed");
     assert.equal(await prisma.loyaltyEntry.count(), 1);
 

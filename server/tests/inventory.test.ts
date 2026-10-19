@@ -147,3 +147,21 @@ describe("Inventory: who may do what", () => {
     assert.ok((await prisma.adminAuditLog.count({ where: { entity: "inventory_sale" } })) >= 1);
   });
 });
+
+describe("Inventory: show a product in the customer Order list", () => {
+  it("is off by default and staff can switch it on and off, when adding or later", async () => {
+    const mgr = await staff("owner");
+    const cat = (await api.post("/inventory/categories", mgr.auth, { name: "Drinks" })).body.data;
+    const plain = (await api.post("/inventory/products", mgr.auth, { name: "Plain", price: 50, categoryId: cat.id })).body.data;
+    assert.equal(plain.orderable, false);
+    const water = (await api.post("/inventory/products", mgr.auth, { name: "Mineral Water Bottle", price: 40, categoryId: cat.id, orderable: true, openingStock: 12 })).body.data;
+    assert.equal(water.orderable, true);
+    const off = await api.patch(`/inventory/products/${water.id}`, mgr.auth, { orderable: false });
+    assert.equal(off.status, 200);
+    assert.equal(off.body.data.orderable, false);
+    assert.equal((await api.patch(`/inventory/products/${plain.id}`, mgr.auth, { orderable: true })).body.data.orderable, true);
+    const list = (await api.get("/inventory/products", mgr.auth)).body.data as { name: string; orderable: boolean }[];
+    assert.equal(list.find((p) => p.name === "Plain")?.orderable, true);
+    assert.equal(list.find((p) => p.name === "Mineral Water Bottle")?.orderable, false);
+  });
+});

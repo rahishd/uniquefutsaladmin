@@ -15,6 +15,7 @@ const PAGES: Record<string, string[]> = {
   arrival: ["/arrivals"],
   gamezone: ["/gamezone"],
   membership: ["/membership"],
+  order: ["/payments"],
   complaint: ["/complaints"],
   referral: ["/refer"],
   academy: ["/academy"],

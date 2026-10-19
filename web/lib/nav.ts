@@ -355,7 +355,7 @@ export const modules: Module[] = [
   {
     slug: "verify", title: "Verify Document", group: "Communication", icon: "shield",
     summary: "Verification codes for bills and for documents you give to schools, banks and colleges. Anyone can check a code on the customer site.",
-    clientFeatures: ["Verify Documents in Quick Access: type a 4-digit code to see if a bill or document is genuine", "A verification code on every receipt in Payment history and its PDF", "Genuine: the bill or document details; not genuine: a clear warning"],
+    clientFeatures: ["Verify Documents in Quick Access: type a 5-character code (like 1234A) to see if a bill or document is genuine", "A verification code on every receipt in Payment history and its PDF", "Genuine: the bill or document details; not genuine: a clear warning"],
     adminTasks: ["Make a code for a document (reference letter, partnership, agreement) with the organisation, notes and photos", "Withdraw a code so it no longer verifies, or restore it", "Look up any code", "See the codes of recent bills; invoices sent on WhatsApp carry the bill code"],
     endpoints: [
       e("GET", "/admin/verify", "document codes and the codes of recent bills"), e("GET", "/admin/verify/lookup/:code", "what a code is and whether it still verifies"),

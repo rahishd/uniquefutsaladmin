@@ -3,7 +3,7 @@
 //   - see the codes of recent bills and look any code up,
 //   - make a code for a DOCUMENT (a reference for another organisation, with notes and photos) and withdraw it later,
 //   - get the code of a bill (made on first use) to print on the invoice.
-// A code is 4 digits (5 or 6 only when the shorter ones run out) and is never reused.
+// A code is 5 characters, digits and capital letters (like 1234A), and is never reused. Older all-digit codes still verify.
 import express, { Router } from "express";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
@@ -21,15 +21,21 @@ export const ORG_TYPES = ["school", "college", "bank", "company", "other"] as co
 const MAX_PHOTOS = 6;
 
 // ---- codes ----
-const randomCode = (digits: number) => {
-  const min = 10 ** (digits - 1);
-  return String(min + Math.floor(Math.random() * 9 * min));
+// New codes are 5 characters: digits and capital letters mixed, like 1234A (no I or O, so they are not mistaken for 1 and 0).
+// Older all-digit codes (4 to 6 digits) keep working. If every 5-character code that is drawn keeps clashing, it moves to 6.
+const ALPHABET = "0123456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+const randomCode = (len: number) => {
+  for (;;) {
+    let c = "";
+    for (let i = 0; i < len; i++) c += ALPHABET[Math.floor(Math.random() * ALPHABET.length)];
+    if (/[0-9]/.test(c) && /[A-Z]/.test(c)) return c;
+  }
 };
 type NewDoc = Omit<Prisma.DocVerificationUncheckedCreateInput, "code">;
 
 export async function createWithCode(data: NewDoc) {
-  for (const digits of [4, 5, 6]) {
-    for (let i = 0; i < (digits === 4 ? 25 : 60); i++) {
+  for (const digits of [5, 6]) {
+    for (let i = 0; i < (digits === 5 ? 60 : 100); i++) {
       try {
         return await prisma.docVerification.create({ data: { ...data, code: randomCode(digits) } });
       } catch (e) {
@@ -90,8 +96,8 @@ verifyRouter.get("/", requirePermission("verify.view"), handler(async (_req, res
 
 // ---- look a code up (what it is, and whether it still verifies) ----
 verifyRouter.get("/lookup/:code", requirePermission("verify.view"), handler(async (req, res) => {
-  const code = param(req, "code").replace(/\s+/g, "");
-  if (!/^\d{4,6}$/.test(code)) throw new AppError(400, "A verification code is 4 digits");
+  const code = param(req, "code").replace(/\s+/g, "").toUpperCase();
+  if (!/^[0-9A-Z]{4,6}$/.test(code)) throw new AppError(400, "A verification code is 5 characters, like 1234A");
   const d = await prisma.docVerification.findUnique({ where: { code } });
   if (!d) return send(res, { found: false });
   send(res, { found: true, genuine: !d.revokedAt, kind: d.kind, code: d.code, title: d.title, issuedTo: d.issuedTo, sourceType: d.sourceType, issuedAt: d.createdAt, revoked: !!d.revokedAt });
@@ -130,4 +136,12 @@ verifyRouter.patch("/:id", requirePermission("verify.manage"), handler(async (re
   const d = await prisma.docVerification.update({ where: { id: found.id }, data: { revokedAt: b.revoked ? new Date() : null } });
   await audit(req, b.revoked ? "revoke" : "restore", "doc_verification", d.id, { code: d.code, kind: d.kind });
   send(res, docView(d), b.revoked ? "Code withdrawn: it no longer verifies" : "Code restored");
+}));
+
+// ---- a verification number for every PDF staff download (reports, tournament bills) ----
+verifyRouter.post("/issue", requireAnyPermission(["reports.view", "tournaments.bill", "payments.view", "dashboard.view"]), handler(async (req, res) => {
+  const b = parse(z.object({ title: z.string().trim().min(3).max(120), details: z.string().trim().max(1500).optional() }), req.body);
+  const doc = await createWithCode({ kind: "document", title: b.title, issuedTo: null, orgType: "other", details: b.details || null, issuedBy: req.staff!.name });
+  await audit(req, "create", "doc_verification", doc.id, { code: doc.code, title: b.title, pdf: true });
+  send(res, { code: doc.code }, "Verification number issued", 201);
 }));

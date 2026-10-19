@@ -88,7 +88,7 @@ describe("Verify Document: bills", () => {
     const c = await prisma.checkout.create({ data: { code: "CB-TEST01", userId: "9800000951", paymentMethod: "cash", goodsTotal: 100, gameTotal: 0, total: 100, lines: "[]", createdBy: "x" } });
     const a = await api.get(`/verify/bill-code?type=checkout&id=${c.id}`, s.auth);
     assert.equal(a.status, 200);
-    assert.match(a.body.data.code, /^\d{4}$/);
+    assert.match(a.body.data.code, /^[0-9A-Z]{5}$/);
     const b = await api.get(`/verify/bill-code?type=checkout&id=${c.id}`, s.auth);
     assert.equal(b.body.data.code, a.body.data.code);
     assert.equal((await api.get("/verify/bill-code?type=checkout&id=nope", s.auth)).status, 404);

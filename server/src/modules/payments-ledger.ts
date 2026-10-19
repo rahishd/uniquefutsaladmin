@@ -13,6 +13,13 @@ import { NOT_LEDGER } from "./bookings";
 export const ledgerRouter = Router();
 
 const DEAD = ["cancelled", "expired"];
+
+// Goods a customer took on credit and has not paid yet, per phone, so each row can say "also owes Rs. X for goods".
+async function goodsOwed(phones: (string | null | undefined)[]) {
+  const list = [...new Set(phones.filter((p): p is string => !!p))];
+  const rows = list.length ? await prisma.goodsDue.groupBy({ by: ["userId"], where: { userId: { in: list }, status: "due" }, _sum: { amount: true }, _count: { _all: true } }) : [];
+  return new Map(rows.map((r) => [r.userId, { amount: r._sum.amount ?? 0, count: r._count._all }]));
+}
 const filters = z.object({
   kind: z.enum(["court", "gamezone", "club", "gift"]).default("court"),
   status: z.enum(["paid", "unpaid", "cancelled"]).optional(),
@@ -66,9 +73,11 @@ ledgerRouter.get("/ledger", requirePermission("payments.view"), handler(async (r
     const [rows, total] = await Promise.all([prisma.gzBooking.findMany({ where, orderBy: [{ date: "desc" }, { startHour: "desc" }], take, skip }), prisma.gzBooking.count({ where })]);
     const users = await prisma.user.findMany({ where: { phoneNumber: { in: rows.flatMap((r) => (r.userId ? [r.userId] : [])) } }, select: { phoneNumber: true, name: true } });
     const name = new Map(users.map((u) => [u.phoneNumber, u.name]));
+    const owed = await goodsOwed(rows.map((r) => r.guestPhone ?? r.userId));
     return send(res, {
       total, page: pageNo, limit,
       items: rows.map((r) => ({
+        goodsDue: owed.get((r.guestPhone ?? r.userId) ?? "") ?? { amount: 0, count: 0 },
         kind: "gamezone", id: r.id, ref: r.code, code: r.code, date: r.date, time: `${String(r.startHour).padStart(2, "0")}:00`,
         customer: r.guestName ?? (r.userId ? name.get(r.userId) ?? null : null), phone: r.guestPhone ?? r.userId, amount: r.total,
         status: DEAD.includes(r.status) ? "cancelled" : r.paymentStatus === "paid" ? "paid" : "unpaid", method: r.paymentMethod, mode: modeOf(r.paymentMethod), createdAt: r.createdAt,
@@ -99,15 +108,31 @@ ledgerRouter.get("/ledger", requirePermission("payments.view"), handler(async (r
 
   const where: Prisma.BookingWhereInput = { AND: [courtBase(f), courtStatus(f.status)] };
   const [rows, total] = await Promise.all([prisma.booking.findMany({ where, orderBy: [{ date: "desc" }, { startTime: "desc" }], take, skip }), prisma.booking.count({ where })]);
+  const owed = await goodsOwed(rows.map((r) => r.customerPhone ?? r.userId));
   send(res, {
     total, page: pageNo, limit,
     items: rows.map((r) => ({
+      goodsDue: owed.get((r.customerPhone ?? r.userId) ?? "") ?? { amount: 0, count: 0 },
       kind: "court", id: r.id, ref: r.id, code: r.code ?? "UF-" + r.id.slice(-6).toUpperCase(), date: r.date, time: r.startTime,
       customer: r.customerName, phone: r.customerPhone ?? r.userId, amount: r.totalPrice,
       status: DEAD.includes(r.status) ? "cancelled" : r.paymentStatus === "completed" ? "paid" : "unpaid", method: r.paymentMethod, mode: modeOf(r.paymentMethod), createdAt: r.createdAt,
       clubDiscount: r.clubDiscount,
     })),
   });
+}));
+
+// Everything a customer took from the venue's stock: what they still owe (goods on credit, with the items) and what they paid for recently.
+ledgerRouter.get("/customer-goods", requirePermission("payments.view"), handler(async (req, res) => {
+  const { phone } = parse(z.object({ phone: z.string().min(5).max(20) }), req.query);
+  const rows = await prisma.goodsDue.findMany({ where: { userId: phone }, orderBy: { createdAt: "desc" }, take: 60 });
+  const lines = (json: string) => { try { return (JSON.parse(json) as { type?: string; label: string; quantity: number; amount: number }[]).filter((l) => l.type !== "game"); } catch { return []; } };
+  const shape = (d: (typeof rows)[number]) => ({
+    id: d.id, items: d.items, amount: d.amount, lines: lines(d.lines), createdAt: d.createdAt, status: d.status,
+    source: d.createdBy.startsWith("app:") ? "Ordered in the customer app" : "Given by staff", by: d.createdBy.startsWith("app:") ? null : d.createdBy,
+    paidAt: d.paidAt, paidBy: d.paidBy, checkoutCode: d.checkoutCode,
+  });
+  const due = rows.filter((d) => d.status === "due").map(shape);
+  send(res, { due, dueTotal: due.reduce((n, d) => n + d.amount, 0), paid: rows.filter((d) => d.status === "paid").slice(0, 15).map(shape) });
 }));
 
 // Totals for the cards above the list. They follow the date, mode and search filters, but not the status filter.

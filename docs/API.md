@@ -147,8 +147,8 @@ Uses the venue's existing `Product`, `Category` and `InventoryLog` tables (the c
 | `GET /inventory/overview` | inventory.view | products, low, out of stock, stock value (cost), sales today and last 7 days |
 | `GET /inventory/categories`, `POST`, `PATCH /:id`, `DELETE /:id` | view; products | names are unique (any case); a category with products cannot be deleted |
 | `GET /inventory/products?q&category&stock=low\|out` | inventory.view | `state` ok, low (at or below the warning level) or out; margin from cost price |
-| `POST /inventory/products` | inventory.products | `{name, categoryId, price, costPrice?, unit, lowStockThreshold, openingStock}`; opening stock is logged |
-| `PATCH /inventory/products/:id`, `DELETE` | inventory.products | stock is not editable here; a product in past orders cannot be deleted |
+| `POST /inventory/products` | inventory.products | `{name, categoryId, price, costPrice?, unit, lowStockThreshold, orderable?, openingStock}` (`orderable` = show in the customer app Order list); opening stock is logged |
+| `PATCH /inventory/products/:id`, `DELETE` | inventory.products | `orderable` switches the product on or off for the customer app Order list (customers playing a booked game order it from the app; the order becomes a pay-later goods due and the bell sounds a siren); stock is not editable here; a product in past orders cannot be deleted |
 | `POST /inventory/products/:id/stock` | inventory.stock | `{type: add\|remove\|set, quantity, reason?, costPrice?}`; set = the counted amount; refuses to go below 0 |
 | `GET /inventory/logs?page` | inventory.view | newest first |
 | `POST /inventory/sales` | inventory.sell | `{payment: cash\|online, phone?, items[{productId, quantity}]}`; price from the product, never the request; all-or-nothing; a registered phone earns Rs. 100 = 1 point (once); walk-ins earn none |

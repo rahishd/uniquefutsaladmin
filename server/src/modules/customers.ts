@@ -111,7 +111,7 @@ export async function customerProfile(phone: string) {
     prisma.complaint.count({ where: { userId: phone, status: { in: ["open", "in_review"] } } }),
     prisma.complaint.findMany({ where: { userId: phone }, orderBy: { createdAt: "desc" }, take: 5 }),
     prisma.registration.findMany({ where: { contactPhone: phone }, include: { tournament: { select: { name: true, startDate: true, endDate: true } } }, orderBy: { createdAt: "desc" }, take: 10 }),
-    prisma.teamMember.findUnique({ where: { userId: phone }, include: { team: true } }),
+    prisma.teamMember.findFirst({ where: { userId: phone }, include: { team: true }, orderBy: { joinedAt: "asc" } }),
     prisma.vipCode.findUnique({ where: { userId: phone } }),
     cancellationProfile(phone),
   ]);
@@ -239,7 +239,7 @@ customersRouter.get("/:phone", requirePermission("customers.view"), handler(asyn
     prisma.gzBooking.findMany({ where: { userId: phone }, orderBy: { createdAt: "desc" }, take: 20 }),
     prisma.loyaltyEntry.findMany({ where: { userId: phone }, orderBy: { createdAt: "desc" }, take: 50 }),
     prisma.freeGameVoucher.findMany({ where: { userId: phone }, orderBy: { claimedAt: "desc" }, take: 20 }),
-    prisma.teamMember.findUnique({ where: { userId: phone }, include: { team: true } }),
+    prisma.teamMember.findFirst({ where: { userId: phone }, include: { team: true }, orderBy: { joinedAt: "asc" } }),
   ]);
   const points = ledger.reduce((n, e) => n + Number(e.points), 0);
   send(res, { user, prefs, bookings, gamezone: gz, loyalty: { balanceBeforeExpiry: Math.round(points * 10) / 10, ledger, vouchers }, team: member?.team ?? null });

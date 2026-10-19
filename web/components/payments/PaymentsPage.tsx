@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { Badge } from "../bookings/Badge";
 import CollectModal from "./CollectModal";
+import PaymentDetails from "./PaymentDetails";
 import GoodsDues from "./GoodsDues";
 import EvCharging from "./EvCharging";
 import CustomerSheet from "../customers/CustomerSheet";
@@ -47,6 +48,7 @@ export default function PaymentsPage() {
   const [error, setError] = useState("");
   const [collecting, setCollecting] = useState<Row | null>(null);
   const [viewing, setViewing] = useState<Row | null>(null);
+  const [details, setDetails] = useState<Row | null>(null); // the full picture for one row: booking, goods taken, other dues
   const [tick, setTick] = useState(0);
   const [view, setView] = useState<"payments" | "goods" | "ev">("payments"); // goods = what customers owe for items put on their account
 
@@ -139,7 +141,7 @@ export default function PaymentsPage() {
         {data?.items.map((r) => {
           const st = TONE[r.status];
           return (
-            <li key={`${r.kind}-${r.id}`} data-hl={`pay-${r.code}`} className="flex items-center gap-3 rounded-2xl bg-surface p-4 shadow-sm">
+            <li key={`${r.kind}-${r.id}`} data-hl={`pay-${r.code}`} onClick={(e) => { if (!(e.target as HTMLElement).closest("button,a")) setDetails(r); }} className="flex cursor-pointer items-center gap-3 rounded-2xl bg-surface p-4 shadow-sm transition hover:shadow-md">
               <div className="min-w-0 flex-1">
                 {r.phone ? (
                   <button onClick={() => setViewing(r)} title="View customer details" className="line-clamp-2 break-words text-left font-semibold underline-offset-2 hover:text-brand hover:underline">{r.customer || "Guest"}</button>
@@ -152,15 +154,19 @@ export default function PaymentsPage() {
                   <Badge tone={st.tone}>{st.label}</Badge>
                   <Badge tone={r.mode === "cash" ? "bg-surface-2 text-foreground" : "bg-blue-500/15 text-blue-600"}>{r.mode === "cash" ? "Cash at venue" : `Online · ${METHOD_LABEL[r.method] ?? r.method}`}</Badge>
                   {(r.clubDiscount ?? 0) > 0 && <Badge tone="bg-sky-500/15 text-sky-700">Club member −{rs(r.clubDiscount!)}</Badge>}
+                  {(r.goodsDue?.amount ?? 0) > 0 && <Badge tone="bg-red-500/15 text-red-600">Goods owed {rs(r.goodsDue!.amount)}</Badge>}
                   {r.kind === "club" && <Badge tone="bg-sky-500/15 text-sky-700">Club membership</Badge>}
                   {r.kind === "gift" && <Badge tone="bg-rose-500/15 text-rose-700">Gift Card points</Badge>}
                 </div>
               </div>
               <div className="shrink-0 space-y-2 text-right">
                 <p className={`font-bold ${r.status === "cancelled" ? "text-muted line-through" : ""}`}>{rs(r.amount)}</p>
-                {r.status === "unpaid" && r.kind !== "club" && r.kind !== "gift" && (
-                  <button onClick={() => guard("payments.collect") && setCollecting(r)} className="rounded-full bg-brand px-3 py-1.5 text-xs font-semibold text-white">Mark paid</button>
-                )}
+                <div className="flex flex-col items-end gap-1.5">
+                  {r.status === "unpaid" && r.kind !== "club" && r.kind !== "gift" && (
+                    <button onClick={() => { if (!guard("payments.collect")) return; if (r.kind === "court") setDetails(r); else setCollecting(r); }} className="rounded-full bg-brand px-3 py-1.5 text-xs font-semibold text-white">Mark paid</button>
+                  )}
+                  <button onClick={() => setDetails(r)} className="rounded-full border border-line px-3 py-1 text-xs font-semibold hover:bg-surface-2">Details</button>
+                </div>
               </div>
             </li>
           );
@@ -185,6 +191,7 @@ export default function PaymentsPage() {
 
       </>)}
 
+      {details && <PaymentDetails row={details} onClose={() => setDetails(null)} onChanged={() => setTick((t) => t + 1)} />}
       {collecting && <CollectModal target={collecting} onClose={() => setCollecting(null)} onDone={() => { setTick((t) => t + 1); }} />}
     </div>
   );

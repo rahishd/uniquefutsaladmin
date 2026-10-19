@@ -85,7 +85,7 @@ inventoryRouter.delete("/categories/:id", requirePermission("inventory.products"
 type P = Prisma.ProductGetPayload<{ include: { category: { select: { id: true; name: true } } } }>;
 const productView = (p: P) => ({
   id: p.id, name: p.name, description: p.description, price: p.price, costPrice: p.costPrice, unit: p.unit, stock: p.inventory, lowStockThreshold: p.lowStockThreshold,
-  categoryId: p.categoryId, category: p.category.name, state: p.inventory <= 0 ? "out" : p.inventory <= p.lowStockThreshold ? "low" : "ok",
+  orderable: p.orderable, categoryId: p.categoryId, category: p.category.name, state: p.inventory <= 0 ? "out" : p.inventory <= p.lowStockThreshold ? "low" : "ok",
   margin: p.costPrice && p.price > 0 ? Math.round(((p.price - p.costPrice) / p.price) * 100) : null,
 });
 const withCat = { category: { select: { id: true, name: true } } } as const;
@@ -111,14 +111,15 @@ const productFields = {
   unit: z.string().trim().min(1).max(12),
   lowStockThreshold: z.number().int().min(0).max(100000),
   categoryId: z.string().min(1, "Choose a category"),
+  orderable: z.boolean(), // show in the customer app Order list
 };
 
 inventoryRouter.post("/products", requirePermission("inventory.products"), handler(async (req, res) => {
-  const b = parse(z.object({ ...productFields, unit: productFields.unit.default("pcs"), lowStockThreshold: productFields.lowStockThreshold.default(10), openingStock: z.number().int().min(0).max(1_000_000).default(0) }), req.body);
+  const b = parse(z.object({ ...productFields, orderable: productFields.orderable.default(false), unit: productFields.unit.default("pcs"), lowStockThreshold: productFields.lowStockThreshold.default(10), openingStock: z.number().int().min(0).max(1_000_000).default(0) }), req.body);
   if (!(await prisma.category.findUnique({ where: { id: b.categoryId } }))) throw new AppError(404, "Category not found");
   if (await prisma.product.findFirst({ where: { name: { equals: b.name, mode: "insensitive" }, categoryId: b.categoryId } })) throw new AppError(409, "This product already exists in that category");
   const p = await prisma.$transaction(async (tx) => {
-    const created = await tx.product.create({ data: { name: b.name, description: b.description || null, price: b.price, costPrice: b.costPrice ?? null, unit: b.unit, lowStockThreshold: b.lowStockThreshold, categoryId: b.categoryId, inventory: b.openingStock }, include: withCat });
+    const created = await tx.product.create({ data: { name: b.name, description: b.description || null, price: b.price, costPrice: b.costPrice ?? null, unit: b.unit, lowStockThreshold: b.lowStockThreshold, orderable: b.orderable, categoryId: b.categoryId, inventory: b.openingStock }, include: withCat });
     if (b.openingStock > 0) await tx.inventoryLog.create({ data: { productId: created.id, change: b.openingStock, price: b.costPrice ?? null, reason: "Opening stock" } });
     return created;
   });

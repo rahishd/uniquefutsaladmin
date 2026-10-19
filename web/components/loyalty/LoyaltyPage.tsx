@@ -244,7 +244,7 @@ function VouchersTab({ tick, onChanged }: { tick: number; onChanged: () => void 
 
 function RulesTab() {
   const rows: [string, string][] = [
-    ["A paid game", "Price ÷ 100 points (Rs. 1,250 = 12.5 points), added when the game is completed and paid. Free-game and challenge games earn none."],
+    ["A paid game", "Price ÷ 10 points (Rs. 1,250 = 125 points), added when the game is completed and paid. Free-game and challenge games earn none."],
     ["Gamezone", "Every hour played = 5 points (a 2 hour session = 10), added when the session is completed and paid. Guests earn none."],
     ["Goods", "Every Rs. 100 = 1 point, added when the goods are paid. Goods taken on credit earn when they are paid."],
     ["Membership", "3 months = 30 points, 6 months = 70 points, one month = 0. Added once when the payment is verified, and again for each renewal."],
@@ -264,13 +264,13 @@ function RulesTab() {
 }
 
 // ---------- the page ----------
-type Range = "7" | "30" | "month";
+type Range = "today" | "7" | "30" | "month";
 export default function LoyaltyPage() {
   const [tab, setTab] = useState<Tab>("customers");
   const [range, setRange] = useState<Range>("30");
   const [tick, setTick] = useState(0);
   const today = nepalToday();
-  const [from, to] = range === "7" ? [shift(today, -6), today] : range === "30" ? [shift(today, -29), today] : [`${today.slice(0, 8)}01`, today];
+  const [from, to] = range === "today" ? [today, today] : range === "7" ? [shift(today, -6), today] : range === "30" ? [shift(today, -29), today] : [`${today.slice(0, 8)}01`, today];
   const { data: ov, error } = useLoad<LoyaltyOverview>(() => getOverview(from, to), [from, to, tick]);
   const changed = () => setTick((t) => t + 1);
   const tabs: { id: Tab; label: string }[] = [{ id: "customers", label: "Customers" }, { id: "activity", label: "Activity" }, { id: "vouchers", label: "Free-game vouchers" }, { id: "rules", label: "How it works" }];
@@ -284,7 +284,7 @@ export default function LoyaltyPage() {
           <p className="text-sm text-muted">What customers have earned, what they hold now, what is about to expire, and their free-game vouchers.</p>
         </div>
         <div className="flex gap-1 rounded-2xl bg-surface p-1 shadow-sm" role="tablist" aria-label="Period for the numbers">
-          {([["7", "7 days"], ["30", "30 days"], ["month", "This month"]] as const).map(([id, l]) => <button key={id} role="tab" aria-selected={range === id} onClick={() => setRange(id)} className={`whitespace-nowrap rounded-xl px-3 py-1.5 text-sm font-semibold ${range === id ? "bg-brand text-white" : "text-muted"}`}>{l}</button>)}
+          {([["today", "Today"], ["7", "7 days"], ["30", "30 days"], ["month", "This month"]] as const).map(([id, l]) => <button key={id} role="tab" aria-selected={range === id} onClick={() => setRange(id)} className={`whitespace-nowrap rounded-xl px-3 py-1.5 text-sm font-semibold ${range === id ? "bg-brand text-white" : "text-muted"}`}>{l}</button>)}
         </div>
       </div>
 

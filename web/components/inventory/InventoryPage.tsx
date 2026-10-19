@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Boxes, Minus, Package, Pencil, Plus, Search, Tags, Trash2, X } from "lucide-react";
 import { Badge } from "../bookings/Badge";
 import Sell from "./Sell";
+import Switch from "../Switch";
 import { ApiError } from "@/lib/api";
 import { guard } from "@/lib/access";
 import { Category, Overview, Product, STATE, addCategory, addProduct, changeStock, deleteCategory, deleteProduct, editProduct, listCategories, listProducts, overview as fetchOverview, renameCategory, rs } from "@/lib/inventory";
@@ -77,6 +78,16 @@ function Products({ tick, onChanged, stockPreset }: { tick: number; onChanged: (
     return () => { live = false; };
   }, [q, cat, stock, tick, local]);
 
+  // switch a product on or off for the customer app Order list (people playing a booked game can order it)
+  async function toggleOrderable(p: Product) {
+    if (!guard("inventory.products")) return;
+    setError("");
+    try {
+      await editProduct(p.id, { orderable: !p.orderable });
+      setNote(p.orderable ? `${p.name} is no longer in the customer Order list.` : `${p.name} now shows in the customer Order list.`);
+      reload();
+    } catch (e) { setError(msg(e)); }
+  }
   async function remove(p: Product) {
     if (!guard("inventory.products")) return;
     if (!(await askConfirm(`Delete "${p.name}"? Its stock history goes with it.`))) return;
@@ -120,6 +131,10 @@ function Products({ tick, onChanged, stockPreset }: { tick: number; onChanged: (
                   <button onClick={() => remove(p)} aria-label={`Delete ${p.name}`} className="rounded-full border border-red-500/40 p-1.5 text-red-600"><Trash2 size={14} /></button>
                 </div>
               </div>
+              <div className="flex items-center justify-between gap-3 border-t border-line pt-3">
+                <span className="min-w-0 text-xs"><span className="block font-medium">Show to Order list in client side</span><span className="block text-muted">Customers playing a booked game can order this from the app</span></span>
+                <Switch on={p.orderable} label={`Show ${p.name} in the customer Order list`} onChange={() => toggleOrderable(p)} />
+              </div>
             </li>
           );
         })}
@@ -152,13 +167,14 @@ function ProductForm({ p, cats, onClose, onSaved }: { p: Product | null; cats: C
   const [unit, setUnit] = useState(p?.unit ?? "pcs");
   const [low, setLow] = useState(String(p?.lowStockThreshold ?? 10));
   const [opening, setOpening] = useState("0");
+  const [orderable, setOrderable] = useState(p?.orderable ?? false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   async function save() {
     if (!guard("inventory.products")) return;
     setBusy(true); setError("");
-    const body = { name: name.trim(), categoryId: category, price: num(price), costPrice: cost.trim() === "" ? null : num(cost), unit: unit.trim() || "pcs", lowStockThreshold: num(low) };
+    const body = { name: name.trim(), categoryId: category, price: num(price), costPrice: cost.trim() === "" ? null : num(cost), unit: unit.trim() || "pcs", lowStockThreshold: num(low), orderable };
     try {
       if (p) await editProduct(p.id, body); else await addProduct({ ...body, openingStock: num(opening) || 0 });
       onSaved(p ? "Product saved." : "Product added."); onClose();
@@ -178,6 +194,10 @@ function ProductForm({ p, cats, onClose, onSaved }: { p: Product | null; cats: C
         {!p && <label className={`${lab} col-span-2`}>Stock you have now<input inputMode="numeric" value={opening} onChange={(e) => setOpening(e.target.value.replace(/\D/g, ""))} className={`${field} w-full`} /></label>}
       </div>
       {p && <p className="text-xs text-muted">To change how many you have, use the Stock button so it is written in the log.</p>}
+      <div className="flex items-center justify-between gap-3 rounded-xl border border-line p-3">
+        <span className="min-w-0 text-sm"><span className="block font-medium">Show to Order list in client side</span><span className="block text-xs text-muted">Customers playing a booked game can order this from the app. Keep stock counts accurate.</span></span>
+        <Switch on={orderable} label="Show in the customer Order list" onChange={() => setOrderable((v) => !v)} />
+      </div>
       {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600" role="alert">{error}</p>}
       <button onClick={save} disabled={busy || bad} className="w-full rounded-full bg-brand py-3 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Saving…" : p ? "Save product" : "Add product"}</button>
     </Sheet>

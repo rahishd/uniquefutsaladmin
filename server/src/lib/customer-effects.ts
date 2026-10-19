@@ -6,7 +6,7 @@ import { addMonthsKey, todayKey } from "./dates";
 
 export type LoyaltyKind = "game" | "captain_win" | "goods" | "membership" | "referral" | "goal_rush" | "gift";
 
-export const pointsForGame = (priceRs: number) => Math.floor(Math.max(0, priceRs) / 10) / 10; // price/100, 1 decimal
+export const pointsForGame = (priceRs: number) => Math.floor(Math.max(0, priceRs)) / 10; // price/10, 1 decimal
 export const pointsForGoods = (amountRs: number) => Math.floor(Math.max(0, amountRs) / 100);
 export const GZ_POINTS_PER_HOUR = 5; // Gamezone: every hour played earns 5 points
 

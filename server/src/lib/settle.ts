@@ -4,7 +4,7 @@ import { randomInt } from "crypto";
 import { Booking, GoodsDue, Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../db";
-import { awardForCompletedBooking, awardPoints, notify, pointsForGoods } from "./customer-effects";
+import { awardForCompletedBooking, awardPoints, notify, pointsForGame, pointsForGoods } from "./customer-effects";
 import { AppError } from "./http";
 
 export type Tx = Prisma.TransactionClient;
@@ -218,7 +218,7 @@ export async function settle(inp: SettleInput) {
   for (const g of games) {
     const fresh = await prisma.booking.findUnique({ where: { id: g.id } });
     if (!fresh) continue;
-    if (fresh.status === "completed") { if (await awardForCompletedBooking(fresh)) pointsGames += Math.floor(Math.max(0, fresh.totalPrice) / 10) / 10; } else waiting++;
+    if (fresh.status === "completed") { if (await awardForCompletedBooking(fresh)) pointsGames += pointsForGame(fresh.totalPrice); } else waiting++;
   }
   pointsGames = Math.round(pointsGames * 10) / 10;
   if (out.row) {

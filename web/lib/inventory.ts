@@ -2,7 +2,7 @@ import { api } from "./api";
 
 export type StockState = "ok" | "low" | "out";
 export type Product = {
-  id: string; name: string; description: string | null; price: number; costPrice: number | null; unit: string; stock: number; lowStockThreshold: number;
+  id: string; name: string; description: string | null; price: number; costPrice: number | null; unit: string; stock: number; lowStockThreshold: number; orderable: boolean;
   categoryId: string; category: string; state: StockState; margin: number | null;
 };
 export type Category = { id: string; name: string; products: number };
@@ -13,7 +13,7 @@ export type Overview = {
 export type Log = { id: string; product: string; unit: string; change: number; price: number | null; reason: string | null; createdAt: string };
 export type Sale = { credit?: "due" | "paid" | null; id: string; amount: number; items: string | null; soldAt: string; customerPhone: string | null; customerName: string | null; slot?: string | null; soldBy: string | null };
 export type Paged<T> = { items: T[]; total: number; page: number; limit: number };
-export type ProductInput = { name: string; description?: string | null; price: number; costPrice?: number | null; unit: string; lowStockThreshold: number; categoryId: string };
+export type ProductInput = { name: string; description?: string | null; price: number; costPrice?: number | null; unit: string; lowStockThreshold: number; categoryId: string; orderable?: boolean };
 
 export const PAGE_SIZE = 25;
 export const rs = (n: number) => `Rs. ${Math.round(n).toLocaleString("en-IN")}`;

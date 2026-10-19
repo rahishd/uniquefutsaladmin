@@ -1,5 +1,6 @@
 import { api } from "./api";
 import { rs } from "./bookings";
+import { issuePdfCode, stampVerification } from "./verify";
 
 type Money = { cash: number; fonepay: number; total: number };
 export type Summary = {
@@ -42,12 +43,13 @@ export const reportsLink = (r: Summary) => `https://wa.me/?text=${encodeURICompo
 
 // The whole report as an A4 PDF (jsPDF is loaded only when the button is pressed)
 export async function downloadReportsPdf(r: Summary) {
+  const code = await issuePdfCode("Business report");
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   const M = 14, RIGHT = 196;
   let y = 16;
   const money = (n: number) => rs(n).replace(/ /g, " ");
-  const room = (h: number) => { if (y + h > 285) { doc.addPage(); y = 16; } };
+  const room = (h: number) => { if (y + h > 278) { doc.addPage(); y = 16; } };
   const heading = (t: string) => { room(14); y += 3; doc.setFont("helvetica", "bold").setFontSize(12).setTextColor(20, 120, 40).text(t, M, y); doc.setDrawColor(200).line(M, y + 1.5, RIGHT, y + 1.5); y += 7; doc.setTextColor(0); };
   const row = (left: string, right = "") => { doc.setFont("helvetica", "normal").setFontSize(10); const lines = doc.splitTextToSize(left, RIGHT - M - 32) as string[]; room(lines.length * 5 + 1); doc.text(lines, M, y); if (right) { doc.setFont("helvetica", "bold").text(right, RIGHT, y, { align: "right" }); } y += lines.length * 5 + 1; };
   const none = (t: string) => { room(6); doc.setFont("helvetica", "italic").setFontSize(10).setTextColor(120).text(t, M, y); doc.setTextColor(0); y += 6; };
@@ -97,5 +99,6 @@ export async function downloadReportsPdf(r: Summary) {
 
   const pages = doc.getNumberOfPages();
   for (let p = 1; p <= pages; p++) { doc.setPage(p); doc.setFont("helvetica", "normal").setFontSize(8).setTextColor(130).text(`Page ${p} of ${pages}`, RIGHT, 292, { align: "right" }); }
+  stampVerification(doc, code);
   doc.save(`business-report-${r.from}${r.from === r.to ? "" : `-to-${r.to}`}.pdf`);
 }

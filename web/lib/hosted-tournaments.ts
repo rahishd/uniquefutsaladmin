@@ -1,5 +1,6 @@
 import { api } from "./api";
 import { rs } from "./bookings";
+import { issuePdfCode, stampVerification } from "./verify";
 import { CHARITY_PERCENT, charityText } from "./charity";
 
 export type HostDay = { date: string; startHour: number; endHour: number };
@@ -51,12 +52,13 @@ export const billLink = (b: Bill) => {
 
 // The bill as an A4 PDF (jsPDF is loaded only when the button is pressed)
 export async function downloadBillPdf(b: Bill) {
+  const code = await issuePdfCode(`Tournament bill: ${b.name}`);
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   const M = 14, RIGHT = 196;
   let y = 16;
   const money = (n: number) => rs(n).replace(/ /g, " ");
-  const room = (h: number) => { if (y + h > 280) { doc.addPage(); y = 16; } };
+  const room = (h: number) => { if (y + h > 278) { doc.addPage(); y = 16; } };
   const heading = (t: string) => { room(12); y += 3; doc.setFont("helvetica", "bold").setFontSize(11).setTextColor(20, 120, 40).text(t, M, y); doc.setDrawColor(200).line(M, y + 1.5, RIGHT, y + 1.5); y += 7; doc.setTextColor(0); };
   const row = (left: string, right = "", bold = false) => { doc.setFont("helvetica", bold ? "bold" : "normal").setFontSize(10); const lines = doc.splitTextToSize(left, RIGHT - M - 34) as string[]; room(lines.length * 5 + 1); doc.text(lines, M, y); if (right) doc.setFont("helvetica", "bold").text(right, RIGHT, y, { align: "right" }); y += lines.length * 5 + 1; };
 
@@ -78,5 +80,6 @@ export async function downloadBillPdf(b: Bill) {
   b.payments.forEach((p) => row(`Received ${new Date(p.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}: cash ${money(p.cash)}, Fonepay ${money(p.fonepay)}${p.note ? ` (${p.note})` : ""}`, money(p.amount)));
   row("Paid in all", money(b.paid));
   row(b.due > 0 ? "Balance due" : "Paid in full", b.due > 0 ? money(b.due) : "", true);
+  stampVerification(doc, code);
   doc.save(`tournament-bill-${b.name.replace(/[^A-Za-z0-9]+/g, "-").toLowerCase()}.pdf`);
 }

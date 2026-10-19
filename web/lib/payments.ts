@@ -22,6 +22,7 @@ export type Row = {
   method: string;
   mode: "cash" | "online";
   clubDiscount?: number; // Unique Club member discount already taken off the amount
+  goodsDue?: { amount: number; count: number }; // goods this customer took on credit and has not paid yet
 };
 
 export type Ledger = { items: Row[]; total: number; page: number; limit: number };
@@ -74,3 +75,8 @@ export const collectGamezone = (row: CollectTarget, pay: { payments?: { method: 
   api(`/admin/gamezone/bookings/${encodeURIComponent(row.ref)}/mark-paid`, { method: "POST", body: JSON.stringify(pay) });
 
 export const METHOD_LABEL: Record<string, string> = { venue: "Cash at venue", fonepay: "Fonepay", esewa: "eSewa (old)" };
+
+export type GoodsLine = { label: string; quantity: number; amount: number };
+export type CustomerGoodsItem = { id: string; items: string; amount: number; lines: GoodsLine[]; createdAt: string; status: "due" | "paid"; source: string; by: string | null; paidAt: string | null; paidBy: string | null; checkoutCode: string | null };
+export type CustomerGoods = { due: CustomerGoodsItem[]; dueTotal: number; paid: CustomerGoodsItem[] };
+export const customerGoods = (phone: string) => api<CustomerGoods>(`/admin/payments/customer-goods?phone=${encodeURIComponent(phone)}`);

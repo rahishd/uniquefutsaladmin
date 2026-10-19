@@ -1,5 +1,6 @@
 import { rs } from "./bookings";
 import type { Report } from "./inventory";
+import { issuePdfCode, stampVerification } from "./verify";
 
 const day = (k: string) => new Date(`${k}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 const clock = (t: string) => `${Number(t.slice(0, 2)) % 12 || 12}${t.slice(2, 5)}`;
@@ -10,11 +11,12 @@ const money = (n: number) => rs(n).replace(/ /g, " ");
 
 // The sales report as a PDF (A4), in the same order as the Overview page. jsPDF is loaded only when the button is pressed.
 export async function downloadReportPdf(r: Report) {
+  const code = await issuePdfCode("Sales report");
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   const W = 210, M = 14, RIGHT = W - M;
   let y = 16;
-  const room = (h: number) => { if (y + h > 285) { doc.addPage(); y = 16; } };
+  const room = (h: number) => { if (y + h > 278) { doc.addPage(); y = 16; } };
 
   const heading = (text: string) => { room(14); y += 3; doc.setFont("helvetica", "bold").setFontSize(12).setTextColor(20, 120, 40); doc.text(text, M, y); doc.setDrawColor(200).line(M, y + 1.5, RIGHT, y + 1.5); y += 7; doc.setTextColor(0); };
   const row = (n: number | null, left: string, right = "", note = "") => {
@@ -93,5 +95,6 @@ export async function downloadReportPdf(r: Report) {
   const pages = doc.getNumberOfPages();
   for (let p = 1; p <= pages; p++) { doc.setPage(p); doc.setFont("helvetica", "normal").setFontSize(8).setTextColor(130).text(`Page ${p} of ${pages}`, RIGHT, 292, { align: "right" }); }
 
+  stampVerification(doc, code);
   doc.save(`sales-report-${r.from}${r.from === r.to ? "" : `-to-${r.to}`}.pdf`);
 }
