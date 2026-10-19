@@ -2,14 +2,15 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import jsQR from "jsqr";
-import { Camera, CameraOff, Download, Loader2, MessageCircle, Phone, QrCode, RefreshCw, Search, ShieldAlert, UserCheck } from "lucide-react";
+import { Camera, CameraOff, Loader2, RefreshCw, Search, ShieldAlert } from "lucide-react";
 import { Badge } from "../bookings/Badge";
 import { ApiError } from "@/lib/api";
 import { guard } from "@/lib/access";
-import { prettyDate, rs } from "@/lib/bookings";
 import { initials } from "@/lib/customers";
 import { DigitalView, Found, loadCard, loadDigital, markAttendance, resolveCode, searchCustomers } from "@/lib/digitalid";
 import { cardToBlob, drawIdCard } from "@/lib/idcard";
+import ScanResult from "./ScanResult";
+import { Empty, Section } from "./parts";
 
 const msg = (e: unknown) => (e instanceof ApiError || e instanceof Error ? e.message : "Something went wrong");
 
@@ -22,26 +23,6 @@ function cameraProblem(e: unknown): string {
   if (name === "NotReadableError" || name === "AbortError") return "The camera is busy in another app or tab. Close it there and try again.";
   return "The camera could not start. Use the search below instead.";
 }
-
-function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <section className="space-y-3 rounded-2xl bg-surface p-4 shadow-sm">
-      <div>
-        <h3 className="font-bold">{title}</h3>
-        {hint && <p className="text-xs text-muted">{hint}</p>}
-      </div>
-      {children}
-    </section>
-  );
-}
-const Tile = ({ label, value, sub, tone }: { label: string; value: string | number; sub?: string; tone?: string }) => (
-  <div className="rounded-xl bg-surface-2 p-3">
-    <p className="text-xs text-muted">{label}</p>
-    <p className={`text-lg font-bold ${tone ?? ""}`}>{value}</p>
-    {sub && <p className="text-[11px] text-muted">{sub}</p>}
-  </div>
-);
-const Empty = ({ children }: { children: React.ReactNode }) => <p className="rounded-xl bg-surface-2 p-3 text-center text-sm text-muted">{children}</p>;
 
 export default function DigitalIdPage() {
   const video = useRef<HTMLVideoElement>(null);
@@ -186,15 +167,13 @@ export default function DigitalIdPage() {
     } finally { setBusy(""); }
   }
 
-  const p = view?.profile;
-  const x = view?.extras;
   const scanning = cam !== "off";
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-4">
       <div>
         <h1 className="text-2xl font-bold">Digital ID</h1>
-        <p className="text-sm text-muted">Scan a customer&apos;s QR with this device&apos;s camera to see their profile and activity.</p>
+        <p className="text-sm text-muted">Scan a customer&apos;s QR with this device&apos;s camera to see their profile and activity, organised by topic.</p>
       </div>
 
       <Section title="Scan a QR code">
@@ -250,150 +229,7 @@ export default function DigitalIdPage() {
         </div>
       )}
 
-      {state === "ok" && p && x && (
-        <div className="space-y-4">
-          <div className="rounded-2xl bg-surface p-4 shadow-sm">
-            <div className="flex items-start gap-3">
-              <span className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-brand/10 text-lg font-bold text-brand">{initials(p.user.name, p.user.phoneNumber)}</span>
-              <div className="min-w-0 flex-1">
-                <p className="flex items-center gap-2 text-lg font-bold"><UserCheck size={18} className="shrink-0 text-brand" /><span className="truncate">{p.user.name || "Player"}</span></p>
-                <p className="text-sm text-muted">{p.user.phoneNumber} · ID UF-C-{p.user.phoneNumber.slice(-5)}</p>
-                <p className="mt-1 flex flex-wrap gap-1.5">
-                  {p.user.isActive ? <Badge tone="bg-brand/15 text-brand">Active</Badge> : <Badge tone="bg-rose-500/15 text-rose-600">Suspended</Badge>}
-                  {p.profile.isCaptain && <Badge tone="bg-amber-500/15 text-amber-600">Captain</Badge>}
-                  {p.vip?.active && <Badge tone="bg-fuchsia-500/15 text-fuchsia-600">VIP {p.vip.code}</Badge>}
-                  <span className="text-xs text-muted">Member since {prettyDate(p.user.createdAt.slice(0, 10))}</span>
-                </p>
-              </div>
-            </div>
-            {!p.user.isActive && <p className="mt-3 rounded-xl bg-rose-500/10 p-3 text-sm text-rose-700">This account is suspended. Check with the owner before allowing a booking.</p>}
-            <div className="mt-3 flex flex-wrap gap-2">
-              <a href={`tel:${p.user.phoneNumber}`} className="flex items-center gap-1.5 rounded-full border border-line px-3 py-2 text-xs font-semibold"><Phone size={14} /> Call</a>
-              <button onClick={() => card("download")} disabled={!!busy} className="flex items-center gap-1.5 rounded-full border border-line px-3 py-2 text-xs font-semibold disabled:opacity-60"><Download size={14} /> ID card</button>
-              <button onClick={() => card("whatsapp")} disabled={!!busy} className="flex items-center gap-1.5 rounded-full bg-emerald-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-60"><MessageCircle size={14} /> Send card on WhatsApp</button>
-            </div>
-            {note && <p role="status" className="mt-3 rounded-xl bg-brand/10 p-3 text-sm text-brand">{note}</p>}
-          </div>
-
-          <Section title="Unique Club" hint="Rs. 1,500 for 30 days: 10% off bookings and Gamezone. The membership and tournament discounts unlock after 15 days or 5 games.">
-            {x.club ? (
-              <>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  <Tile label="Status" value={x.club.member ? "Member" : "Ended"} sub={x.club.member ? `${x.club.daysLeft} day${x.club.daysLeft === 1 ? "" : "s"} left` : undefined} />
-                  <Tile label={x.club.member ? "Valid until" : "Ended on"} value={prettyDate(x.club.validUntil)} sub={`joined ${prettyDate(x.club.startedAt)}`} />
-                  <Tile label="Discount given" value={rs(x.club.discountGiven)} sub={`${x.club.discountedGames} game${x.club.discountedGames === 1 ? "" : "s"}`} />
-                  <Tile label="Membership & tournament" value={x.club.mature ? "Unlocked" : x.club.member ? "Not yet" : "-"} sub={x.club.mature || !x.club.member ? undefined : `day ${Math.min(x.club.daysIn, x.club.matureAfterDays)} of ${x.club.matureAfterDays} · ${Math.min(x.club.gamesPlayed, x.club.matureAfterGames)} of ${x.club.matureAfterGames} games`} />
-                </div>
-                {x.club.member && <p className="rounded-xl bg-sky-500/10 p-3 text-center text-sm font-semibold text-sky-700">Unique Club member: give 10% off their game. A promo code is not used with it.</p>}
-              </>
-            ) : <Empty>Not a Unique Club member.</Empty>}
-          </Section>
-
-          <Section title="Membership & attendance">
-            {x.membership ? (
-              <>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  <Tile label="Plan" value={x.membership.plan} sub={x.membership.memberCode ?? undefined} />
-                  <Tile label="Hour" value={x.membership.timeSlot ?? "-"} />
-                  <Tile label="Valid until" value={prettyDate(x.membership.endDate)} sub={`from ${prettyDate(x.membership.startDate)}`} />
-                  <Tile label="Came this month" value={x.membership.attendanceThisMonth} sub={`${x.membership.attendanceCount} in total`} />
-                </div>
-                {x.membership.attendedToday ? <p className="rounded-xl bg-brand/10 p-3 text-center text-sm font-semibold text-brand">Attendance already marked today</p>
-                  : <button onClick={attendance} disabled={busy === "att"} className="w-full rounded-full bg-brand py-3 text-sm font-semibold text-white disabled:opacity-60">{busy === "att" ? "Saving…" : "Mark attendance for today"}</button>}
-                {x.membership.recentDays.length > 0 && <p className="text-xs text-muted">Recent days: {x.membership.recentDays.map((d) => prettyDate(d)).join(", ")}</p>}
-              </>
-            ) : <Empty>No active membership today.{x.membershipCount > 0 ? ` ${x.membershipCount} earlier on record.` : ""}</Empty>}
-          </Section>
-
-          <Section title="Bookings" hint="Upcoming games, and whether each is paid">
-            {x.upcomingBookings.length === 0 ? <Empty>No upcoming bookings.</Empty> : (
-              <ul className="space-y-2">
-                {x.upcomingBookings.map((b) => (
-                  <li key={b.code} className="flex items-center justify-between gap-2 rounded-xl bg-surface-2 p-3 text-sm">
-                    <span><span className="font-semibold">{prettyDate(b.date)}</span> · {b.time}<span className="block font-mono text-xs text-muted">{b.code}</span></span>
-                    <span className="text-right">{rs(b.amount)}<span className="mt-0.5 block">{b.paid ? <Badge tone="bg-brand/15 text-brand">Paid</Badge> : <Badge tone="bg-amber-500/15 text-amber-600">Unpaid</Badge>}</span></span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Section>
-
-          <Section title="Games & history">
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <Tile label="Games played" value={p.games.played} />
-              <Tile label="Upcoming" value={p.games.upcoming} />
-              <Tile label="Cancelled" value={p.games.cancelled} sub={`${p.games.noShows} no-show`} />
-              <Tile label="Last game" value={p.games.lastGame ? prettyDate(p.games.lastGame) : "-"} />
-            </div>
-            {p.games.recent.length > 0 && (
-              <ul className="space-y-1.5 text-sm">
-                {p.games.recent.slice(0, 5).map((g) => (
-                  <li key={g.code} className="flex justify-between rounded-lg bg-surface-2 px-3 py-2"><span>{prettyDate(g.date)} · {g.time} <span className="font-mono text-xs text-muted">{g.code}</span></span><span className="text-muted">{g.status}</span></li>
-                ))}
-              </ul>
-            )}
-          </Section>
-
-          <Section title="Points & referrals">
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <Tile label="Loyalty points" value={x.loyalty.points} />
-              <Tile label="Free-game vouchers" value={x.loyalty.freeGameVouchers} />
-              <Tile label="Referrals sent" value={x.referrals.asReferrer.total} sub={`${x.referrals.asReferrer.approved} approved`} />
-              <Tile label="Referred to them" value={x.referrals.asFriend.total} sub={`${x.referrals.asFriend.pending} waiting`} />
-            </div>
-            {x.referrals.recent.length > 0 && <ul className="space-y-1.5 text-sm">{x.referrals.recent.map((r) => <li key={r.code} className="flex justify-between rounded-lg bg-surface-2 px-3 py-2"><span>{r.role === "referrer" ? "Booked for" : "Booked by a friend for"} {r.teamName} · {prettyDate(r.gameDate)}</span><span className="text-muted">{r.status}</span></li>)}</ul>}
-          </Section>
-
-          <Section title="Goal Rush (penalty game)" hint="3 or more goals out of 5 earn 1 point, 3 games a day.">
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <Tile label="Games today" value={`${x.goalRush.gamesToday}/3`} />
-              <Tile label="Points today" value={x.goalRush.pointsToday} />
-              <Tile label="Games in total" value={x.goalRush.gamesTotal} />
-              <Tile label="Points in total" value={x.goalRush.pointsTotal} />
-            </div>
-            {x.goalRush.recent.length > 0 && (
-              <ul className="space-y-1.5 text-sm">{x.goalRush.recent.map((g, i) => <li key={i} className="flex justify-between rounded-lg bg-surface-2 px-3 py-2"><span>{prettyDate(g.day)} · {g.status === "completed" ? `${g.goals} of ${g.shots} goals` : "not finished"}</span><span className="text-muted">{g.points > 0 ? `+${g.points} point${g.points === 1 ? "" : "s"}` : "no points"}</span></li>)}</ul>
-            )}
-          </Section>
-
-          {(x.findPlayer.hosting.length > 0 || x.findPlayer.joined.length > 0) && (
-            <Section title="Find Player" hint="Games they asked players for, and games they joined">
-              <ul className="space-y-1.5 text-sm">
-                {x.findPlayer.hosting.map((r) => <li key={r.id} className="flex justify-between rounded-lg bg-surface-2 px-3 py-2"><span>Hosting {prettyDate(r.date)} · {r.time} · {r.joined}/{r.needed} joined</span><span className="text-muted">{r.status.replace("_", " ")}</span></li>)}
-                {x.findPlayer.joined.map((r) => <li key={r.id} className="flex justify-between rounded-lg bg-surface-2 px-3 py-2"><span>Joined {r.host}&apos;s game {prettyDate(r.date)} · {r.time}</span><span className="text-muted">{r.status.replace("_", " ")}</span></li>)}
-              </ul>
-            </Section>
-          )}
-
-          <Section title="Gamezone (PS5)">
-            <div className="grid grid-cols-2 gap-2"><Tile label="Sessions played" value={x.gamezone.completed} /><Tile label="Upcoming" value={x.gamezone.upcoming} /></div>
-            {x.gamezone.recent.length === 0 ? <Empty>No Gamezone sessions yet.</Empty> : (
-              <ul className="space-y-1.5 text-sm">{x.gamezone.recent.map((g) => <li key={g.code} className="flex justify-between rounded-lg bg-surface-2 px-3 py-2"><span>{prettyDate(g.date)} · {g.time} · {g.hours} hr · {g.game}</span><span className="text-muted">{rs(g.total)} · {g.status}</span></li>)}</ul>
-            )}
-          </Section>
-
-          <Section title="Extra add-ons & total spent">
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <Tile label="Add-ons on games" value={rs(x.addOns.total)} sub={x.addOns.bottles ? `${x.addOns.bottles} water bottles` : undefined} />
-              <Tile label="Goods bought" value={rs(x.spent.goods)} sub={`${p.goods.count} sales`} />
-              <Tile label="Total spent" value={rs(x.spent.total)} tone="text-brand" />
-              <Tile label="Still unpaid" value={rs(x.spent.unpaid)} tone={x.spent.unpaid > 0 ? "text-amber-600" : ""} />
-            </div>
-            {x.addOns.recent.length > 0 && <ul className="space-y-1.5 text-sm">{x.addOns.recent.slice(0, 5).map((a) => <li key={a.code} className="flex justify-between rounded-lg bg-surface-2 px-3 py-2"><span>{prettyDate(a.date)} · {a.items || `${a.bottles} water`}</span><span className="text-muted">{rs(a.price)}</span></li>)}</ul>}
-          </Section>
-
-          <Section title="Other details">
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <Tile label="Team" value={p.profile.team?.name ?? "-"} sub={p.profile.team ? p.profile.team.role : undefined} />
-              <Tile label="Position" value={p.profile.position ?? "-"} />
-              <Tile label="Open complaints" value={p.complaints.open} sub={`${p.complaints.total} in total`} />
-              <Tile label="Late cancels" value={p.cancellations.lateCount} sub={`streak ${p.cancellations.streak}`} />
-            </div>
-          </Section>
-
-          <button onClick={start} className="flex w-full items-center justify-center gap-2 rounded-full border border-line bg-surface py-3 text-sm font-semibold"><QrCode size={18} /> Scan the next customer</button>
-        </div>
-      )}
+      {state === "ok" && view && <ScanResult key={view.profile.user.phoneNumber} view={view} busy={busy} note={note} onCard={card} onAttendance={attendance} onNext={start} />}
     </div>
   );
 }

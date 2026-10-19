@@ -136,4 +136,51 @@ describe("Digital ID: Unique Club, Goal Rush and Find Player on the scan result"
     const r = await api.get(`/digital-id/${P}`, owner.auth);
     assert.equal(r.body.data.extras.club, null);
   });
+
+  it("adds who they are, the emergency contact, goods taken, bulk games, a wheelchair request and insurance claims", async () => {
+    await prisma.user.update({ where: { phoneNumber: P }, data: { emergencyName: "Sita Rai", emergencyPhone: "9841000000", emergencyRelation: "Sister", dateOfBirth: "2000-05-05" } });
+    await prisma.goodsDue.deleteMany({ where: { userId: P } });
+    await prisma.goodsDue.create({ data: { userId: P, saleId: "digid-sale-1", amount: 150, items: "6 x Mineral water", lines: JSON.stringify([{ type: "goods", label: "Mineral water", quantity: 6, amount: 150 }]), createdBy: "app:" + P } });
+    const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+    await prisma.booking.create({ data: { userId: P, customerName: "Digital Player", customerPhone: P, date: tomorrow, startTime: "10:00", endTime: "11:00", duration: 1, basePrice: 1000, subtotal: 1000, totalPrice: 1000, paymentMethod: "fonepay", status: "pending", paymentStatus: "pending", source: "app", notes: "BULK:BLK-ABC123" } as never });
+    await prisma.wheelchairRequest.create({ data: { code: "WC-DIGID1", userId: P, date: tomorrow, time: "18:00", people: 2, status: "pending", note: "Ramp please" } });
+    await prisma.insuranceClaim.create({ data: { code: "IC-DIGID1", userId: P, patientName: "Digital Player", patientPhone: P, witnessName: "Hari", witnessNameNe: "Hari", severity: "emergency", incidentDate: todayKey(), status: "submitted" } });
+
+    const x = (await api.get(`/digital-id/${P}`, owner.auth)).body.data.extras;
+    assert.deepEqual(x.person.emergency, { name: "Sita Rai", phone: "9841000000", relation: "Sister" });
+    assert.equal(x.person.dateOfBirth, "2000-05-05");
+    assert.ok(x.person.age >= 20);
+    assert.equal(x.goods.dueTotal, 150);
+    assert.equal(x.goods.due[0].items, "6 x Mineral water");
+    assert.equal(x.goods.due[0].lines[0].quantity, 6);
+    assert.equal(x.upcomingBookings.find((b: { bulk: string | null }) => b.bulk)?.bulk, "BLK-ABC123");
+    assert.equal(x.wheelchair[0].code, "WC-DIGID1");
+    assert.equal(x.wheelchair[0].people, 2);
+    assert.equal(x.insurance[0].code, "IC-DIGID1");
+    assert.equal(x.insurance[0].open, true);
+    assert.equal(x.insurance[0].severity, "emergency");
+  });
+
+  it("shows no emergency contact when none was given", async () => {
+    await prisma.user.update({ where: { phoneNumber: P }, data: { emergencyName: null, emergencyPhone: null, emergencyRelation: null, dateOfBirth: null } });
+    const x = (await api.get(`/digital-id/${P}`, owner.auth)).body.data.extras;
+    assert.equal(x.person.emergency, null);
+    assert.equal(x.person.age, null);
+  });
+
+  it("lists exactly which bookings make up the unpaid total", async () => {
+    await prisma.booking.deleteMany({ where: { userId: P } });
+    const day = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+    const mk = (n: number, hour: string, extra: object = {}) => prisma.booking.create({ data: { userId: P, customerName: "Digital Player", customerPhone: P, date: day(n), startTime: hour, endTime: "23:00", duration: 1, basePrice: 1000, subtotal: 1000, totalPrice: 1000, paymentMethod: "venue", status: "completed", paymentStatus: "pending", source: "app", ...extra } as never });
+    await mk(-3, "10:00"); // played, never paid
+    await mk(1, "11:00", { status: "confirmed", notes: "BULK:BLK-XYZ789" }); // upcoming bulk game, unpaid
+    await mk(-2, "12:00", { paymentStatus: "completed" }); // paid: not listed
+    await mk(-1, "13:00", { status: "cancelled" }); // cancelled: not listed
+    const d = (await api.get(`/digital-id/${P}`, owner.auth)).body.data;
+    const list = d.extras.unpaidItems as { code: string; date: string; amount: number; bulk: string | null }[];
+    assert.equal(list.length, 2);
+    assert.ok(list[0].date < list[1].date, "oldest first");
+    assert.equal(list[1].bulk, "BLK-XYZ789");
+    assert.equal(list.reduce((n, i) => n + i.amount, 0), d.extras.spent.unpaid, "the list adds up to the unpaid total");
+  });
 });

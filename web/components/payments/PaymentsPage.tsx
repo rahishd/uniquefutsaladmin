@@ -52,6 +52,21 @@ export default function PaymentsPage() {
   const [tick, setTick] = useState(0);
   const [view, setView] = useState<"payments" | "goods" | "ev">("payments"); // goods = what customers owe for items put on their account
 
+  // a link can open this page already filtered, for example from the Digital ID scan: ?kind=court&status=unpaid&period=all&q=<phone>
+  useEffect(() => {
+    const t = setTimeout(() => {
+    const sp = new URLSearchParams(window.location.search);
+    const kind = sp.get("kind") as Kind | null, status = sp.get("status") as PayStatus | null, period = sp.get("period") as Period | null, q = sp.get("q");
+    const patch: Partial<Filters> = {};
+    if (kind && ["court", "gamezone", "club", "gift"].includes(kind)) patch.kind = kind;
+    if (status && ["paid", "unpaid", "cancelled"].includes(status)) patch.status = status;
+    if (period && ["today", "week", "month", "all"].includes(period)) patch.period = period;
+    if (q) { patch.q = q.slice(0, 60); setSearch(q.slice(0, 60)); }
+    if (Object.keys(patch).length) setF((x) => ({ ...x, ...patch }));
+    }, 0);
+    return () => clearTimeout(t);
+  }, []);
+
   useEffect(() => {
     const t = setTimeout(() => { setF((x) => (x.q === search ? x : { ...x, q: search })); setPageNo(1); }, 300);
     return () => clearTimeout(t);

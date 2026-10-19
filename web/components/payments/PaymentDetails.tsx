@@ -22,7 +22,7 @@ function Goods({ g }: { g: CustomerGoodsItem }) {
         <span className="flex min-w-0 items-start gap-2"><Package size={16} className="mt-0.5 shrink-0 text-muted" /><span className="min-w-0 font-medium">{g.items}</span></span>
         <span className="shrink-0 font-bold">{rs(g.amount)}</span>
       </div>
-      {g.lines.length > 0 && (
+      {g.lines.length > 1 && (
         <ul className="ml-6 space-y-0.5 text-xs text-muted">
           {g.lines.map((l, i) => <li key={i} className="flex justify-between gap-3"><span>{l.quantity} × {l.label}</span><span>{rs(l.amount)}</span></li>)}
         </ul>

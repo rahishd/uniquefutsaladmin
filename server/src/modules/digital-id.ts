@@ -8,6 +8,7 @@ import { AppError, handler, param, parse, send } from "../lib/http";
 import { requirePermission } from "../middleware/auth";
 import { NOT_LEDGER } from "./bookings";
 import { customerProfile } from "./customers";
+import { customerGoods } from "./payments-ledger";
 import { MATURE_DAYS, MATURE_GAMES } from "../lib/club";
 
 // Digital ID. A customer's QR holds only "UFID1." + a random token (customer app: GET /me/digital-id). It carries no personal
@@ -29,6 +30,7 @@ async function ensureToken(userId: string) {
   }
 }
 
+const BULK = /^BULK:(BLK-[A-Z0-9]+)/;
 const customerOr404 = async (phone: string) => {
   const u = await prisma.user.findUnique({ where: { phoneNumber: phone }, select: { phoneNumber: true, name: true, role: true, isActive: true } });
   if (!u || u.role !== "user") throw new AppError(404, "Customer not found");
@@ -90,15 +92,50 @@ digitalIdRouter.post("/:phone/attendance", requirePermission("digitalid.attendan
 // Everything about one customer, for the scan result.
 digitalIdRouter.get("/:phone", requirePermission("digitalid.scan"), handler(async (req, res) => {
   const u = await customerOr404(param(req, "phone"));
-  const [profile, extras] = await Promise.all([customerProfile(u.phoneNumber), customerExtras(u.phoneNumber)]);
+  const [profile, extras, person, goods, care, unpaidItems] = await Promise.all([customerProfile(u.phoneNumber), customerExtras(u.phoneNumber), personDetails(u.phoneNumber), customerGoods(u.phoneNumber), careRequests(u.phoneNumber), unpaidList(u.phoneNumber)]);
   const spent = {
     games: profile.payments.paid.amount,
     goods: profile.goods.total,
     total: profile.payments.paid.amount + profile.goods.total,
     unpaid: profile.payments.unpaid.amount,
   };
-  send(res, { profile, extras: { ...extras, spent } });
+  send(res, { profile, extras: { ...extras, spent, person, goods, unpaidItems, ...care } });
 }));
+
+// Exactly which bookings and sessions make up the "unpaid" total (the same rule the profile uses), oldest first, so each can be followed up in Payments.
+async function unpaidList(phone: string) {
+  const [courts, sessions] = await Promise.all([
+    prisma.booking.findMany({ where: { AND: [NOT_LEDGER, { OR: [{ userId: phone }, { customerPhone: phone }] }, { paymentStatus: { not: "completed" } }, { status: { notIn: DEAD } }] }, orderBy: [{ date: "asc" }, { startTime: "asc" }], take: 50 }),
+    prisma.gzBooking.findMany({ where: { userId: phone, paymentStatus: { not: "paid" }, status: { notIn: DEAD } }, orderBy: [{ date: "asc" }, { startHour: "asc" }], take: 50 }),
+  ]);
+  return [
+    ...courts.map((b) => ({ kind: "court" as const, code: b.code ?? "UF-" + b.id.slice(-6).toUpperCase(), date: b.date, time: b.startTime, amount: b.totalPrice, status: b.status, method: b.paymentMethod, bulk: BULK.exec(b.notes ?? "")?.[1] ?? null })),
+    ...sessions.map((g) => ({ kind: "gamezone" as const, code: g.code, date: g.date, time: `${String(g.startHour).padStart(2, "0")}:00`, amount: g.total, status: g.status, method: g.paymentMethod, bulk: null })),
+  ].sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
+}
+
+// Who they are and who to call in an emergency (asked at sign-up).
+async function personDetails(phone: string) {
+  const u = await prisma.user.findUniqueOrThrow({ where: { phoneNumber: phone }, select: { email: true, dateOfBirth: true, emergencyName: true, emergencyPhone: true, emergencyRelation: true, avatar: true } });
+  const age = u.dateOfBirth ? Math.floor((Date.now() - new Date(`${u.dateOfBirth}T00:00:00Z`).getTime()) / (365.25 * 86_400_000)) : null;
+  return {
+    email: u.email, dateOfBirth: u.dateOfBirth, age: age !== null && age >= 0 && age < 120 ? age : null, hasPhoto: !!u.avatar,
+    emergency: u.emergencyPhone ? { name: u.emergencyName, phone: u.emergencyPhone, relation: u.emergencyRelation } : null,
+  };
+}
+
+// Things staff must act on for this person: a wheelchair request still to be done, and insurance claims (as the injured player or as the one who filed).
+async function careRequests(phone: string) {
+  const today = todayKey();
+  const [wheelchair, claims] = await Promise.all([
+    prisma.wheelchairRequest.findMany({ where: { userId: phone, status: { in: ["pending", "confirmed"] }, date: { gte: today } }, orderBy: [{ date: "asc" }, { time: "asc" }], take: 5 }),
+    prisma.insuranceClaim.findMany({ where: { OR: [{ userId: phone }, { patientPhone: phone }] }, orderBy: { createdAt: "desc" }, take: 5 }),
+  ]);
+  return {
+    wheelchair: wheelchair.map((w) => ({ code: w.code, date: w.date, time: w.time, people: w.people, status: w.status, note: w.note, bookingCode: w.bookingCode })),
+    insurance: claims.map((c) => ({ code: c.code, severity: c.severity, status: c.status, patientName: c.patientName, createdAt: c.createdAt.toISOString().slice(0, 10), open: !["approved", "rejected", "closed"].includes(c.status) })),
+  };
+}
 
 async function currentMembership(phone: string) {
   const today = todayKey();
@@ -197,7 +234,7 @@ async function customerExtras(phone: string) {
     },
     upcomingBookings: upcoming.map((b) => ({
       code: b.code ?? "UF-" + b.id.slice(-6).toUpperCase(), date: b.date, time: b.startTime, status: b.status, amount: b.totalPrice,
-      paid: b.paymentStatus === "completed", method: b.paymentMethod,
+      paid: b.paymentStatus === "completed", method: b.paymentMethod, bulk: BULK.exec(b.notes ?? "")?.[1] ?? null,
     })),
     addOns: {
       total: addOnRows.reduce((n, b) => n + b.addOnsPrice, 0),

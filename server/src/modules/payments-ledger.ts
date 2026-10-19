@@ -122,8 +122,7 @@ ledgerRouter.get("/ledger", requirePermission("payments.view"), handler(async (r
 }));
 
 // Everything a customer took from the venue's stock: what they still owe (goods on credit, with the items) and what they paid for recently.
-ledgerRouter.get("/customer-goods", requirePermission("payments.view"), handler(async (req, res) => {
-  const { phone } = parse(z.object({ phone: z.string().min(5).max(20) }), req.query);
+export async function customerGoods(phone: string) {
   const rows = await prisma.goodsDue.findMany({ where: { userId: phone }, orderBy: { createdAt: "desc" }, take: 60 });
   const lines = (json: string) => { try { return (JSON.parse(json) as { type?: string; label: string; quantity: number; amount: number }[]).filter((l) => l.type !== "game"); } catch { return []; } };
   const shape = (d: (typeof rows)[number]) => ({
@@ -132,7 +131,12 @@ ledgerRouter.get("/customer-goods", requirePermission("payments.view"), handler(
     paidAt: d.paidAt, paidBy: d.paidBy, checkoutCode: d.checkoutCode,
   });
   const due = rows.filter((d) => d.status === "due").map(shape);
-  send(res, { due, dueTotal: due.reduce((n, d) => n + d.amount, 0), paid: rows.filter((d) => d.status === "paid").slice(0, 15).map(shape) });
+  return { due, dueTotal: due.reduce((n, d) => n + d.amount, 0), paid: rows.filter((d) => d.status === "paid").slice(0, 15).map(shape) };
+}
+
+ledgerRouter.get("/customer-goods", requirePermission("payments.view"), handler(async (req, res) => {
+  const { phone } = parse(z.object({ phone: z.string().min(5).max(20) }), req.query);
+  send(res, await customerGoods(phone));
 }));
 
 // Totals for the cards above the list. They follow the date, mode and search filters, but not the status filter.
