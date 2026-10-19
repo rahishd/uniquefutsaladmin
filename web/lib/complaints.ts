@@ -28,6 +28,7 @@ export const PAGE_SIZE = 20;
 export const CATEGORIES = [
   { id: "booking", label: "Booking" }, { id: "payment", label: "Payment or refund" }, { id: "facilities", label: "Court or facilities" },
   { id: "staff", label: "Staff behaviour" }, { id: "gamezone", label: "Gamezone" }, { id: "membership", label: "Membership" },
+  { id: "chat", label: "Chat message" },
   { id: "app", label: "App problem" }, { id: "other", label: "Other" },
 ];
 

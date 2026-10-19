@@ -13,7 +13,7 @@ export const complaintsRouter = Router();
 
 export const CATEGORIES: Record<string, string> = {
   booking: "Booking", payment: "Payment or refund", facilities: "Court or facilities", staff: "Staff behaviour",
-  gamezone: "Gamezone", membership: "Membership", app: "App problem", other: "Other",
+  gamezone: "Gamezone", membership: "Membership", chat: "Chat message", app: "App problem", other: "Other",
 };
 const STATUSES = ["open", "in_review", "resolved", "closed"] as const;
 
