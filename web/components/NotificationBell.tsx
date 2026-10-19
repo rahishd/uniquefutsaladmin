@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Baby, Bell, CalendarCheck, CalendarPlus, CreditCard, Gamepad2, HeartHandshake, Megaphone, MessageSquareWarning, RotateCcw, Scale, Swords, UserPlus, Users, X,
+  Accessibility, Baby, Bell, CalendarCheck, CalendarPlus, CreditCard, Gamepad2, HeartHandshake, Megaphone, MessageSquareWarning, RotateCcw, Scale, ShieldPlus, Swords, UserPlus, Users, X,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { canDo } from "@/lib/access";
@@ -21,10 +21,13 @@ const ITEMS: { key: keyof Counts; href: string; icon: React.ElementType; text: (
 
 const ICON: Record<string, React.ElementType> = {
   booking: CalendarPlus, payment: CreditCard, customer: UserPlus, complaint: MessageSquareWarning, referral: HeartHandshake, academy: Baby,
-  challenge: Swords, result: Scale, gamezone: Gamepad2, membership: Users, arrival: CalendarCheck,
+  challenge: Swords, result: Scale, gamezone: Gamepad2, membership: Users, arrival: CalendarCheck, wheelchair: Accessibility, insurance: ShieldPlus,
 };
 
 const SEEN = "uf-activity-seen";
+const READ = "uf-activity-read";
+const readIds = (): string[] => { try { return JSON.parse(localStorage.getItem(READ) ?? "[]"); } catch { return []; } };
+const saveIds = (ids: string[]) => { try { localStorage.setItem(READ, JSON.stringify(ids.slice(-200))); } catch { /* not remembered */ } };
 const readSeen = () => { try { return localStorage.getItem(SEEN) ?? ""; } catch { return ""; } };
 const saveSeen = (iso: string) => { try { localStorage.setItem(SEEN, iso); } catch { /* private window: the badge simply resets on reload */ } };
 
@@ -45,6 +48,7 @@ export default function NotificationBell() {
   const [feed, setFeed] = useState<Item[]>([]);
   // nothing is "new" the first time this browser opens the portal
   const [seen, setSeen] = useState(() => { if (typeof window === "undefined") return ""; const v = readSeen(); if (v) return v; const now = new Date().toISOString(); saveSeen(now); return now; });
+  const [read, setRead] = useState<string[]>(() => (typeof window === "undefined" ? [] : readIds()));
   const [toast, setToast] = useState<Item | null>(null);
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
@@ -94,7 +98,8 @@ export default function NotificationBell() {
   }, [open]);
 
   const rows = ITEMS.filter((i) => (c?.[i.key] ?? 0) > 0);
-  const fresh = feed.filter((i) => seen && i.at > seen).length;
+  const isNew = (i: Item) => !!seen && i.at > seen && !read.includes(i.id);
+  const fresh = feed.filter(isNew).length;
   // arrivals are information, not a to-do, so they do not count on the red badge
   const badge = rows.filter((r) => r.key !== "arrivalsToday").reduce((n, r) => n + (c?.[r.key] ?? 0), 0) + fresh;
 
@@ -117,7 +122,7 @@ export default function NotificationBell() {
       </button>
 
       {toast && !open && (
-        <Link href={withHl(toast)} onClick={() => setToast(null)} className="fixed bottom-24 left-4 right-4 z-[60] flex items-start gap-3 rounded-2xl border border-line bg-surface p-3 text-foreground shadow-xl sm:left-auto sm:right-6 sm:w-96 lg:bottom-6" role="status">
+        <Link href={withHl(toast)} onClick={() => { const next = [...read, toast.id]; setRead(next); saveIds(next); setToast(null); }} className="fixed bottom-24 left-4 right-4 z-[60] flex items-start gap-3 rounded-2xl border border-line bg-surface p-3 text-foreground shadow-xl sm:left-auto sm:right-6 sm:w-96 lg:bottom-6" role="status">
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand/10 text-brand">{(() => { const I = ICON[toast.type] ?? Bell; return <I size={18} />; })()}</span>
           <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{toast.title}</span><span className="block truncate text-xs text-muted">{toast.text}</span></span>
           <button type="button" aria-label="Dismiss" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setToast(null); }} className="text-muted"><X size={16} /></button>
@@ -136,12 +141,12 @@ export default function NotificationBell() {
             <ul>
               {feed.slice(0, 15).map((i) => {
                 const I = ICON[i.type] ?? Bell;
-                const isNew = !!seen && i.at > seen;
+                const unread = isNew(i);
                 return (
                   <li key={i.id}>
-                    <Link href={withHl(i)} onClick={() => setOpen(false)} className={`flex items-start gap-3 px-4 py-2.5 text-sm hover:bg-surface-2 ${isNew ? "bg-brand/5" : ""}`}>
+                    <Link href={withHl(i)} onClick={() => { setOpen(false); const next = [...read, i.id]; setRead(next); saveIds(next); }} className={`flex items-start gap-3 px-4 py-2.5 text-sm hover:bg-surface-2 ${unread ? "bg-brand/5" : ""}`}>
                       <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-brand/10 text-brand"><I size={16} /></span>
-                      <span className="min-w-0 flex-1"><span className="flex items-center gap-2 font-semibold">{i.title}{isNew && <span className="h-2 w-2 rounded-full bg-red-500" aria-label="new" />}</span><span className="block truncate text-xs text-muted">{i.text}</span></span>
+                      <span className="min-w-0 flex-1"><span className="flex items-center gap-2 font-semibold">{i.title}{unread && <span className="h-2 w-2 rounded-full bg-red-500" aria-label="new" />}</span><span className="block truncate text-xs text-muted">{i.text}</span></span>
                       <span className="shrink-0 text-[11px] text-muted">{ago(i.at)}</span>
                     </Link>
                   </li>

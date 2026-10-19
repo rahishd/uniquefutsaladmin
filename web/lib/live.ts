@@ -15,6 +15,13 @@ const PAGES: Record<string, string[]> = {
   arrival: ["/arrivals"],
   gamezone: ["/gamezone"],
   membership: ["/membership"],
+  complaint: ["/complaints"],
+  referral: ["/refer"],
+  academy: ["/academy"],
+  challenge: ["/teams"],
+  result: ["/teams", "/disputes"],
+  wheelchair: ["/wheelchair"],
+  insurance: ["/insurance"],
 };
 
 let items: LiveItem[] = [];
@@ -79,5 +86,14 @@ listeners.add(() => { version += 1; });
 /** Re-renders whenever the feed or a button's read state changes. */
 export function useLive() {
   useSyncExternalStore(subscribe, () => version, () => 0);
-  return { unseenFor, openLive };
+  return { unseenFor, openLive, targetFor };
+}
+
+/** Where a dashboard tile should go: the newest recent item for that page, with ?hl= so the page highlights it (null = open the page as usual). */
+export function targetFor(slug: string): string | null {
+  const page = `/${slug}`;
+  const newest = items.find((i) => i.href === page || i.href.startsWith(`${page}?`) || i.href.startsWith(`${page}/`) || (PAGES[i.type] ?? []).includes(page));
+  if (!newest) return null;
+  const target = newest.href.startsWith(page) ? newest.href : page;
+  return `${target}${target.includes("?") ? "&" : "?"}hl=${encodeURIComponent(newest.ref ?? newest.id)}`;
 }

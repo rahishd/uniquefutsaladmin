@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useLive } from "@/lib/live";
 import { useEffect, useState } from "react";
 import { icons } from "@/components/icons";
 import { modules } from "@/lib/nav";
@@ -11,9 +13,10 @@ import { getOverview } from "@/lib/overview";
 
 type Live = { pendingPayments: number; arrivalsToday: number; disputes: number; refundsDue: number; bookingsToday: number; tasks: Record<string, number> };
 
-function Tile({ href, label, Icon, badge }: { href: string; label: string; Icon: React.ElementType; badge?: string }) {
+function Tile({ href, label, Icon, badge, onGo }: { href: string; label: string; Icon: React.ElementType; badge?: string; onGo?: () => string | null }) {
+  const router = useRouter();
   return (
-    <Link href={href} className="flex flex-col items-center justify-center gap-1 text-center text-[10px] font-medium leading-tight lg:gap-2 lg:text-[13px]">
+    <Link href={href} onClick={(e) => { const go = onGo?.(); if (go) { e.preventDefault(); router.push(go); } }} className="flex flex-col items-center justify-center gap-1 text-center text-[10px] font-medium leading-tight lg:gap-2 lg:text-[13px]">
       <span className="relative grid h-10 w-10 place-items-center rounded-xl bg-surface-2 text-foreground/75 lg:h-14 lg:w-14">
         <Icon size={22} strokeWidth={1.6} />
         {badge && <span className="absolute -right-2 -top-2 min-w-[20px] rounded-full bg-brand px-1.5 text-center text-[11px] font-bold leading-5 text-white">{badge}</span>}
@@ -34,6 +37,7 @@ export default function Home() {
   const [live, setLive] = useState<Live | null>(null);
   const [sales, setSales] = useState<{ total: number; games: number; goods: number; gamezone: number } | null>(null);
   const allowed = canDo("dashboard.view");
+  const feed = useLive(); // keeps the activity feed polling so a tile can open the newest item
 
   useEffect(() => {
     if (!allowed) return;
@@ -59,7 +63,7 @@ export default function Home() {
       <Card>
         {modules.filter((m) => canSeePage(m.slug)).map((m) => {
           const n = live?.tasks?.[m.slug] ?? 0;
-          return <Tile key={m.slug} href={`/${m.slug}`} label={m.title} Icon={icons[m.icon]} badge={n > 0 ? String(n) : undefined} />;
+          return <Tile key={m.slug} href={`/${m.slug}`} label={m.title} Icon={icons[m.icon]} badge={n > 0 ? String(n) : undefined} onGo={n > 0 ? () => feed.targetFor(m.slug) : undefined} />;
         })}
       </Card>
     </div>

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, GraduationCap, HeartPulse, Phone, Plus, Search, X } from "lucide-react";
 import { Badge } from "../bookings/Badge";
+import { useHighlight } from "@/lib/highlight";
 import Switch from "../Switch";
 import { ApiError } from "@/lib/api";
 import { guard } from "@/lib/access";
@@ -18,7 +19,7 @@ const msg = (e: unknown) => (e instanceof ApiError || e instanceof Error ? e.mes
 const tomorrow = () => { const d = new Date(Date.now() + 86400000); return d.toLocaleDateString("en-CA", { timeZone: "Asia/Kathmandu" }); };
 
 export default function AcademyPage() {
-  const [tab, setTab] = useState<Tab>("classes");
+  const [tab, setTab] = useState<Tab>(() => (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("tab") === "children" ? "children" : "classes"));
   const [stats, setStats] = useState<AOverview | null>(null);
   const [pickClass, setPickClass] = useState<string>(""); // jump from a class to its children
   const refreshStats = useCallback(() => { overview().then(setStats).catch(() => {}); }, []);
@@ -222,6 +223,7 @@ function Children({ sessionId, onClearClass, onChanged }: { sessionId: string; o
   const [q, setQ] = useState("");
   const [pageNo, setPageNo] = useState(1);
   const [data, setData] = useState<AList | null>(null);
+  useHighlight(!!data);
   const [error, setError] = useState("");
   const [tick, setTick] = useState(0);
 
@@ -276,7 +278,7 @@ function ChildCard({ e, onAttend, onCancel }: { e: AEnrollment; onAttend: (s: "a
   const st = STATUS[e.status];
   const started = e.session.started;
   return (
-    <li className="space-y-3 rounded-2xl bg-surface p-4 shadow-sm">
+    <li data-hl={`a-${e.id}`} className="space-y-3 rounded-2xl bg-surface p-4 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <p className="font-semibold">{e.childName} <span className="font-normal text-muted">· age {e.childAge}</span></p>

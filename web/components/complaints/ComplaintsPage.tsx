@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, Image as ImageIcon, MessageSquareWarning, Search } from "lucide-react";
 import { Badge } from "../bookings/Badge";
+import { useHighlight } from "@/lib/highlight";
 import ComplaintSheet from "./ComplaintSheet";
 import { CATEGORIES, CCounts, CList, CStatus, Complaint, PAGE_SIZE, STATUS, ago, complaintCounts, listComplaints } from "@/lib/complaints";
 
@@ -23,6 +24,7 @@ export default function ComplaintsPage() {
   const [q, setQ] = useState(fromLink);
   const [pageNo, setPageNo] = useState(1);
   const [data, setData] = useState<CList | null>(null);
+  useHighlight(!!data);
   const [counts, setCounts] = useState<CCounts | null>(null);
   const [error, setError] = useState("");
   const [open, setOpen] = useState<Complaint | null>(null);
@@ -86,7 +88,7 @@ export default function ComplaintsPage() {
         {data?.items.map((c) => {
           const st = STATUS[c.status];
           return (
-            <li key={c.id}>
+            <li key={c.id} data-hl={`c-${c.id}`}>
               <button onClick={() => setOpen(c)} className={`w-full space-y-2 rounded-2xl bg-surface p-4 text-left shadow-sm hover:ring-2 hover:ring-brand/40 ${c.status === "open" ? "border-l-4 border-amber-500" : ""}`}>
                 <div className="flex items-center justify-between gap-2">
                   <p className="font-semibold">{c.categoryLabel}</p>

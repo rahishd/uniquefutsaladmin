@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, Search, Shield, X } from "lucide-react";
 import { Badge } from "../bookings/Badge";
 import { ApiError } from "@/lib/api";
+import { useHighlight } from "@/lib/highlight";
 import { guard } from "@/lib/access";
 import { rs } from "@/lib/bookings";
 import {
@@ -118,6 +119,7 @@ function ChallengesTab() {
   const [q, setQ] = useState("");
   const [pageNo, setPageNo] = useState(1);
   const [data, setData] = useState<{ items: ChallengeRow[]; total: number } | null>(null);
+  useHighlight(!!data);
   const [error, setError] = useState("");
   useEffect(() => { const t = setTimeout(() => { setQ(search.trim()); setPageNo(1); }, 300); return () => clearTimeout(t); }, [search]);
   useEffect(() => { let live = true; listChallenges({ status, q, page: pageNo }).then((d) => live && (setData(d), setError(""))).catch((e) => live && setError(msg(e))); return () => { live = false; }; }, [status, q, pageNo]);
@@ -133,7 +135,7 @@ function ChallengesTab() {
       {data && data.items.length === 0 && <p className="rounded-2xl bg-surface p-8 text-center text-sm text-muted">No challenges here.</p>}
       <ul className="grid gap-3 xl:grid-cols-2">
         {data?.items.map((c) => (
-          <li key={c.id} className="space-y-2 rounded-2xl bg-surface p-4 shadow-sm">
+          <li key={c.id} data-hl={`ch-${c.id}`} className="space-y-2 rounded-2xl bg-surface p-4 shadow-sm">
             <div className="flex items-start justify-between gap-2">
               <p className="min-w-0 font-bold"><span>{c.challenger}</span> <span className="font-normal text-muted">vs</span> <span>{c.challenged}</span></p>
               <Badge tone={STATUS_TONE[c.status] ?? ""}>{c.status[0].toUpperCase() + c.status.slice(1)}</Badge>
@@ -195,6 +197,7 @@ function ResultsTab({ onChanged }: { onChanged: () => void }) {
   const [rows, setRows] = useState<Dispute[] | null>(null);
   const [error, setError] = useState("");
   const [open, setOpen] = useState<Dispute | null>(null);
+  useHighlight(!!rows);
   const [tick, setTick] = useState(0);
   useEffect(() => { let live = true; listDisputes().then((r) => live && (setRows(r), setError(""))).catch((e) => live && setError(msg(e))); return () => { live = false; }; }, [tick]);
   return (
@@ -205,7 +208,7 @@ function ResultsTab({ onChanged }: { onChanged: () => void }) {
       {rows && rows.length === 0 && <p className="rounded-2xl bg-surface p-8 text-center text-sm text-muted">Nothing to review. No results are disputed.</p>}
       <ul className="grid gap-3 xl:grid-cols-2">
         {rows?.map((d) => (
-          <li key={d.id} className="flex items-center justify-between gap-3 rounded-2xl bg-surface p-4 shadow-sm">
+          <li key={d.id} data-hl={`rs-${d.id}`} className="flex items-center justify-between gap-3 rounded-2xl bg-surface p-4 shadow-sm">
             <div className="min-w-0"><p className="font-bold">{d.submittedBy} <span className="font-normal text-muted">vs</span> {d.otherTeam}</p><p className="text-xs text-muted">{fmtDay(d.date)}, {h12(d.startHour)} · uploaded <strong className="text-foreground">{d.scoreSubmitter}-{d.scoreOther}</strong></p></div>
             <button onClick={() => guard("teams.resolve") && setOpen(d)} className="shrink-0 rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white">Review</button>
           </li>
@@ -257,7 +260,7 @@ function VenueTab({ onChanged }: { onChanged: () => void }) {
 }
 
 export default function TeamsPage({ initialTab = "teams" }: { initialTab?: Tab }) {
-  const [tab, setTab] = useState<Tab>(initialTab);
+  const [tab, setTab] = useState<Tab>(() => { const t = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("tab") : null; return t === "challenges" ? "challenges" : initialTab; });
   const [ov, setOv] = useState<TeamsOverview | null>(null);
   const [tick, setTick] = useState(0);
   useEffect(() => { getOverview().then(setOv).catch(() => {}); }, [tick]);

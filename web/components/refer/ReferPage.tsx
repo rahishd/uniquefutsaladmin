@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, HeartHandshake, Phone, Search, X } from "lucide-react";
 import { Badge } from "../bookings/Badge";
+import { useHighlight } from "@/lib/highlight";
 import Switch from "../Switch";
 import { ApiError } from "@/lib/api";
 import { guard } from "@/lib/access";
@@ -50,6 +51,7 @@ function Referrals({ tick, onChanged }: { tick: number; onChanged: () => void })
   const [q, setQ] = useState("");
   const [pageNo, setPageNo] = useState(1);
   const [data, setData] = useState<RList | null>(null);
+  useHighlight(!!data);
   const [cnt, setCnt] = useState<RCounts | null>(null);
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
@@ -92,7 +94,7 @@ function Referrals({ tick, onChanged }: { tick: number; onChanged: () => void })
           const st = STATUS[r.status];
           const cancelled = r.booking && ["cancelled", "expired", "rejected"].includes(r.booking.status);
           return (
-            <li key={r.id} className={`space-y-3 rounded-2xl bg-surface p-4 shadow-sm ${r.status === "pending" ? "border-l-4 border-amber-500" : ""}`}>
+            <li key={r.id} data-hl={`r-${r.id}`} className={`space-y-3 rounded-2xl bg-surface p-4 shadow-sm ${r.status === "pending" ? "border-l-4 border-amber-500" : ""}`}>
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <p className="font-semibold">Game for {r.teamName}</p>
