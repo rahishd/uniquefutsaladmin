@@ -6,22 +6,25 @@ export const DENIED_EVENT = "uf-denied";
 
 export const canDo = (permission: string) => !!currentAdmin()?.permissions?.includes(permission);
 
-// The permission(s) that open each page; holding any one shows the page. A page not listed here is always shown.
-const pagePermissions: Record<string, string[]> = {
-  overview: ["dashboard.view"], dashboard: ["dashboard.view"], slots: ["slots.view"], bookings: ["bookings.view"], arrivals: ["arrivals.view"],
-  sales: ["inventory.sell", "inventory.view"], payments: ["payments.view"], "ev-charging": ["payments.view"], "service-funds": ["servicefunds.view"],
-  courts: ["courts.view"], "digital-id": ["digitalid.scan", "digitalid.attendance"], customers: ["customers.view"], "goal-rush": ["goalrush.view"],
-  "gift-card": ["giftcards.view"], club: ["club.view"], vip: ["vip.view"], membership: ["membership.view"], loyalty: ["loyalty.view"],
-  promos: ["promos.view"], teams: ["teams.view"], disputes: ["teams.view"], tournaments: ["tournaments.view"], gamezone: ["gamezone.view"],
-  notifications: ["notifications.send"], complaints: ["complaints.view"], wheelchair: ["wheelchair.view"], insurance: ["insurance.view"], refer: ["refer.view"], academy: ["academy.view"], content: ["content.view"],
-  partners: ["content.view"], verify: ["verify.view"], inventory: ["inventory.view"], reports: ["reports.view"], staff: ["staff.manage"],
-  audit: ["audit.view"], settings: ["settings.view"],
+// The permission group(s) of each page: the part before the dot, e.g. "bookings" for bookings.view, bookings.cancel and so on. A page not listed here is always shown.
+const pageGroups: Record<string, string[]> = {
+  overview: ["dashboard"], dashboard: ["dashboard"], slots: ["slots"], bookings: ["bookings"], arrivals: ["arrivals"],
+  sales: ["inventory"], payments: ["payments"], "ev-charging": ["payments"], "service-funds": ["servicefunds"],
+  courts: ["courts"], "digital-id": ["digitalid"], customers: ["customers"], "goal-rush": ["goalrush"],
+  "gift-card": ["giftcards"], club: ["club"], vip: ["vip"], membership: ["membership"], loyalty: ["loyalty"],
+  promos: ["promos"], teams: ["teams"], disputes: ["teams"], tournaments: ["tournaments"], gamezone: ["gamezone"],
+  notifications: ["notifications"], complaints: ["complaints"], wheelchair: ["wheelchair"], insurance: ["insurance"], refer: ["refer"], academy: ["academy"], content: ["content"],
+  partners: ["content"], verify: ["verify"], inventory: ["inventory"], reports: ["reports"], staff: ["staff"],
+  audit: ["audit"], settings: ["settings"],
 };
 
-// false when this account has none of the permissions for the page, so the portal hides its link.
+// A page (its sidebar link and its dashboard icon) shows when this account holds at least one permission of that page, even a small one
+// such as only "Cancel Booking". It is hidden when the account holds none of them.
 export const canSeePage = (slug: string) => {
-  const need = pagePermissions[slug];
-  return !need || need.some(canDo);
+  const groups = pageGroups[slug];
+  if (!groups) return true;
+  const mine = currentAdmin()?.permissions ?? [];
+  return mine.some((p) => groups.includes(p.split(".")[0]));
 };
 
 export function showDenied() {
