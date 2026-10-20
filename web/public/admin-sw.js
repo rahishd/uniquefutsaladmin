@@ -1,6 +1,8 @@
 // Admin portal service worker: shows alerts (Web Push) while the portal is closed or the phone is asleep, and opens the right page on tap.
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
+// Nothing is cached (the portal always needs the live server); a fetch handler is only here so phones treat the portal as an installable app.
+self.addEventListener("fetch", () => {});
 
 self.addEventListener("push", (event) => {
   let d = {};

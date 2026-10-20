@@ -235,3 +235,16 @@ body {
 .glass-card::after {
   display: none;
 }
+
+/* The portal is an app: no zoom by double-tap, and fields are 16px on phones and tablets so the page does not jump in when one is focused. */
+html,
+body {
+  touch-action: manipulation;
+}
+@media (max-width: 1023.98px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}

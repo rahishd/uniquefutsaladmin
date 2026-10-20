@@ -13,8 +13,11 @@ function keyBytes(b64: string) {
   return Uint8Array.from(raw, (c) => c.charCodeAt(0));
 }
 
+// on the shared domain the portal lives under NEXT_PUBLIC_BASE_PATH, and so does its service worker
+const base = (process.env.NEXT_PUBLIC_BASE_PATH ?? "").replace(/\/+$/, "");
+
 async function registration() {
-  return navigator.serviceWorker.register("/admin-sw.js", { scope: "/" }).then(() => navigator.serviceWorker.ready);
+  return navigator.serviceWorker.register(`${base}/admin-sw.js`, { scope: `${base}/` }).then(() => navigator.serviceWorker.ready);
 }
 
 export async function pushState(): Promise<PushState> {
