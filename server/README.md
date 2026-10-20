@@ -25,3 +25,9 @@ npm test                    # 63 tests against the local unique_test database (r
 For the test database: `DATABASE_URL=postgresql://unique:unique_dev_pw@localhost:5441/unique_test?schema=public ADMIN_JWT_SECRET=<32+ chars> NODE_ENV=test npm run db:push`.
 
 Endpoints: `../docs/API.md`.
+
+## Fonepay: test mode on a deployed server
+
+`FONEPAY_MODE=test` makes the QR fake and shows a Simulate button to staff. Production refuses test mode so nobody can mark a payment as received by mistake.
+For a **demo or test deployment** (no real money, no real customers) set `ALLOW_TEST_PAYMENTS=true` together with `FONEPAY_MODE=test`.
+The Settings page then shows a DEMO MODE note. Turn the switch off, and use `FONEPAY_MODE=live` with the Fonepay keys, before real customers pay.

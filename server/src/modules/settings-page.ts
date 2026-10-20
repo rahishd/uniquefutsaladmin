@@ -53,7 +53,7 @@ settingsPageRouter.get("/", requirePermission("settings.view"), handler(async (r
     wifi: { ssid: ssid ?? "", password: canEdit ? password ?? "" : password ? "(set)" : "", visible: visible !== "false", access: access === "all" ? "all" : "booked" },
     booking: { advanceDeposit: Number(deposit ?? 0) || 0 },
     integrations: {
-      fonepay: { mode: env.FONEPAY_MODE, configured: !!(env.FONEPAY_MERCHANT_CODE && env.FONEPAY_SECRET && env.FONEPAY_BASE_URL), note: env.FONEPAY_MODE === "test" ? "Test mode: QR codes are fake and staff use the Simulate button. Real payments need live keys." : "Live" },
+      fonepay: { mode: env.FONEPAY_MODE, configured: !!(env.FONEPAY_MERCHANT_CODE && env.FONEPAY_SECRET && env.FONEPAY_BASE_URL), note: env.FONEPAY_MODE === "test" ? (process.env.NODE_ENV === "production" ? "DEMO MODE: QR codes are fake and staff use the Simulate button. No real money moves. Turn ALLOW_TEST_PAYMENTS off before real customers use the system." : "Test mode: QR codes are fake and staff use the Simulate button. Real payments need live keys.") : "Live" },
       push: { configured: !!(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY) },
       database: db,
       environment: process.env.NODE_ENV === "production" ? "production" : "development",

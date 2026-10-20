@@ -35,10 +35,17 @@ assertSafeDatabaseUrl(DATABASE_URL, NODE_ENV);
 // Fonepay dynamic QR: "test" (fake QR + a simulate button) until the real API details exist, then "live". Test mode is refused in production.
 const FONEPAY_MODE = (process.env.FONEPAY_MODE || "test") as "test" | "live";
 if (FONEPAY_MODE !== "test" && FONEPAY_MODE !== "live") throw new Error('FONEPAY_MODE must be "test" or "live".');
-if (NODE_ENV === "production" && FONEPAY_MODE === "test") throw new Error('FONEPAY_MODE=test is not allowed in production. Set FONEPAY_MODE=live and the Fonepay keys.');
+// A demo or test deployment (no real money, no real customers) may switch simulated payments on in production by setting ALLOW_TEST_PAYMENTS=true.
+// Without it, production refuses test mode, because the simulate call lets anyone with staff access mark a payment as received.
+const ALLOW_TEST_PAYMENTS = process.env.ALLOW_TEST_PAYMENTS === "true";
+if (NODE_ENV === "production" && FONEPAY_MODE === "test" && !ALLOW_TEST_PAYMENTS) {
+  throw new Error('FONEPAY_MODE=test is not allowed in production. Set FONEPAY_MODE=live and the Fonepay keys, or for a demo with no real money set ALLOW_TEST_PAYMENTS=true.');
+}
+if (ALLOW_TEST_PAYMENTS && FONEPAY_MODE !== "test") throw new Error("ALLOW_TEST_PAYMENTS=true needs FONEPAY_MODE=test.");
 
 export const env = {
   FONEPAY_MODE,
+  ALLOW_TEST_PAYMENTS,
   FONEPAY_MERCHANT_CODE: process.env.FONEPAY_MERCHANT_CODE || "",
   FONEPAY_SECRET: process.env.FONEPAY_SECRET || "",
   FONEPAY_BASE_URL: process.env.FONEPAY_BASE_URL || "",
