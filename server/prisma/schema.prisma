@@ -1452,3 +1452,38 @@ model StaffPushSubscription {
 
   @@index([staffId])
 }
+
+// A reminder staff set for a time. It pops up in the portal and is pushed to phones, again every few minutes, until someone marks it done.
+// forStaffId empty = every staff member. repeat: none | daily (marking a daily one done sets the next day's).
+model Reminder {
+  id             String    @id @default(cuid())
+  title          String
+  note           String?
+  dueAt          DateTime
+  repeat         String    @default("none")
+  forStaffId     String?
+  createdById    String
+  createdByName  String
+  status         String    @default("open") // open | done
+  doneAt         DateTime?
+  doneByName     String?
+  snoozedUntil   DateTime?
+  lastNotifiedAt DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([status, dueAt])
+}
+
+// The owner's check of one day's money: what the portal counted (a snapshot when checked) against what the owner says was received.
+model DayCheck {
+  id              String   @id @default(cuid())
+  day             String   @unique // YYYY-MM-DD (Nepal)
+  expectedCash    Float
+  expectedFonepay Float
+  receivedCash    Float
+  receivedFonepay Float
+  note            String?
+  checkedById     String
+  checkedByName   String
+  checkedAt       DateTime @default(now())
+}

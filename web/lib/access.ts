@@ -15,7 +15,7 @@ const pageGroups: Record<string, string[]> = {
   promos: ["promos"], teams: ["teams"], disputes: ["teams"], tournaments: ["tournaments"], gamezone: ["gamezone"],
   notifications: ["notifications"], complaints: ["complaints"], wheelchair: ["wheelchair"], insurance: ["insurance"], refer: ["refer"], academy: ["academy"], content: ["content"],
   partners: ["content"], verify: ["verify"], inventory: ["inventory"], reports: ["reports"], staff: ["staff"],
-  audit: ["audit"], settings: ["settings"],
+  audit: ["audit"], settings: ["settings"], reminders: ["reminders"], "day-check": ["staff"], // Day Check is the owner's: only the owner holds a staff.* permission
 };
 
 // A page (its sidebar link and its dashboard icon) shows when this account holds at least one permission of that page, even a small one

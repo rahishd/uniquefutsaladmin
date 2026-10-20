@@ -55,6 +55,26 @@ export const modules: Module[] = [
     ],
   },
   {
+    slug: "reminders", title: "Reminders", group: "Operations", icon: "bell",
+    summary: "Things to remember at a set time. A pop-up shows in the portal and a phone alert is sent until someone marks it done.",
+    clientFeatures: [],
+    adminTasks: ["Add a reminder with a date and time, for everyone or for one staff member, once or every day", "A pop-up shows on every page when it is due, with Done and Snooze", "Phone alerts repeat every 10 minutes until it is done", "See what is left and what was done in the last 7 days"],
+    endpoints: [
+      e("GET", "/admin/reminders", "my reminders (everyone's for those who may view all)"), e("GET", "/admin/reminders/due", "reminders due for me now (the pop-up)"),
+      e("POST", "/admin/reminders", "add a reminder"), e("PATCH", "/admin/reminders/:id", "edit"), e("DELETE", "/admin/reminders/:id", "delete"),
+      e("POST", "/admin/reminders/:id/done", "mark done (a daily one sets the next day)"), e("POST", "/admin/reminders/:id/snooze", "again in 5, 10, 30 or 60 minutes"),
+    ],
+  },
+  {
+    slug: "day-check", title: "Day Check", group: "Operations", icon: "scale",
+    summary: "The owner looks at the day's dashboard, enters the cash and Fonepay really received, and marks the day as checked.",
+    clientFeatures: [],
+    adminTasks: ["See what the portal counted for a day (cash, Fonepay, games, Gamezone, goods)", "Enter the amounts really received and see the difference", "Mark the day as checked, with a note", "Reopen a day if it was checked by mistake or the takings changed"],
+    endpoints: [
+      e("GET", "/admin/day-check", "a day's figures, its check and the last 14 days"), e("POST", "/admin/day-check", "mark a day as checked"), e("DELETE", "/admin/day-check/:date", "reopen a checked day"),
+    ],
+  },
+  {
     slug: "service-funds", title: "Collect Service Payment", group: "Operations", icon: "receipt",
     summary: "Money set aside for a purpose: the 3% Charity Fund, a turf fund, maintenance, balls or anything else. Percent funds collect by themselves from every paid futsal game; withdraw when you need the money.",
     clientFeatures: ["3% Charity Fund shown with its exact amount on every booking, Gamezone, membership and bill"],

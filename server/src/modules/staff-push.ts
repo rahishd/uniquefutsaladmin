@@ -7,6 +7,7 @@ import env from "../config/env";
 import { handler, parse, send } from "../lib/http";
 import { effectivePermissions } from "../lib/permissions";
 import { pushEnabled, pushToStaff } from "../lib/push";
+import { pushDueReminders } from "./reminders";
 import { buildActivity, Item } from "./activity";
 
 export const staffPushRouter = Router();
@@ -67,7 +68,7 @@ export async function pushNewActivity(now = new Date()): Promise<number> {
 }
 
 export function startStaffPushWatcher(everyMs = 20_000) {
-  const t = setInterval(() => { void pushNewActivity().catch(() => {}); }, everyMs);
+  const t = setInterval(() => { void pushNewActivity().catch(() => {}); void pushDueReminders().catch(() => {}); }, everyMs);
   t.unref();
   return t;
 }

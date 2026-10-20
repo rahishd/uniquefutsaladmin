@@ -9,6 +9,7 @@ import { groups, modules } from "@/lib/nav";
 import { canSeePage } from "@/lib/access";
 import { useLive } from "@/lib/live";
 import DeniedDialog from "./DeniedDialog";
+import ReminderPopup from "./reminders/ReminderPopup";
 import NotificationBell from "./NotificationBell";
 import SirenToggle from "./SirenToggle";
 import { getToken } from "@/lib/api";
@@ -204,6 +205,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       <div className="flex min-w-0 flex-col lg:col-start-2 lg:row-start-2">
         <main className="mx-auto w-full max-w-[1400px] p-4 pb-28 lg:p-8 lg:pb-10">{children}</main>
         <DeniedDialog />
+        <ReminderPopup />
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 z-30 flex items-end bg-[#0c0b5d] px-2 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] pt-1 shadow-xl lg:hidden">

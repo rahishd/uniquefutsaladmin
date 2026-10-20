@@ -143,6 +143,10 @@ export const SECTIONS: Section[] = [
     { key: "tournaments.create", label: "Register / Cancel a Hosted Tournament" },
     { key: "tournaments.bill", label: "Tournament Bill: Add Goods, Charges, Receive Payments" },
   ] },
+  { id: "reminders", label: "Reminders", permissions: [
+    { key: "reminders.view", label: "View All Reminders" },
+    { key: "reminders.manage", label: "Add / Edit / Delete Reminders" },
+  ] },
   { id: "notices", label: "Notices", permissions: [{ key: "notifications.send", label: "Send Notices to Customers (with an optional link)" }] },
   { id: "reports", label: "Reports & Audit", permissions: [
     { key: "reports.view", label: "View Reports" },
