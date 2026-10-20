@@ -103,7 +103,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[264px_minmax(0,1fr)]">
-        <header className="sticky top-0 z-30 flex h-auto min-h-16 min-w-0 items-center pb-2 pt-[calc(env(safe-area-inset-top)+3.25rem)] md:h-16 md:pb-0 md:pt-0 justify-between gap-3 bg-header pl-2 pr-4 text-white lg:col-span-2 lg:pl-3 lg:pr-8">
+        <header className="sticky top-0 z-30 flex h-auto min-h-16 min-w-0 items-center pb-2 pt-[max(calc(env(safe-area-inset-top)_-_0.625rem),0.5rem)] md:h-16 md:pb-0 md:pt-0 justify-between gap-3 bg-header pl-2 pr-4 text-white lg:col-span-2 lg:pl-3 lg:pr-8">
           <div className="flex shrink-0 items-center gap-3 pr-2">
             {/* the player alone, turned white for the navy bar */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
