@@ -1,7 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Check, Copy, ExternalLink, MessageCircle, Phone, UserPlus, X } from "lucide-react";
+import SendPdfButton from "../SendPdfButton";
+import { pdfFileName } from "@/lib/branded-pdf";
+import { linkPdf } from "@/lib/report-pdfs";
+import { Check, Copy, MessageCircle, ExternalLink, Phone, UserPlus, X } from "lucide-react";
 import { Badge } from "../bookings/Badge";
 import { guard } from "@/lib/access";
 import { ApiError } from "@/lib/api";
@@ -82,7 +85,7 @@ export default function RegistrationsCard({ tournamentId, name, finished, entryF
         </button>
       </div>
       <div className="flex flex-wrap gap-2">
-        <a href={`https://wa.me/?text=${encodeURIComponent(`Register your team for ${name} at Unique Futsal: ${url}`)}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 rounded-full bg-[#25D366] px-4 py-2 text-sm font-semibold text-white"><MessageCircle size={15} /> Send on WhatsApp</a>
+        <SendPdfButton label="Send on WhatsApp (PDF)" build={() => linkPdf({ purpose: "TOURNAMENT", title: `Register your team for ${name}`, subtitle: "Open the link or scan the code to register.", ref: "TEAM REGISTRATION", labelName: "Tournament", name, url, steps: ["Open the link, or scan the QR code with your phone.", "Enter your team name and the captain details.", "Submit the form. The Unique Futsal team will confirm."], qrLabel: "Scan to register your team", note: "Questions? Call Unique Futsal on 9811940018." })} filename={pdfFileName("tournament", name)} message={`Register your team for ${name} at Unique Futsal. The details and a QR code are in the attached PDF.`} className="flex items-center gap-1.5 rounded-full bg-[#25D366] px-4 py-2 text-sm font-semibold text-white" />
         <a href={url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 rounded-full bg-surface-2 px-4 py-2 text-sm font-semibold"><ExternalLink size={14} /> Open the page</a>
       </div>
 

@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowDownRight, ArrowUpRight, Banknote, Download, Globe, MessageCircle, QrCode } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Banknote, Globe, QrCode } from "lucide-react";
 import { prettyDate, rs } from "@/lib/bookings";
 import { Report, getReport } from "@/lib/inventory";
 import { Overview, getOverview } from "@/lib/overview";
-import { downloadReportPdf } from "@/lib/report-pdf";
-import { whatsappLink } from "@/lib/report-export";
+import SendPdfButton from "../SendPdfButton";
+import { pdfFileName } from "@/lib/branded-pdf";
+import { salesReportPdf } from "@/lib/report-pdfs";
+import { issuePdfCode } from "@/lib/verify";
 
 const field = "rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
 const nepalToday = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kathmandu" }).format(new Date());
@@ -68,8 +70,8 @@ export default function OverviewPage() {
         </div>
         {shown && (
           <div className="flex gap-2">
-            <a href={whatsappLink(shown.r)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 rounded-full bg-[#25D366] px-4 py-2 text-sm font-semibold text-white"><MessageCircle size={15} /> Send on WhatsApp</a>
-            <button onClick={() => downloadReportPdf(shown.r)} className="flex items-center gap-1.5 rounded-full border border-line bg-surface px-4 py-2 text-sm font-semibold"><Download size={15} /> Download PDF</button>
+            <SendPdfButton label="Send on WhatsApp (PDF)" build={async () => salesReportPdf(shown.r, await issuePdfCode("Sales report"))} filename={pdfFileName("sales-report", shown.r.from, shown.r.to)} message={`Unique Futsal sales report for ${shown.r.from === shown.r.to ? shown.r.from : `${shown.r.from} to ${shown.r.to}`}. The full report is in the attached PDF.`} className="flex items-center gap-1.5 rounded-full bg-[#25D366] px-4 py-2 text-sm font-semibold text-white" />
+            <SendPdfButton mode="download" label="Download PDF" build={async () => salesReportPdf(shown.r, await issuePdfCode("Sales report"))} filename={pdfFileName("sales-report", shown.r.from, shown.r.to)} message="" className="flex items-center gap-1.5 rounded-full border border-line bg-surface px-4 py-2 text-sm font-semibold" />
           </div>
         )}
       </div>

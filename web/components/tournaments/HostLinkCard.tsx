@@ -1,11 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, ExternalLink, Link2, MessageCircle, RefreshCw, ShieldOff } from "lucide-react";
+import { Copy, ExternalLink, Link2, RefreshCw, ShieldOff } from "lucide-react";
 import { Badge } from "../bookings/Badge";
 import { guard } from "@/lib/access";
 import { ApiError } from "@/lib/api";
 import { copyText } from "@/lib/vip";
+import SendPdfButton from "../SendPdfButton";
+import { pdfFileName } from "@/lib/branded-pdf";
+import { linkPdf } from "@/lib/report-pdfs";
 import { HostLink, createHostLink, hostUrl, nepalTime, revokeHostLink } from "@/lib/tournaments";
 
 import { askConfirm } from "@/lib/confirm";
@@ -42,7 +45,7 @@ export default function HostLinkCard({ tournamentId, name, link, onChanged }: { 
             <button type="button" onClick={async () => { if (await copyText(url)) { setCopied(true); setTimeout(() => setCopied(false), 1500); } }} className="flex shrink-0 items-center gap-1.5 rounded-full bg-surface px-3 py-1.5 text-xs font-semibold"><Copy size={13} /> {copied ? "Copied" : "Copy"}</button>
           </div>
           <div className="flex flex-wrap gap-2">
-            <a href={`https://wa.me/?text=${encodeURIComponent(`Match-day link for ${name}. Open it to follow every goal and update scores and the tie-sheet: ${url}`)}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 rounded-full bg-[#25D366] px-4 py-2 text-sm font-semibold text-white"><MessageCircle size={15} /> Send on WhatsApp</a>
+            <SendPdfButton label="Send on WhatsApp (PDF)" build={() => linkPdf({ purpose: "MATCH-DAY LINK", title: `Match-day link for ${name}`, subtitle: "For the tournament host only.", ref: "HOST LINK", labelName: "Tournament", name, url, steps: ["Open the link, or scan the QR code.", "Follow every goal live.", "Update scores and the tie-sheet during the matches."], qrLabel: "Scan to open the match-day page", note: "Anyone with this link can change scores. Send it only to the host." })} filename={pdfFileName("match-day-link", name)} message={`Match-day link for ${name}. The details and a QR code are in the attached PDF.`} className="flex items-center gap-1.5 rounded-full bg-[#25D366] px-4 py-2 text-sm font-semibold text-white" />
             <a href={url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 rounded-full bg-surface-2 px-4 py-2 text-sm font-semibold"><ExternalLink size={14} /> Open</a>
           </div>
           <p className="text-xs text-muted">Works until {link!.expiresAt ? nepalTime(link!.expiresAt) : "you switch it off"}. {link!.lastUsedAt ? `Last opened ${nepalTime(link!.lastUsedAt)}.` : "Not opened yet."} Anyone who gets this link can change scores, so send it only to the host.</p>

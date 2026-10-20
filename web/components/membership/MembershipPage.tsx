@@ -2,7 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { BadgeCheck, ChevronLeft, ChevronRight, MessageCircle, Phone, Plus, Search } from "lucide-react";
+import SendPdfButton from "../SendPdfButton";
+import { pdfFileName } from "@/lib/branded-pdf";
+import { membershipReminderPdf } from "@/lib/report-pdfs";
+import { BadgeCheck, ChevronLeft, ChevronRight, Phone, Plus, Search } from "lucide-react";
 import { Badge } from "../bookings/Badge";
 import { BalanceSheet, NewMemberSheet, ReasonSheet, RenewSheet, VerifySheet } from "./MemberSheets";
 import { ApiError } from "@/lib/api";
@@ -20,13 +23,6 @@ const TABS: { id: "" | MemberStatus; label: string }[] = [
 
 type Sheet = { kind: "new" } | { kind: "verify" | "balance" | "renew" | "extend" | "suspend" | "cancel"; m: Member } | null;
 
-const reminder = (m: Member) => {
-  const text = m.status === "expired"
-    ? `Hello ${m.customer.name ?? ""}, your Unique Futsal membership ${m.memberCode} ended on ${shortDate(m.endDate)}. Reply to renew and keep your slot.`
-    : `Hello ${m.customer.name ?? ""}, your Unique Futsal membership ${m.memberCode} ends on ${shortDate(m.endDate)}. Reply to renew and keep your slot.`;
-  const d = m.customer.phone.replace(/\D/g, "");
-  return `https://wa.me/${d.length === 10 ? `977${d}` : d}?text=${encodeURIComponent(text)}`;
-};
 
 export default function MembershipPage() {
   useHighlight();
@@ -131,7 +127,7 @@ export default function MembershipPage() {
               {m.rawStatus === "active" && <button onClick={() => open("membership.edit", { kind: "extend", m })} className="rounded-full border border-line px-4 py-2 text-xs font-semibold">Extend</button>}
               {m.rawStatus === "active" && m.status !== "expired" && <button onClick={() => open("membership.edit", { kind: "suspend", m })} className="rounded-full border border-line px-4 py-2 text-xs font-semibold">Suspend</button>}
               {m.status === "suspended" && <button onClick={() => resume(m)} className="rounded-full bg-brand px-4 py-2 text-xs font-semibold text-white">Resume</button>}
-              {(m.status === "expiring" || m.status === "expired") && <a href={reminder(m)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 rounded-full bg-[#25D366] px-4 py-2 text-xs font-semibold text-white"><MessageCircle size={13} /> Remind on WhatsApp</a>}
+              {(m.status === "expiring" || m.status === "expired") && <SendPdfButton label="Remind on WhatsApp (PDF)" build={() => membershipReminderPdf({ name: m.customer.name, phone: m.customer.phone, memberCode: m.memberCode ?? "", endDate: m.endDate, expired: m.status === "expired" })} filename={pdfFileName("membership-reminder", m.memberCode)} phone={m.customer.phone} message={`Hello ${m.customer.name ?? ""}, your Unique Futsal membership reminder is in the attached PDF.`} className="flex items-center gap-1.5 rounded-full bg-[#25D366] px-4 py-2 text-xs font-semibold text-white" />}
               {m.status !== "cancelled" && <button onClick={() => open("membership.edit", { kind: "cancel", m })} className="rounded-full px-3 py-2 text-xs font-semibold text-red-600">Cancel</button>}
             </div>
           </li>

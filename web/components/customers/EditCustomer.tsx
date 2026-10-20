@@ -1,7 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Eye, EyeOff, MessageCircle, Pencil } from "lucide-react";
+import { Eye, EyeOff, Pencil } from "lucide-react";
+import SendPdfButton from "../SendPdfButton";
+import { pdfFileName } from "@/lib/branded-pdf";
+import { customerLoginPdf } from "@/lib/share-pdfs";
 import { ApiError } from "@/lib/api";
 import { guard } from "@/lib/access";
 import { CustomerEdit, editCustomer } from "@/lib/customers";
@@ -16,7 +19,7 @@ export default function EditCustomer({ phone, name, email, onSaved }: { phone: s
   const [error, setError] = useState("");
   const [done, setDone] = useState("");
   // After a new password is saved: who to send it to on WhatsApp (the number is saved without the country code)
-  const [share, setShare] = useState<{ phone: string; text: string } | null>(null);
+  const [share, setShare] = useState<{ phone: string; name: string; password: string } | null>(null);
   const input = "w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
 
   async function save() {
@@ -34,8 +37,7 @@ export default function EditCustomer({ phone, name, email, onSaved }: { phone: s
       setDone(body.password ? `Saved. Tell the customer their new password: ${body.password}` : "Saved.");
       if (body.password) {
         const to = body.phoneNumber ?? phone;
-        const first = (body.name ?? f.name).trim().split(" ")[0] || "there";
-        setShare({ phone: to, text: `Hello ${first}! Your Unique Futsal password has been changed. Open the app and sign in with your mobile number ${to} and the new password ${body.password}. You can change it any time from Profile.` });
+        setShare({ phone: to, name: (body.name ?? f.name).trim(), password: body.password });
       }
       setF((v) => ({ ...v, password: "" }));
       onSaved(body.phoneNumber ?? phone);
@@ -49,9 +51,7 @@ export default function EditCustomer({ phone, name, email, onSaved }: { phone: s
       <button onClick={() => setOpen(true)} className="flex w-full items-center justify-center gap-2 rounded-xl bg-surface-2 py-3 text-sm font-semibold"><Pencil size={16} /> Edit details / set password</button>
       {done && <p className="rounded-xl bg-brand/10 p-3 text-sm text-brand">{done}</p>}
       {share && (
-        <a href={`https://wa.me/977${share.phone}?text=${encodeURIComponent(share.text)}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 rounded-xl bg-[#25D366] py-3 text-sm font-semibold text-white">
-          <MessageCircle size={16} /> Send the new password on WhatsApp to {share.phone}
-        </a>
+        <SendPdfButton label={`Send the new password (PDF) on WhatsApp to ${share.phone}`} build={() => customerLoginPdf({ name: share.name, phone: share.phone, password: share.password, reset: true })} filename={pdfFileName("new-password", share.phone)} phone={share.phone} message={`Hello ${share.name.split(" ")[0] || "there"}! Your new Unique Futsal password is in the attached PDF.`} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] py-3 text-sm font-semibold text-white" />
       )}
     </div>
   );
@@ -69,9 +69,7 @@ export default function EditCustomer({ phone, name, email, onSaved }: { phone: s
       {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600" role="alert">{error}</p>}
       {done && <p className="rounded-xl bg-brand/10 p-3 text-sm text-brand">{done}</p>}
       {share && (
-        <a href={`https://wa.me/977${share.phone}?text=${encodeURIComponent(share.text)}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 rounded-xl bg-[#25D366] py-3 text-sm font-semibold text-white">
-          <MessageCircle size={16} /> Send the new password on WhatsApp to {share.phone}
-        </a>
+        <SendPdfButton label={`Send the new password (PDF) on WhatsApp to ${share.phone}`} build={() => customerLoginPdf({ name: share.name, phone: share.phone, password: share.password, reset: true })} filename={pdfFileName("new-password", share.phone)} phone={share.phone} message={`Hello ${share.name.split(" ")[0] || "there"}! Your new Unique Futsal password is in the attached PDF.`} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] py-3 text-sm font-semibold text-white" />
       )}
       <div className="grid grid-cols-2 gap-2">
         <button onClick={() => setOpen(false)} className="rounded-xl bg-surface-2 py-2.5 text-sm font-semibold">Cancel</button>

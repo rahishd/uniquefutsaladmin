@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, Copy, MessageCircle, RefreshCw, Search, X } from "lucide-react";
+import { Check, Copy, RefreshCw, Search, X } from "lucide-react";
 import { ApiError } from "@/lib/api";
 import { rs } from "@/lib/bookings";
 import { CustomerRow, initials, listCustomers, saveVip } from "@/lib/customers";
-import { VipItem, VipType, copyText, describe, generateCode, giveVip, shareLink } from "@/lib/vip";
+import { VipItem, VipType, copyText, describe, generateCode, giveVip } from "@/lib/vip";
+import SendPdfButton from "../SendPdfButton";
+import { pdfFileName } from "@/lib/branded-pdf";
+import { vipCodePdf } from "@/lib/share-pdfs";
 
 const field = "w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
 const PERCENTS = [5, 10, 15, 20];
@@ -87,7 +90,7 @@ export default function GiveVipSheet({ edit, onClose, onSaved }: { edit: VipItem
             <p className="text-xs text-muted">They type it once in the promo box when they book. After that the discount applies to every game automatically.</p>
             <div className="grid grid-cols-2 gap-2">
               <button onClick={async () => { setCopied(await copyText(done.code)); }} className="flex items-center justify-center gap-2 rounded-xl bg-surface-2 py-3 text-sm font-semibold">{copied ? <><Check size={16} /> Copied</> : <><Copy size={16} /> Copy code</>}</button>
-              <a href={shareLink(customer.phone, customer.name, done)} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 rounded-xl bg-brand py-3 text-sm font-semibold text-white"><MessageCircle size={16} /> Send on WhatsApp</a>
+              <SendPdfButton label="Send the code on WhatsApp (PDF)" build={() => vipCodePdf({ name: customer.name, phone: customer.phone, code: done.code, type: done.type, value: done.value })} filename={pdfFileName("vip-code", done.code)} phone={customer.phone} message={`Hello${customer.name ? " " + customer.name.split(" ")[0] : ""}! Your Unique Futsal VIP code is in the attached PDF.`} className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-3 text-sm font-semibold text-white" />
             </div>
             <button onClick={onClose} className="w-full rounded-xl border border-line py-3 text-sm font-semibold">Done</button>
           </div>

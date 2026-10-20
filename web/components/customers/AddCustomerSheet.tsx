@@ -1,7 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Copy, MessageCircle, RefreshCw, UserPlus, X } from "lucide-react";
+import { Check, Copy, RefreshCw, UserPlus, X } from "lucide-react";
+import SendPdfButton from "../SendPdfButton";
+import { pdfFileName } from "@/lib/branded-pdf";
+import { customerLoginPdf } from "@/lib/share-pdfs";
 import Switch from "../Switch";
 import { guard } from "@/lib/access";
 import { ApiError } from "@/lib/api";
@@ -50,9 +53,6 @@ export default function AddCustomerSheet({ onClose, onAdded }: { onClose: () => 
   }
 
   const copy = async (what: string, text: string) => { if (await copyText(text)) { setCopied(what); setTimeout(() => setCopied(""), 1500); } };
-  const message = done?.password
-    ? `Hello ${done.name.split(" ")[0]}! Your Unique Futsal account is ready. Open the app and sign in with your mobile number ${done.phone} and the password ${done.password}.`
-    : "";
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center" onClick={onClose}>
@@ -74,7 +74,7 @@ export default function AddCustomerSheet({ onClose, onAdded }: { onClose: () => 
                 <p className="text-xs text-muted">Give these to the customer so they can sign in to the app. The password is shown only now.</p>
                 <div className="flex flex-wrap gap-2">
                   <button type="button" onClick={() => copy("all", `Mobile: ${done.phone}\nPassword: ${done.password}`)} className="flex items-center gap-1.5 rounded-full bg-surface-2 px-4 py-2 text-sm font-semibold">{copied === "all" ? <Check size={14} /> : <Copy size={14} />} {copied === "all" ? "Copied" : "Copy details"}</button>
-                  <a href={`https://wa.me/977${done.phone}?text=${encodeURIComponent(message)}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 rounded-full bg-[#25D366] px-4 py-2 text-sm font-semibold text-white"><MessageCircle size={15} /> Send on WhatsApp</a>
+                  <SendPdfButton wrapperClassName="inline-block" label="Send login details (PDF)" build={() => customerLoginPdf({ name: done.name, phone: done.phone, password: done.password! })} filename={pdfFileName("login-details", done.phone)} phone={done.phone} message={`Hello ${done.name.split(" ")[0]}! Your Unique Futsal login details are in the attached PDF.`} className="flex items-center gap-1.5 rounded-full bg-[#25D366] px-4 py-2 text-sm font-semibold text-white" />
                 </div>
               </>
             ) : (

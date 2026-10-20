@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import SendPdfButton from "../SendPdfButton";
+import { pdfFileName, type PdfSpec } from "@/lib/branded-pdf";
 import Link from "next/link";
-import { Accessibility, ArrowUpRight, Download, HeartPulse, Layers, MessageCircle, Package, Phone, QrCode, ShieldAlert, UserCheck } from "lucide-react";
+import { Accessibility, ArrowUpRight, HeartPulse, Layers, Package, Phone, QrCode, ShieldAlert, UserCheck } from "lucide-react";
 import { Badge } from "../bookings/Badge";
 import { Empty, Section, Tile } from "./parts";
 import { prettyDate, rs } from "@/lib/bookings";
@@ -38,8 +40,8 @@ function GoodsRow({ g }: { g: GoodsEntry }) {
 
 // What the front desk sees after a scan, in the order they need it: who it is and what needs action first (a strip of alerts that jump to the
 // right tab), then the details split into tabs instead of one long page.
-export default function ScanResult({ view, busy, note, onCard, onAttendance, onNext }: {
-  view: DigitalView; busy: string; note: string; onCard: (kind: "download" | "whatsapp") => void; onAttendance: () => void; onNext: () => void;
+export default function ScanResult({ view, busy, note, buildCard, onAttendance, onNext }: {
+  view: DigitalView; busy: string; note: string; buildCard: () => Promise<PdfSpec>; onAttendance: () => void; onNext: () => void;
 }) {
   const [tab, setTab] = useState<Tab>("overview");
   const goUnpaid = () => { setTab("money"); setTimeout(() => document.getElementById("unpaid-list")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); };
@@ -99,8 +101,8 @@ export default function ScanResult({ view, busy, note, onCard, onAttendance, onN
         {!p.user.isActive && <p className="mt-3 rounded-xl bg-rose-500/10 p-3 text-sm text-rose-700">This account is suspended. Check with the owner before allowing a booking.</p>}
         <div className="mt-3 flex flex-wrap gap-2">
           <a href={`tel:${p.user.phoneNumber}`} className="flex items-center gap-1.5 rounded-full border border-line px-3 py-2 text-xs font-semibold"><Phone size={14} /> Call</a>
-          <button onClick={() => onCard("download")} disabled={!!busy} className="flex items-center gap-1.5 rounded-full border border-line px-3 py-2 text-xs font-semibold disabled:opacity-60"><Download size={14} /> {busy === "download" ? "Making…" : "Download ID card"}</button>
-          <button onClick={() => onCard("whatsapp")} disabled={!!busy} className="flex items-center gap-1.5 rounded-full bg-emerald-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-60"><MessageCircle size={14} /> {busy === "whatsapp" ? "Making…" : "Send on WhatsApp"}</button>
+          <SendPdfButton mode="download" label="Download ID card (PDF)" build={buildCard} filename={pdfFileName("digital-id", view.profile.user.phoneNumber)} message="" className="flex items-center gap-1.5 rounded-full border border-line px-3 py-2 text-xs font-semibold" />
+          <SendPdfButton label="Send on WhatsApp (PDF)" build={buildCard} filename={pdfFileName("digital-id", view.profile.user.phoneNumber)} phone={view.profile.user.phoneNumber} message="Your Unique Futsal Digital ID is in the attached PDF. Show the QR at the venue." className="flex items-center gap-1.5 rounded-full bg-emerald-600 px-3 py-2 text-xs font-semibold text-white" />
         </div>
         {note && <p role="status" className="mt-3 rounded-xl bg-brand/10 p-3 text-sm text-brand">{note}</p>}
       </div>

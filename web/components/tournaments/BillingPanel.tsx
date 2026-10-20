@@ -2,13 +2,17 @@
 
 import { CHARITY_PERCENT, charityText } from "@/lib/charity";
 import { useCallback, useEffect, useState } from "react";
-import { CheckCircle2, Download, Lock, LockOpen, MessageCircle, Minus, Plus, Search, Trash2, X } from "lucide-react";
+import { CheckCircle2, Lock, LockOpen, Minus, Plus, Search, Trash2, X } from "lucide-react";
 import { Badge } from "../bookings/Badge";
 import PaySplit, { INITIAL_PAY, PayState, paymentsFor } from "../PaySplit";
 import { ApiError } from "@/lib/api";
 import { guard } from "@/lib/access";
 import { rs } from "@/lib/bookings";
-import { Bill, addItems, addLine, billLink, downloadBillPdf, fmtDay, getBill, makeFinalBill, range, receivePayment, removeLine, reopenBill, setRate } from "@/lib/hosted-tournaments";
+import SendPdfButton from "../SendPdfButton";
+import { pdfFileName } from "@/lib/branded-pdf";
+import { tournamentBillPdf } from "@/lib/report-pdfs";
+import { issuePdfCode } from "@/lib/verify";
+import { Bill, addItems, addLine, fmtDay, getBill, makeFinalBill, range, receivePayment, removeLine, reopenBill, setRate } from "@/lib/hosted-tournaments";
 import { Product, listProducts } from "@/lib/inventory";
 
 import { askConfirm } from "@/lib/confirm";
@@ -201,8 +205,8 @@ export default function BillingPanel({ id, canBill, onChanged }: { id: string; c
       <div className="flex flex-wrap gap-2">
         {canBill && !closed && <button onClick={async () => guard("tournaments.bill") && (await askConfirm("Make the final bill? Goods and charges can no longer be changed (you can reopen it).")) && run(() => makeFinalBill(id))} disabled={busy} className="flex items-center gap-1.5 rounded-full bg-brand px-5 py-2.5 text-sm font-semibold text-white"><Lock size={15} /> Make the final bill</button>}
         {canBill && closed && <button onClick={() => run(() => reopenBill(id))} disabled={busy} className="flex items-center gap-1.5 rounded-full border border-line px-4 py-2.5 text-sm font-semibold"><LockOpen size={15} /> Reopen the bill</button>}
-        <button onClick={() => downloadBillPdf(b)} className="flex items-center gap-1.5 rounded-full border border-line px-4 py-2.5 text-sm font-semibold"><Download size={15} /> Download PDF</button>
-        <a href={billLink(b)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 rounded-full bg-[#25D366] px-4 py-2.5 text-sm font-semibold text-white"><MessageCircle size={15} /> Send to the host on WhatsApp</a>
+        <SendPdfButton mode="download" label="Download PDF" build={async () => tournamentBillPdf(b, await issuePdfCode(`Tournament bill: ${b.name}`))} filename={pdfFileName("tournament-bill", b.name)} message="" className="flex items-center gap-1.5 rounded-full border border-line px-4 py-2.5 text-sm font-semibold" />
+        <SendPdfButton label="Send to the host on WhatsApp (PDF)" build={async () => tournamentBillPdf(b, await issuePdfCode(`Tournament bill: ${b.name}`))} filename={pdfFileName("tournament-bill", b.name)} phone={b.hostPhone} message={`Unique Futsal tournament bill for ${b.name}: total ${rs(b.total)}. The bill is in the attached PDF.`} className="flex items-center gap-1.5 rounded-full bg-[#25D366] px-4 py-2.5 text-sm font-semibold text-white" />
       </div>
 
       {sheet === "items" && <ItemsSheet id={id} onClose={() => setSheet(null)} onDone={apply} />}

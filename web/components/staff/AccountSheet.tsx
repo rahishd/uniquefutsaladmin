@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, Copy, MessageCircle, RefreshCw, ShieldCheck, UserRound, X } from "lucide-react";
+import { Check, Copy, RefreshCw, ShieldCheck, UserRound, X } from "lucide-react";
 import { guard } from "@/lib/access";
 import { withBase } from "@/lib/base";
 import { ApiError } from "@/lib/api";
 import { Account, Catalog, createStaff, getCatalog, randomPassword, updateStaff } from "@/lib/staff";
 import { copyText } from "@/lib/vip";
+import SendPdfButton from "../SendPdfButton";
+import { pdfFileName } from "@/lib/branded-pdf";
+import { staffLoginPdf } from "@/lib/share-pdfs";
 
 const field = "w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
 
@@ -41,7 +44,7 @@ function SignInDetails({ email, password }: { email: string; password?: string }
       </div>
       <div className="grid grid-cols-2 gap-2">
         <button type="button" onClick={() => copy("all", message)} className="flex items-center justify-center gap-1.5 rounded-xl border border-line py-2.5 text-sm font-semibold">{done === "all" ? <><Check size={15} /> Copied</> : <><Copy size={15} /> Copy all details</>}</button>
-        <a href={`https://wa.me/?text=${encodeURIComponent(message)}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-1.5 rounded-xl bg-[#25D366] py-2.5 text-sm font-semibold text-white"><MessageCircle size={15} /> Share on WhatsApp</a>
+        <SendPdfButton label="Share on WhatsApp (PDF)" build={() => staffLoginPdf({ email, password, link })} filename={pdfFileName("staff-login", email.split("@")[0])} message="Your Unique Futsal admin portal sign-in details are in the attached PDF." className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-[#25D366] py-2.5 text-sm font-semibold text-white" />
       </div>
     </div>
   );

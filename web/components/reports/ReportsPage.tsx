@@ -1,9 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowDownRight, ArrowUpRight, Banknote, BarChart3, Download, MessageCircle, QrCode } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Banknote, BarChart3, QrCode } from "lucide-react";
 import { rs } from "@/lib/bookings";
-import { Summary, change, downloadReportsPdf, getSummary, h12, nepalToday, periodLabel, reportsLink, shiftDay, shortDay } from "@/lib/reports";
+import SendPdfButton from "../SendPdfButton";
+import { pdfFileName } from "@/lib/branded-pdf";
+import { businessReportPdf } from "@/lib/report-pdfs";
+import { issuePdfCode } from "@/lib/verify";
+import { Summary, change, getSummary, h12, nepalToday, periodLabel, shiftDay, shortDay } from "@/lib/reports";
 
 type Range = "today" | "yesterday" | "week" | "month" | "thismonth" | "custom";
 const RANGES: { id: Range; label: string }[] = [
@@ -62,8 +66,8 @@ export default function ReportsPage() {
         </div>
         {shown && (
           <div className="flex gap-2">
-            <a href={reportsLink(shown)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 rounded-full bg-[#25D366] px-4 py-2 text-sm font-semibold text-white"><MessageCircle size={15} /> Send on WhatsApp</a>
-            <button onClick={() => downloadReportsPdf(shown)} className="flex items-center gap-1.5 rounded-full border border-line bg-surface px-4 py-2 text-sm font-semibold"><Download size={15} /> Download PDF</button>
+            <SendPdfButton label="Send on WhatsApp (PDF)" build={async () => businessReportPdf(shown, await issuePdfCode("Business report"))} filename={pdfFileName("business-report", shown.from, shown.to)} message={`Unique Futsal business report for ${periodLabel(shown)}. The full report is in the attached PDF.`} className="flex items-center gap-1.5 rounded-full bg-[#25D366] px-4 py-2 text-sm font-semibold text-white" />
+            <SendPdfButton mode="download" label="Download PDF" build={async () => businessReportPdf(shown, await issuePdfCode("Business report"))} filename={pdfFileName("business-report", shown.from, shown.to)} message="" className="flex items-center gap-1.5 rounded-full border border-line bg-surface px-4 py-2 text-sm font-semibold" />
           </div>
         )}
       </div>

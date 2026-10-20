@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, Copy, MessageCircle, Pencil, Plus, Search, Tag, Trash2, X } from "lucide-react";
+import SendPdfButton from "../SendPdfButton";
+import { pdfFileName } from "@/lib/branded-pdf";
+import { promoPdf } from "@/lib/report-pdfs";
+import { Check, Copy, Pencil, Plus, Search, Tag, Trash2, X } from "lucide-react";
 import { Badge } from "../bookings/Badge";
 import Switch from "../Switch";
 import { ApiError } from "@/lib/api";
@@ -20,7 +23,6 @@ const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kathmandu
 const TONE = { active: "bg-green-500/15 text-green-700", paused: "bg-amber-500/15 text-amber-700", expired: "bg-surface-2 text-muted", used_up: "bg-red-500/15 text-red-700" } as const;
 const WORD = { active: "Live", paused: "Paused", expired: "Expired", used_up: "Fully used" } as const;
 
-const shareText = (p: PromoInput) => `Unique Futsal: use code ${p.code} for ${p.label}${p.title ? ` (${p.title})` : ""}. ${conditions(p).join(". ")}.`;
 
 // ---------- add or change a code ----------
 type Draft = { code: string; type: "percent" | "flat"; value: string; label: string; labelEdited: boolean; title: string; description: string; appliedTo: AppliesTo; expiryDate: string; validDays: Day[]; startTime: string; endTime: string; isActive: boolean; maxUses: string; maxPerCustomer: string; includesWater: boolean };
@@ -182,7 +184,7 @@ export default function PromosPage() {
             <p className="text-sm"><strong>{p.uses}</strong>{p.maxUses ? ` of ${p.maxUses}` : ""} time{(p.maxUses ?? p.uses) === 1 ? "" : "s"} used · <strong>{rs(p.discountGiven)}</strong> given{p.lastUsedAt ? <span className="text-xs text-muted"> · last used {fmtDay(p.lastUsedAt)}</span> : null}</p>
             <div className="flex flex-wrap gap-2 border-t border-line pt-3">
               <button onClick={() => copy(p.code)} className="flex items-center gap-1.5 rounded-full border border-line px-3.5 py-1.5 text-xs font-semibold">{copied === p.code ? <><Check size={13} /> Copied</> : <><Copy size={13} /> Copy code</>}</button>
-              <a href={`https://wa.me/?text=${encodeURIComponent(shareText(p))}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 rounded-full bg-[#25D366] px-3.5 py-1.5 text-xs font-semibold text-white"><MessageCircle size={13} /> Share</a>
+              <SendPdfButton label="Share (PDF)" build={() => promoPdf(p)} filename={pdfFileName("promo", p.code)} message={`Unique Futsal promo code ${p.code}: ${p.label}. The details are in the attached PDF.`} className="flex items-center gap-1.5 rounded-full bg-[#25D366] px-3.5 py-1.5 text-xs font-semibold text-white" />
               <button onClick={() => guard("promos.edit") && setSheet(p)} className="flex items-center gap-1.5 rounded-full border border-line px-3.5 py-1.5 text-xs font-semibold"><Pencil size={13} /> Edit</button>
               <button onClick={() => remove(p)} className="ml-auto flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-red-600"><Trash2 size={13} /> Delete</button>
             </div>

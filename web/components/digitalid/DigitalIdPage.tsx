@@ -8,7 +8,8 @@ import { ApiError } from "@/lib/api";
 import { guard } from "@/lib/access";
 import { initials } from "@/lib/customers";
 import { DigitalView, Found, loadCard, loadDigital, markAttendance, resolveCode, searchCustomers } from "@/lib/digitalid";
-import { cardToBlob, drawIdCard } from "@/lib/idcard";
+import { CARD_H, CARD_W, cardToBlob, drawIdCard } from "@/lib/idcard";
+import { blobToDataUrl, type PdfSpec } from "@/lib/branded-pdf";
 import ScanResult from "./ScanResult";
 import { Empty, Section } from "./parts";
 
@@ -138,33 +139,17 @@ export default function DigitalIdPage() {
     } catch (e) { setNote(msg(e)); } finally { setBusy(""); }
   }
 
-  // The card to download or send on WhatsApp
-  async function card(kind: "download" | "whatsapp") {
-    if (!view || !guard("digitalid.scan")) return;
-    setBusy(kind);
-    setNote("");
-    try {
-      const d = await loadCard(view.profile.user.phoneNumber);
-      const canvas = document.createElement("canvas");
-      await drawIdCard(canvas, d);
-      const blob = await cardToBlob(canvas);
-      const file = new File([blob], `unique-futsal-id-${d.phone}.png`, { type: "image/png" });
-      if (kind === "whatsapp" && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], text: `Your Unique Futsal Digital ID, ${d.name}. Show the QR at the venue.` });
-        return;
-      }
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(file);
-      a.download = file.name;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(a.href), 10000);
-      if (kind === "whatsapp") {
-        window.open(`${d.whatsapp}?text=${encodeURIComponent(`Hi ${d.name}, your Unique Futsal Digital ID card is attached. Show the QR at the venue.`)}`, "_blank", "noopener");
-        setNote("The card was downloaded. Attach it in the WhatsApp chat that just opened.");
-      }
-    } catch (e) {
-      if (!(e instanceof DOMException && e.name === "AbortError")) setNote(msg(e));
-    } finally { setBusy(""); }
+  // The customer's Digital ID card as a branded PDF page (what is downloaded and what is sent on WhatsApp)
+  async function cardPdf(): Promise<PdfSpec> {
+    const d = await loadCard(view!.profile.user.phoneNumber);
+    const canvas = document.createElement("canvas");
+    await drawIdCard(canvas, d);
+    return {
+      purpose: "DIGITAL ID", title: `Digital ID: ${d.name}`, subtitle: "Show the QR at the venue.", ref: `ID-${d.phone}`,
+      to: { name: d.name, phone: d.phone },
+      image: { dataUrl: await blobToDataUrl(await cardToBlob(canvas)), width: CARD_W, height: CARD_H },
+      note: "The QR holds none of the details: only Unique Futsal staff can read it. If it is lost or sent by mistake, make a new QR in the app and this one stops working.",
+    };
   }
 
   const scanning = cam !== "off";
@@ -229,7 +214,7 @@ export default function DigitalIdPage() {
         </div>
       )}
 
-      {state === "ok" && view && <ScanResult key={view.profile.user.phoneNumber} view={view} busy={busy} note={note} onCard={card} onAttendance={attendance} onNext={start} />}
+      {state === "ok" && view && <ScanResult key={view.profile.user.phoneNumber} view={view} busy={busy} note={note} buildCard={cardPdf} onAttendance={attendance} onNext={start} />}
     </div>
   );
 }

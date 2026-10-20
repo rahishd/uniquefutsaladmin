@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, Copy, Crown, MessageCircle, Pencil, Phone, Plus, Search, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Copy, Crown, Pencil, Phone, Plus, Search, Trash2 } from "lucide-react";
 import { Badge } from "../bookings/Badge";
 import Switch from "../Switch";
 import GiveVipSheet from "./GiveVipSheet";
@@ -9,7 +9,10 @@ import { ApiError } from "@/lib/api";
 import { guard } from "@/lib/access";
 import { prettyDate, rs } from "@/lib/bookings";
 import { removeVip, saveVip } from "@/lib/customers";
-import { PAGE_SIZE, VipItem, VipList, VipStatus, copyText, describe, listVip, shareLink } from "@/lib/vip";
+import { PAGE_SIZE, VipItem, VipList, VipStatus, copyText, describe, listVip } from "@/lib/vip";
+import SendPdfButton from "../SendPdfButton";
+import { pdfFileName } from "@/lib/branded-pdf";
+import { vipCodePdf } from "@/lib/share-pdfs";
 
 import { askConfirm } from "@/lib/confirm";
 const TABS: { id: VipStatus; label: string }[] = [
@@ -135,7 +138,7 @@ export default function VipPage() {
             {v.note && <p className="text-xs text-muted">Note: {v.note}</p>}
 
             <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
-              <a href={shareLink(v.phone, v.customerName, v)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold"><MessageCircle size={13} /> Send code</a>
+              <SendPdfButton wrapperClassName="inline-block" label="WhatsApp (PDF)" build={() => vipCodePdf({ name: v.customerName, phone: v.phone, code: v.code, type: v.type, value: v.value })} filename={pdfFileName("vip-code", v.code)} phone={v.phone} message={`Hello${v.customerName ? " " + v.customerName.split(" ")[0] : ""}! Your Unique Futsal VIP code is in the attached PDF.`} className="flex items-center gap-1.5 rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold" />
               {canWrite && (
                 <>
                   <button onClick={() => guard("vip.manage") && setSheet(v)} className="flex items-center gap-1.5 rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold"><Pencil size={13} /> Change</button>

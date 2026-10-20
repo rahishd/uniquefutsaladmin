@@ -42,12 +42,6 @@ export const giveVip = (b: { phone: string; code?: string; type: VipType; value:
 
 export const describe = (v: { type: VipType; value: number }) => (v.type === "percent" ? `${v.value}% off` : `${rs(v.value)} off`);
 
-// A message staff can send on WhatsApp so the customer knows what to type.
-export const shareLink = (phone: string, name: string | null, v: { code: string; type: VipType; value: number }) => {
-  const text = `Hello${name ? " " + name.split(" ")[0] : ""}! You are a VIP at Unique Futsal. Your special code is ${v.code}. Type it in the promo box when you book in the app and get ${describe(v)} on every game.`;
-  return `https://wa.me/977${phone}?text=${encodeURIComponent(text)}`;
-};
-
 export async function copyText(t: string): Promise<boolean> {
   try {
     await navigator.clipboard.writeText(t);
