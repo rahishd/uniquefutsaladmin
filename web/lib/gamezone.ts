@@ -5,13 +5,17 @@ export type GzSession = {
   date: string; startHour: number; hours: number; players: number; total: number;
   paymentMethod: string; paymentStatus: string; status: string;
   customerName: string | null; customerPhone: string | null; registered: boolean; checkedInAt: string | null; createdAt: string;
+  clock: GzClock | null; // null until staff press Start
+  due: number; // what is still to collect: the total, less anything paid before extra time was added
 };
+// Staff press Start: the booked hours run, and extra minutes are billed per minute when the session is stopped.
+export type GzClock = { startedAt: string; endedAt: string | null; bookedMinutes: number; hourlyRate: number; extraMinutes: number; extraCharge: number };
 export type GzConsoleRow = { id: string; name: string; active: boolean };
 export type GzDay = {
-  date: string; consoles: GzConsoleRow[]; items: GzSession[];
+  date: string; consoles: GzConsoleRow[]; items: GzSession[]; serverNow: string;
   totals: { sessions: number; hours: number; cancelled: number; paid: number; owed: number };
 };
-export type GzList = { items: GzSession[]; total: number; page: number; limit: number };
+export type GzList = { items: GzSession[]; total: number; page: number; limit: number; serverNow: string };
 export type GzScope = "today" | "upcoming" | "previous" | "unpaid";
 
 export const PAGE_SIZE = 20;
@@ -36,8 +40,9 @@ export const createGzSession = (b: GzManualInput) => api<{ code: string; total: 
 
 const post = (code: string, action: "mark-paid" | "complete" | "cancel") => api(`/admin/gamezone/bookings/${encodeURIComponent(code)}/${action}`, { method: "POST" });
 export const markGzPaid = (code: string) => post(code, "mark-paid");
-export const completeGz = (code: string) => post(code, "complete");
+export const completeGz = (code: string) => api<{ extraMinutes: number; extraCharge: number; total: number }>(`/admin/gamezone/bookings/${encodeURIComponent(code)}/complete`, { method: "POST" });
 export const cancelGz = (code: string) => post(code, "cancel");
+export const startGz = (code: string) => api<GzClock>(`/admin/gamezone/bookings/${encodeURIComponent(code)}/start`, { method: "POST" });
 
 export const STATUS: Record<string, { label: string; tone: string }> = {
   confirmed: { label: "Confirmed", tone: "bg-blue-500/15 text-blue-600" },
@@ -53,9 +58,12 @@ export const PAY: Record<string, { label: string; tone: string }> = {
   refunded: { label: "Refund due", tone: "bg-red-500/15 text-red-600" },
 };
 
-export const owes = (s: GzSession) => (s.status === "confirmed" || s.status === "completed") && (s.paymentStatus === "pending" || s.paymentStatus === "pay_at_venue");
+export const isRunning = (s: GzSession) => s.status === "confirmed" && !!s.clock && !s.clock.endedAt;
+// Payment waits until a running session is stopped, so the final bill (with any extra minutes) is known.
+export const owes = (s: GzSession) => (s.status === "confirmed" || s.status === "completed") && (s.paymentStatus === "pending" || s.paymentStatus === "pay_at_venue") && !isRunning(s);
+export const canStart = (s: GzSession, today: string) => s.status === "confirmed" && !s.clock && s.date === today;
 export const canClose = (s: GzSession) => s.status === "confirmed";
-export const canCancel = (s: GzSession) => s.status === "confirmed";
+export const canCancel = (s: GzSession) => s.status === "confirmed" && !s.clock; // a started session is stopped, not cancelled
 
 const h12 = (h: number) => `${h % 12 === 0 ? 12 : h % 12} ${h % 24 < 12 ? "AM" : "PM"}`;
 export const timeSpan = (s: { startHour: number; hours: number }) => `${h12(s.startHour)} – ${h12(s.startHour + s.hours)}`;

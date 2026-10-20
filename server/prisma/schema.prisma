@@ -1487,3 +1487,20 @@ model DayCheck {
   checkedByName   String
   checkedAt       DateTime @default(now())
 }
+
+// The live clock of a Gamezone session. Press Start = startedAt; the booked hours run; minutes after that are billed per minute at
+// hourlyRate / 60 when the session is stopped (extraMinutes, extraCharge, added to the booking total). prepaid = what was already paid
+// before that extra charge was added, so only the extra is collected afterwards.
+model GzClock {
+  bookingCode   String    @id
+  startedAt     DateTime
+  endedAt       DateTime?
+  bookedMinutes Int
+  hourlyRate    Int
+  extraMinutes  Int       @default(0)
+  extraCharge   Int       @default(0)
+  prepaid       Int       @default(0)
+  startedBy     String
+
+  @@index([endedAt])
+}

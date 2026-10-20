@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight, Gamepad2, Phone, Plus, Search } from "lucide-react";
+import { BellRing, CalendarDays, ChevronLeft, ChevronRight, Gamepad2, Phone, Play, Plus, Search, Square } from "lucide-react";
 import { Badge } from "../bookings/Badge";
 import CollectModal from "../payments/CollectModal";
 import NewSessionModal from "./NewSessionModal";
@@ -13,8 +13,10 @@ import { prettyDate, rs } from "@/lib/bookings";
 import { CollectTarget } from "@/lib/payments";
 import { shiftDate, todayKey } from "@/lib/slots";
 import {
-  GzDay, GzList, GzScope, GzSession, PAGE_SIZE, PAY, STATUS, cancelGz, canCancel, canClose, completeGz, getGzDay, listGzSessions, owes, timeSpan,
+  GzDay, GzList, GzScope, GzSession, PAGE_SIZE, PAY, STATUS, cancelGz, canCancel, canClose, canStart, completeGz, getGzDay, isRunning, listGzSessions, owes, startGz, timeSpan,
 } from "@/lib/gamezone";
+import { GZ_EXTRA_MAX_MIN, clockAt, getNow, hms, syncServerTime, useNow } from "@/lib/gz-clock";
+import { soundReady, startSiren, stopSiren, unlockAudio } from "@/lib/gz-siren";
 
 import { askConfirm } from "@/lib/confirm";
 const TABS = [
@@ -27,40 +29,138 @@ type Tab = (typeof TABS)[number]["id"];
 const REFRESH_MS = 20000;
 const input = "rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
 
-// The three things staff do to a session. Each checks the permission first, asks once, then reloads.
-// "Mark paid" opens the payment popup (cash, Fonepay QR or both); Complete and Cancel ask once.
+// What staff do to a session. Each checks the permission first, then reloads.
+// Start runs the clock at once; "Mark paid" opens the payment popup (cash, Fonepay QR or both); Stop / Complete and Cancel ask once.
+type Kind = "start" | "pay" | "done" | "cancel";
 function useActions(onDone: () => void, setError: (m: string) => void, onCollect: (s: GzSession) => void) {
-  return useCallback(async (s: GzSession, kind: "pay" | "done" | "cancel") => {
+  return useCallback(async (s: GzSession, kind: Kind) => {
     const perm = kind === "pay" ? "gamezone.collect" : "gamezone.manage";
     if (!guard(perm)) return;
     if (kind === "pay") return onCollect(s);
+    unlockAudio(); // the click lets the browser play the alarm later
     const who = s.customerName || "this customer";
-    const ask = kind === "done" ? `Mark ${s.code} as completed?` : `Cancel ${s.code} for ${who}? The console hour is freed${s.paymentStatus === "paid" ? " and a refund becomes due" : ""}, and the customer is told.`;
-    if (!(await askConfirm(ask))) return;
+    let ask = "";
+    if (kind === "done" && isRunning(s)) {
+      const v = clockAt(s.clock!, getNow());
+      ask = v.extraMinutes > 0
+        ? `Stop ${s.code}? ${v.extraMinutes} extra ${v.extraMinutes === 1 ? "minute" : "minutes"} (${rs(v.extraCharge)}) will be added. The final bill is ${rs(s.total + v.extraCharge)}.`
+        : `Stop ${s.code}? It is inside the booked time, so the bill stays ${rs(s.total)}.`;
+    } else if (kind === "done") ask = `Mark ${s.code} as completed?`;
+    else if (kind === "cancel") ask = `Cancel ${s.code} for ${who}? The console hour is freed${s.paymentStatus === "paid" ? " and a refund becomes due" : ""}, and the customer is told.`;
+    if (ask && !(await askConfirm(ask))) return;
     setError("");
     try {
-      await (kind === "done" ? completeGz(s.code) : cancelGz(s.code));
+      await (kind === "start" ? startGz(s.code) : kind === "done" ? completeGz(s.code) : cancelGz(s.code));
       onDone();
     } catch (e) { setError(e instanceof ApiError ? e.message : "That did not save"); }
   }, [onDone, setError, onCollect]);
 }
 
-const toTarget = (s: GzSession): CollectTarget => ({ kind: "gamezone", ref: s.code, code: s.code, customer: s.customerName, amount: s.total, method: s.paymentMethod, phone: s.customerPhone });
+// "due" is what is still to collect (only the extra minutes, if the session was paid before it ran over)
+const toTarget = (s: GzSession): CollectTarget => ({ kind: "gamezone", ref: s.code, code: s.code, customer: s.customerName, amount: s.due, method: s.paymentMethod, phone: s.customerPhone });
 
-type Act = (s: GzSession, kind: "pay" | "done" | "cancel") => void;
+type Act = (s: GzSession, kind: Kind) => void;
 
 function Buttons({ s, act }: { s: GzSession; act: Act }) {
   const b = "rounded-full px-3 py-1.5 text-xs font-semibold";
+  const running = isRunning(s);
   return (
     <span className="flex flex-wrap gap-2">
+      {canStart(s, todayKey()) && <button onClick={() => act(s, "start")} className={`${b} flex items-center gap-1.5 bg-emerald-600 text-white`}><Play size={12} fill="currentColor" /> Start</button>}
+      {running && <button onClick={() => act(s, "done")} className={`${b} flex items-center gap-1.5 bg-red-600 text-white`}><Square size={11} fill="currentColor" /> Stop</button>}
       {owes(s) && <button onClick={() => act(s, "pay")} className={`${b} bg-brand text-white`}>Mark paid</button>}
-      {canClose(s) && <button onClick={() => act(s, "done")} className={`${b} bg-surface-2`}>Complete</button>}
+      {canClose(s) && !running && <button onClick={() => act(s, "done")} className={`${b} bg-surface-2`}>Complete</button>}
       {canCancel(s) && <button onClick={() => act(s, "cancel")} className={`${b} bg-red-500/10 text-red-600`}>Cancel</button>}
     </span>
   );
 }
 
+// The live clock of a started session: time left while inside the booked hours; once it is up, the extra time and the extra charge climbing
+// every minute, with the bill so far. When the session is stopped it shows what was charged.
+function ClockPanel({ s, now }: { s: GzSession; now: number }) {
+  const c = s.clock;
+  if (!c) return null;
+  const v = clockAt(c, now);
+  if (!v.running) {
+    return v.extraMinutes > 0
+      ? <p className="rounded-xl bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-700">Ran {v.extraMinutes} {v.extraMinutes === 1 ? "minute" : "minutes"} over: +{rs(v.extraCharge)} added to the bill</p>
+      : <p className="rounded-xl bg-surface-2 px-3 py-2 text-xs text-muted">Played within the booked time</p>;
+  }
+  if (v.stage === 0) {
+    return (
+      <div className="space-y-2 rounded-xl bg-emerald-500/10 px-3 py-2.5" role="timer" aria-label="Time left">
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Time left</p>
+            <p className="font-mono text-3xl font-bold tabular-nums text-emerald-700">{hms(v.remainingMs)}</p>
+          </div>
+          <p className="text-right text-xs text-muted">After time is up:<br /><span className="font-semibold">{rs(v.perMinute)} per minute</span></p>
+        </div>
+        <div className="h-1.5 overflow-hidden rounded-full bg-emerald-600/15"><div className="h-full rounded-full bg-emerald-600 transition-[width] duration-1000 ease-linear" style={{ width: `${Math.round(v.progress * 100)}%` }} /></div>
+      </div>
+    );
+  }
+  return (
+    <div className="animate-pulse space-y-1.5 rounded-xl bg-red-600 px-3 py-2.5 text-white" role="timer" aria-label="Extra time">
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-wide opacity-90">Time is up · extra time</p>
+          <p className="font-mono text-3xl font-bold tabular-nums">+{hms(v.overMs)}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-[11px] font-bold uppercase tracking-wide opacity-90">Extra charge</p>
+          <p className="text-3xl font-bold tabular-nums">+{rs(v.extraCharge)}</p>
+        </div>
+      </div>
+      <p className="text-xs opacity-95">{v.extraMinutes} {v.extraMinutes === 1 ? "minute" : "minutes"} at {rs(v.perMinute)} per minute · bill so far <b>{rs(s.total + v.extraCharge)}</b></p>
+      {v.stage === 2 && <p className="text-xs font-bold">Maximum extra time ({GZ_EXTRA_MAX_MIN} min) used. Stop the session.</p>}
+    </div>
+  );
+}
+
+// Rings the alarm while any running session on screen is out of time, until staff press Silence. It rings again if a session reaches the maximum extra time.
+function useSiren(items: GzSession[]) {
+  const now = useNow();
+  const [quiet, setQuiet] = useState<Record<string, number>>({});
+  const ringing = items.flatMap((s) => {
+    if (!isRunning(s)) return [];
+    const stage = clockAt(s.clock!, now).stage;
+    return stage > (quiet[s.code] ?? 0) ? [{ s, stage }] : [];
+  });
+  const any = ringing.length > 0;
+  useEffect(() => { if (any) startSiren(); else stopSiren(); }, [any]);
+  useEffect(() => {
+    const unlock = () => unlockAudio();
+    window.addEventListener("pointerdown", unlock);
+    window.addEventListener("keydown", unlock);
+    return () => { window.removeEventListener("pointerdown", unlock); window.removeEventListener("keydown", unlock); stopSiren(); };
+  }, []);
+  const silence = useCallback((code: string, stage: number) => setQuiet((q) => ({ ...q, [code]: stage })), []);
+  return { ringing, silence };
+}
+
+function SirenBar({ ringing, silence }: { ringing: { s: GzSession; stage: number }[]; silence: (code: string, stage: number) => void }) {
+  if (ringing.length === 0) return null;
+  return (
+    <div className="sticky top-2 z-30 space-y-2" role="alert">
+      {ringing.map(({ s, stage }) => (
+        <div key={s.code} className="flex flex-wrap items-center gap-3 rounded-2xl bg-red-600 px-4 py-3 text-white shadow-lg">
+          <BellRing size={22} className="shrink-0 animate-bounce" />
+          <p className="min-w-0 flex-1 text-sm font-bold">
+            {stage === 2 ? "Maximum extra time used" : "Time is up"}: {s.consoleName} · {s.customerName || "Guest"}
+            <span className="block text-xs font-medium opacity-90">Extra minutes are being charged. Stop the session when they finish.</span>
+          </p>
+          <button onClick={() => silence(s.code, stage)} className="rounded-full bg-white px-4 py-1.5 text-xs font-bold text-red-700">Silence</button>
+        </div>
+      ))}
+      {!soundReady() && <p className="rounded-xl bg-amber-500/15 px-3 py-2 text-xs font-semibold text-amber-800">The alarm sound is off until you click anywhere on this page once.</p>}
+    </div>
+  );
+}
+
 function Card({ s, act, showDate }: { s: GzSession; act: Act; showDate?: boolean }) {
+  const now = useNow();
+  const live = isRunning(s) ? clockAt(s.clock!, now) : null;
   const st = STATUS[s.status] ?? { label: s.status, tone: "bg-surface-2 text-muted" };
   const pay = PAY[s.paymentStatus] ?? { label: s.paymentStatus, tone: "bg-surface-2 text-muted" };
   return (
@@ -72,9 +172,11 @@ function Card({ s, act, showDate }: { s: GzSession; act: Act; showDate?: boolean
           <p className="text-sm text-muted">{showDate && <>{prettyDate(s.date)} · </>}{timeSpan(s)} · {s.consoleName}</p>
           <p className="text-xs text-muted">{s.gameTitle} · {s.players} {s.players === 1 ? "player" : "players"} · {s.hours} {s.hours === 1 ? "hour" : "hours"} · <span className="font-mono">{s.code}</span></p>
         </div>
-        <p className="shrink-0 font-bold">{rs(s.total)}</p>
+        <p className="shrink-0 text-right font-bold">{rs(s.total + (live?.extraCharge ?? 0))}{live && live.extraCharge > 0 && <span className="block text-[11px] font-semibold text-red-600">incl. +{rs(live.extraCharge)} extra</span>}</p>
       </div>
+      <ClockPanel s={s} now={now} />
       <div className="flex flex-wrap items-center gap-2">
+        {live && <Badge tone="bg-emerald-600 text-white">Running</Badge>}
         <Badge tone={st.tone}>{st.label}</Badge>
         <Badge tone={pay.tone}>{pay.label}</Badge>
         {s.checkedInAt && s.status === "confirmed" && <Badge tone="bg-orange-500 text-white">On the way</Badge>}
@@ -104,10 +206,11 @@ function DayBoard() {
   const reload = useCallback(() => setTick((t) => t + 1), []);
   const [collecting, setCollecting] = useState<GzSession | null>(null);
   const act = useActions(reload, setError, setCollecting);
+  const siren = useSiren(day?.items ?? []);
 
   useEffect(() => {
     let live = true;
-    const load = () => getGzDay(date).then((d) => { if (live) { setDay(d); setError((e) => (e.startsWith("Could not") ? "" : e)); } }).catch((e) => { if (live) setError(e instanceof Error ? `Could not load: ${e.message}` : "Could not load Gamezone"); });
+    const load = () => getGzDay(date).then((d) => { if (live) { syncServerTime(d.serverNow); setDay(d); setError((e) => (e.startsWith("Could not") ? "" : e)); } }).catch((e) => { if (live) setError(e instanceof Error ? `Could not load: ${e.message}` : "Could not load Gamezone"); });
     load();
     const id = date === todayKey() ? setInterval(load, REFRESH_MS) : undefined;
     return () => { live = false; if (id) clearInterval(id); };
@@ -119,6 +222,7 @@ function DayBoard() {
 
   return (
     <div className="space-y-4">
+      <SirenBar ringing={siren.ringing} silence={siren.silence} />
       <div className="flex items-center justify-between gap-2 rounded-2xl bg-surface p-2 shadow-sm">
         <button onClick={() => go(shiftDate(date, -1))} aria-label="Previous day" className="rounded-xl p-2.5 hover:bg-surface-2"><ChevronLeft size={18} /></button>
         <label className="flex flex-1 items-center justify-center gap-2 text-sm font-semibold">
@@ -180,6 +284,7 @@ function Sessions() {
   const reload = useCallback(() => setTick((t) => t + 1), []);
   const [collecting, setCollecting] = useState<GzSession | null>(null);
   const act = useActions(reload, setError, setCollecting);
+  const siren = useSiren(data?.items ?? []);
 
   useEffect(() => {
     const id = setTimeout(() => { setQ(search.trim()); setPageNo(1); }, 300);
@@ -189,7 +294,7 @@ function Sessions() {
   useEffect(() => {
     let live = true;
     listGzSessions({ scope, page: pageNo, q })
-      .then((d) => { if (live) { setData(d); setError(""); } })
+      .then((d) => { if (live) { syncServerTime(d.serverNow); setData(d); setError(""); } })
       .catch((e) => { if (live) setError(e instanceof Error ? e.message : "Could not load sessions"); });
     return () => { live = false; };
   }, [scope, pageNo, q, tick]);
@@ -198,6 +303,7 @@ function Sessions() {
 
   return (
     <div className="space-y-4">
+      <SirenBar ringing={siren.ringing} silence={siren.silence} />
       <div className="flex gap-1 overflow-x-auto rounded-2xl bg-surface p-1 shadow-sm" role="tablist" aria-label="Sessions">
         {SCOPES.map((s) => (
           <button key={s.id} role="tab" aria-selected={scope === s.id} onClick={() => { setScope(s.id); setPageNo(1); setData(null); }}

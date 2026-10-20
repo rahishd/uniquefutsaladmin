@@ -4,25 +4,37 @@ import { z } from "zod";
 import { prisma } from "../db";
 import { audit } from "../lib/audit";
 import { awardForGamezone, notify } from "../lib/customer-effects";
-import { addDaysKey, currentHour, todayKey } from "../lib/dates";
+import { addDaysKey, todayKey } from "../lib/dates";
 import { AppError, dateStr, handler, page, param, parse, send } from "../lib/http";
+import { extraChargeFor, extraMinutesAt } from "../lib/gz-clock";
 import { requirePermission } from "../middleware/auth";
 import { PAY_METHODS, claimFonepay, paysSchema, resolvePays } from "../lib/settle";
 
 export const gamezoneRouter = Router();
 
+const DEFAULT_RATES: Record<number, number> = { 1: 300, 2: 200, 4: 150 };
+
+const clockView = (c: { startedAt: Date; endedAt: Date | null; bookedMinutes: number; hourlyRate: number; extraMinutes: number; extraCharge: number }) => ({
+  startedAt: c.startedAt, endedAt: c.endedAt, bookedMinutes: c.bookedMinutes, hourlyRate: c.hourlyRate, extraMinutes: c.extraMinutes, extraCharge: c.extraCharge,
+});
+
 // Adds what the screens need next to each session: the console's name, who booked it and whether they tapped "I'm coming".
-async function enrich<T extends { code: string; consoleId: string; userId: string | null; guestName: string | null; guestPhone: string | null }>(rows: T[]) {
-  const [consoles, users, checkins] = await Promise.all([
+async function enrich<T extends { code: string; consoleId: string; userId: string | null; guestName: string | null; guestPhone: string | null; total: number }>(rows: T[]) {
+  const [consoles, users, checkins, clocks] = await Promise.all([
     prisma.gzConsole.findMany({ select: { id: true, name: true } }),
     prisma.user.findMany({ where: { phoneNumber: { in: rows.flatMap((r) => (r.userId ? [r.userId] : [])) } }, select: { phoneNumber: true, name: true } }),
     prisma.arrivalCheckin.findMany({ where: { refId: { in: rows.map((r) => r.code) } }, select: { refId: true, confirmedAt: true } }),
+    prisma.gzClock.findMany({ where: { bookingCode: { in: rows.map((r) => r.code) } } }),
   ]);
   const cn = new Map(consoles.map((c) => [c.id, c.name]));
   const un = new Map(users.map((u) => [u.phoneNumber, u.name]));
   const ck = new Map(checkins.map((c) => [c.refId, c.confirmedAt]));
+  const cl = new Map(clocks.map((c) => [c.bookingCode, c]));
   return rows.map((r) => ({
     ...r,
+    // The session clock (null until staff press Start) and what is still to collect (the total, less anything paid before the extra time was added)
+    clock: cl.has(r.code) ? clockView(cl.get(r.code)!) : null,
+    due: r.total - (cl.get(r.code)?.prepaid ?? 0),
     consoleName: cn.get(r.consoleId) ?? "Console",
     customerName: r.guestName ?? (r.userId ? un.get(r.userId) ?? null : null),
     customerPhone: r.guestPhone ?? r.userId,
@@ -46,7 +58,7 @@ gamezoneRouter.get("/bookings", requirePermission("gamezone.view"), handler(asyn
     prisma.gzBooking.findMany({ where, orderBy: asc ? [{ date: "asc" }, { startHour: "asc" }] : [{ date: "desc" }, { startHour: "desc" }], take, skip }),
     prisma.gzBooking.count({ where }),
   ]);
-  send(res, { items: await enrich(rows), total, page: pageNo, limit });
+  send(res, { items: await enrich(rows), total, page: pageNo, limit, serverNow: new Date() });
 }));
 
 // Registered customers by name or mobile number, for the "book a session" form's suggestions. Kept here (not on the
@@ -72,7 +84,7 @@ gamezoneRouter.get("/day", requirePermission("gamezone.view"), handler(async (re
   const live = items.filter((i) => i.status !== "cancelled");
   const sum = (xs: typeof live) => xs.reduce((n, x) => n + x.total, 0);
   send(res, {
-    date, consoles, items,
+    date, consoles, items, serverNow: new Date(),
     totals: {
       sessions: live.length, hours: live.reduce((n, x) => n + x.hours, 0), cancelled: items.length - live.length,
       paid: sum(live.filter((i) => i.paymentStatus === "paid")), owed: sum(live.filter((i) => i.paymentStatus === "pending" || i.paymentStatus === "pay_at_venue")),
@@ -100,13 +112,14 @@ gamezoneRouter.post("/bookings", requirePermission("gamezone.manage"), handler(a
     prisma.gzGame.findFirst({ where: { title: b.gameTitle } }),
     b.customerPhone ? prisma.user.findUnique({ where: { phoneNumber: b.customerPhone }, select: { phoneNumber: true } }) : null,
   ]);
-  const rate = plan?.ratePerPersonHour ?? ({ 1: 300, 2: 200, 4: 150 } as Record<number, number>)[b.players]; // the app's defaults until rates are first saved
+  const rate = plan?.ratePerPersonHour ?? DEFAULT_RATES[b.players]; // the app's defaults until rates are first saved
   if (rate === undefined) throw new AppError(400, "Choose 1, 2 or 4 players");
   if (!con) throw new AppError(404, "Console not found");
   if (!game) throw new AppError(400, "Choose a game from the list");
   const total = rate * b.players * b.hours;
   const code = `UF-GZ-${b.date.replace(/-/g, "")}-${String(Math.floor(Math.random() * 99999)).padStart(5, "0")}`;
-  const ended = b.date < todayKey() || (b.date === todayKey() && b.startHour + b.hours <= currentHour());
+  // Only a past day is logged as already played. A session today waits for staff to press Start (and Stop), so its time and any extra minutes are recorded.
+  const ended = b.date < todayKey();
   try {
     await prisma.$transaction(async (tx) => {
       await tx.gzBooking.create({
@@ -142,10 +155,13 @@ gamezoneRouter.post("/bookings/:code/mark-paid", requirePermission("gamezone.col
   const b = await load(param(req, "code"));
   if (b.status === "cancelled" || b.status === "expired") throw new AppError(409, `This booking is ${b.status}`);
   if (b.paymentStatus === "paid") throw new AppError(409, "Already paid");
+  const clock = await prisma.gzClock.findUnique({ where: { bookingCode: b.code } });
+  if (clock && !clock.endedAt) throw new AppError(409, "The session is still running. Stop it first so the final bill, with any extra minutes, is known.");
+  const due = b.total - (clock?.prepaid ?? 0); // after extra time on a prepaid session, only the extra is collected
   const input = { payments: body.payments, single: body.payments ? undefined : body.single ?? ("cash" as const), fonepayQrId: body.fonepayQrId };
-  const pays = resolvePays(input, b.total);
+  const pays = resolvePays(input, due);
   const cash = pays.filter((p) => p.method === "cash").reduce((n, p) => n + p.amount, 0);
-  const fonepay = b.total - cash;
+  const fonepay = due - cash;
   await prisma.$transaction(async (tx) => {
     await claimFonepay(tx, input, pays, b.code);
     await tx.gzBooking.update({ where: { code: b.code }, data: { paymentStatus: "paid", holdExpiresAt: null, paymentMethod: cash >= fonepay ? "venue" : "fonepay" } });
@@ -158,19 +174,52 @@ gamezoneRouter.post("/bookings/:code/mark-paid", requirePermission("gamezone.col
   send(res, null, "Marked as paid");
 }));
 
+// Press Start: the booked hours begin to run from now. Today's sessions only, one running session per console.
+// The hourly price is fixed now (plan rate x players) so extra minutes are billed at the price the customer was quoted.
+gamezoneRouter.post("/bookings/:code/start", requirePermission("gamezone.manage"), handler(async (req, res) => {
+  const b = await load(param(req, "code"));
+  if (b.status !== "confirmed") throw new AppError(409, `Only confirmed sessions can be started (this one is ${b.status})`);
+  if (b.date !== todayKey()) throw new AppError(409, "Only a session for today can be started");
+  if (await prisma.gzClock.findUnique({ where: { bookingCode: b.code } })) throw new AppError(409, "This session was already started");
+  const sameConsole = await prisma.gzBooking.findMany({ where: { consoleId: b.consoleId, code: { not: b.code }, status: "confirmed" }, select: { code: true } });
+  if (sameConsole.length && (await prisma.gzClock.count({ where: { bookingCode: { in: sameConsole.map((x) => x.code) }, endedAt: null } })) > 0) throw new AppError(409, "Another session is still running on this console. Stop it first.");
+  const plan = await prisma.gzPlan.findUnique({ where: { players: b.players } });
+  const hourlyRate = (plan?.ratePerPersonHour ?? DEFAULT_RATES[b.players] ?? Math.round(b.total / Math.max(1, b.hours) / Math.max(1, b.players))) * b.players;
+  const row = await prisma.gzClock.create({ data: { bookingCode: b.code, startedAt: new Date(), bookedMinutes: b.hours * 60, hourlyRate, startedBy: req.staff!.id } });
+  await audit(req, "start", "gamezone", b.code, { bookedMinutes: row.bookedMinutes, hourlyRate });
+  send(res, clockView(row), "Session started");
+}));
+
+// Stop (or complete) a session. If it was started, the clock stops now: every started minute past the booked time is billed per minute and added to the
+// total. A session that was already paid then owes only the extra (prepaid remembers what was paid). A session that was never started completes as before.
 gamezoneRouter.post("/bookings/:code/complete", requirePermission("gamezone.manage"), handler(async (req, res) => {
   const b = await load(param(req, "code"));
   if (b.status !== "confirmed") throw new AppError(409, `Only confirmed sessions can be completed (this one is ${b.status})`);
-  await prisma.gzBooking.update({ where: { code: b.code }, data: { status: "completed" } });
-  if (b.userId) await notify(prisma, { userId: b.userId, type: "gamezone", title: "Thanks for playing", message: `Your Gamezone session ${b.code} is complete. See you again soon!`, href: "/gamezone", dedupeKey: `gz-done-${b.code}` });
-  await awardForGamezone({ ...b, status: "completed" }); // 5 points per hour, once the session is also paid
-  await audit(req, "complete", "gamezone", b.code);
-  send(res, null, "Session completed");
+  const clock = await prisma.gzClock.findUnique({ where: { bookingCode: b.code } });
+  let extra = { minutes: 0, charge: 0 };
+  let after = b;
+  if (clock && !clock.endedAt) {
+    const now = new Date();
+    extra = { minutes: extraMinutesAt(clock.startedAt, clock.bookedMinutes, now), charge: 0 };
+    extra.charge = extraChargeFor(clock.hourlyRate, extra.minutes);
+    const wasPaid = b.paymentStatus === "paid";
+    after = await prisma.$transaction(async (tx) => {
+      await tx.gzClock.update({ where: { bookingCode: b.code }, data: { endedAt: now, extraMinutes: extra.minutes, extraCharge: extra.charge, ...(wasPaid && extra.charge > 0 ? { prepaid: b.total } : {}) } });
+      return tx.gzBooking.update({ where: { code: b.code }, data: { status: "completed", ...(extra.charge > 0 ? { total: { increment: extra.charge }, ...(wasPaid ? { paymentStatus: "pay_at_venue" } : {}) } : {}) } });
+    });
+  } else {
+    await prisma.gzBooking.update({ where: { code: b.code }, data: { status: "completed" } });
+  }
+  if (b.userId) await notify(prisma, { userId: b.userId, type: "gamezone", title: "Thanks for playing", message: `Your Gamezone session ${b.code} is complete.${extra.charge > 0 ? ` ${extra.minutes} extra ${extra.minutes === 1 ? "minute" : "minutes"} (Rs. ${extra.charge}) was added to the bill.` : ""} See you again soon!`, href: "/gamezone", dedupeKey: `gz-done-${b.code}` });
+  await awardForGamezone({ ...after, status: "completed" }); // 5 points per hour, once the session is also paid
+  await audit(req, "complete", "gamezone", b.code, extra.minutes ? { extraMinutes: extra.minutes, extraCharge: extra.charge } : undefined);
+  send(res, { extraMinutes: extra.minutes, extraCharge: extra.charge, total: after.total }, extra.charge > 0 ? `Session stopped. Extra time Rs. ${extra.charge} added to the bill.` : "Session completed");
 }));
 
 gamezoneRouter.post("/bookings/:code/cancel", requirePermission("gamezone.manage"), handler(async (req, res) => {
   const b = await load(param(req, "code"));
   if (b.status === "cancelled" || b.status === "completed") throw new AppError(409, `This booking is ${b.status}`);
+  if (await prisma.gzClock.findUnique({ where: { bookingCode: b.code } })) throw new AppError(409, "This session has been started. Stop it instead of cancelling.");
   await prisma.$transaction(async (tx) => {
     await tx.gzBooking.update({ where: { code: b.code }, data: { status: "cancelled", paymentStatus: b.paymentStatus === "paid" ? "refunded" : b.paymentStatus, holdExpiresAt: null } });
     await tx.gzSlot.deleteMany({ where: { bookingCode: b.code } });
