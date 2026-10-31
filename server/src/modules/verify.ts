@@ -139,7 +139,7 @@ verifyRouter.patch("/:id", requirePermission("verify.manage"), handler(async (re
 }));
 
 // ---- a verification number for every PDF staff download (reports, tournament bills) ----
-verifyRouter.post("/issue", requireAnyPermission(["reports.view", "tournaments.bill", "payments.view", "dashboard.view"]), handler(async (req, res) => {
+verifyRouter.post("/issue", requireAnyPermission(["reports.view", "tournaments.bill", "payments.view", "dashboard.view", "letterhead.make"]), handler(async (req, res) => {
   const b = parse(z.object({ title: z.string().trim().min(3).max(120), details: z.string().trim().max(1500).optional() }), req.body);
   const doc = await createWithCode({ kind: "document", title: b.title, issuedTo: null, orgType: "other", details: b.details || null, issuedBy: req.staff!.name });
   await audit(req, "create", "doc_verification", doc.id, { code: doc.code, title: b.title, pdf: true });

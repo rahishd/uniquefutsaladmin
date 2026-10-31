@@ -384,6 +384,15 @@ export const modules: Module[] = [
     ],
   },
   {
+    slug: "letter-head", title: "Letter Head", group: "Communication", icon: "letter",
+    summary: "Write a letter on the Unique Futsal letter head and send it on WhatsApp as a PDF. Each letter gets a verification number.",
+    clientFeatures: ["Anyone can check a letter's verification number at Verify Documents"],
+    adminTasks: ["Write a custom letter (up to 150 words) with its subject, receiver and date", "Keep the registration number and website printed on the letter head", "Send the PDF on WhatsApp or download it", "Find any letter again by its reference number or verification number, and withdraw or restore it"],
+    endpoints: [
+      e("GET", "/admin/letter-head", "company details for the letter head"), e("PUT", "/admin/letter-head", "save the registration number and website"), e("POST", "/admin/letter-head/issue", "a new letter's reference number (2026-123) and verification number"), e("GET", "/admin/letter-head/letters", "find letters by reference no., verification no., subject or receiver"),
+    ],
+  },
+  {
     slug: "partners", title: "Corporate Network", group: "Communication", icon: "handshake",
     summary: "Logos of the companies and institutions you work with, shown as a moving strip on the customer Home.",
     clientFeatures: ["\"Corporate Network. We Trusted\" strip on Home, between the promo codes and the founder message", "Logos move across the screen and pause when touched"],

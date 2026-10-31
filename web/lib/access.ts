@@ -14,7 +14,7 @@ const pageGroups: Record<string, string[]> = {
   "gift-card": ["giftcards"], club: ["club"], vip: ["vip"], membership: ["membership"], loyalty: ["loyalty"],
   promos: ["promos"], teams: ["teams"], disputes: ["teams"], tournaments: ["tournaments"], gamezone: ["gamezone"],
   notifications: ["notifications"], complaints: ["complaints"], wheelchair: ["wheelchair"], insurance: ["insurance"], refer: ["refer"], academy: ["academy"], content: ["content"],
-  partners: ["content"], verify: ["verify"], inventory: ["inventory"], reports: ["reports"], staff: ["staff"],
+  partners: ["content"], verify: ["verify"], "letter-head": ["letterhead"], inventory: ["inventory"], reports: ["reports"], staff: ["staff"],
   audit: ["audit"], settings: ["settings"], reminders: ["reminders"], "day-check": ["staff"], // Day Check is the owner's: only the owner holds a staff.* permission
 };
 

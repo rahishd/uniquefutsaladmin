@@ -121,6 +121,7 @@ export const SECTIONS: Section[] = [
     { key: "verify.view", label: "View Bill & Document Codes, Look Up a Code" },
     { key: "verify.manage", label: "Make / Withdraw Document Codes (schools, banks, colleges)" },
   ] },
+  { id: "letterhead", label: "Letter Head", permissions: [{ key: "letterhead.make", label: "Make & Send Letter Heads, Edit Regd No. & Website" }] },
   { id: "refer", label: "Refer & Earn", permissions: [
     { key: "refer.view", label: "View Referrals" },
     { key: "refer.review", label: "Approve / Reject Referrals" },

@@ -27,9 +27,9 @@ function Tile({ href, label, Icon, badge, onGo }: { href: string; label: string;
 }
 
 const Card = ({ title, children }: { title?: string; children: React.ReactNode }) => (
-  <section className="flex h-[calc(100dvh-12rem)] flex-col rounded-2xl bg-surface p-3 shadow-sm lg:h-[calc(100dvh-8rem)] lg:p-6">
+  <section className="flex min-h-[calc(100dvh-12rem)] flex-col rounded-2xl bg-surface p-3 shadow-sm lg:min-h-[calc(100dvh-8rem)] lg:p-6">
     {title && <h2 className="mb-4 text-lg font-semibold">{title}</h2>}
-    <div className="grid min-h-0 flex-1 grid-cols-4 auto-rows-fr place-items-center gap-x-1 sm:grid-cols-5 lg:grid-cols-6">{children}</div>
+    <div className="grid flex-1 grid-cols-4 auto-rows-fr place-items-center gap-x-1 gap-y-4 py-2 sm:grid-cols-5 lg:grid-cols-6 lg:gap-y-5">{children}</div>
   </section>
 );
 

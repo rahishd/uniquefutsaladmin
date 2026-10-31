@@ -20,7 +20,7 @@ const VENUE_DEFAULTS = {
 };
 type Venue = typeof VENUE_DEFAULTS;
 
-async function loadVenue(): Promise<Venue> {
+export async function loadVenue(): Promise<Venue> {
   let saved: Partial<Venue> = {};
   try { const v = await getSetting("siteInfo"); saved = v ? JSON.parse(v) : {}; } catch { saved = {}; }
   return { ...VENUE_DEFAULTS, ...saved };
