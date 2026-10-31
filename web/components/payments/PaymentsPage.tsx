@@ -58,7 +58,7 @@ export default function PaymentsPage() {
     const sp = new URLSearchParams(window.location.search);
     const kind = sp.get("kind") as Kind | null, status = sp.get("status") as PayStatus | null, period = sp.get("period") as Period | null, q = sp.get("q");
     const patch: Partial<Filters> = {};
-    if (kind && ["court", "gamezone", "club", "gift"].includes(kind)) patch.kind = kind;
+    if (kind && ["court", "gamezone", "club", "gift", "membership"].includes(kind)) patch.kind = kind;
     if (status && ["paid", "unpaid", "cancelled"].includes(status)) patch.status = status;
     if (period && ["today", "week", "month", "all"].includes(period)) patch.period = period;
     if (q) { patch.q = q.slice(0, 60); setSearch(q.slice(0, 60)); }
@@ -93,7 +93,7 @@ export default function PaymentsPage() {
       </div>
 
       <div className="grid grid-cols-3 gap-1 rounded-2xl bg-surface p-1 shadow-sm" role="tablist" aria-label="Payment type">
-        {([["court", "Court bookings"], ["gamezone", "Gamezone"], ["club", "Unique Club"], ["gift", "Gift Card"], ["goods", "Goods on credit"], ["ev", "EV charging"]] as [Kind | "goods" | "ev", string][]).map(([id, label]) => {
+        {([["court", "Court bookings"], ["gamezone", "Gamezone"], ["club", "Unique Club"], ["membership", "Membership"], ["gift", "Gift Card"], ["goods", "Goods on credit"], ["ev", "EV charging"]] as [Kind | "goods" | "ev", string][]).map(([id, label]) => {
           const on = id === "goods" || id === "ev" ? view === id : view === "payments" && f.kind === id;
           return (
             <button key={id} role="tab" aria-selected={on} onClick={() => { if (id === "goods" || id === "ev") setView(id); else { setView("payments"); change({ kind: id }); } }}
@@ -171,13 +171,14 @@ export default function PaymentsPage() {
                   {(r.clubDiscount ?? 0) > 0 && <Badge tone="bg-sky-500/15 text-sky-700">Club member −{rs(r.clubDiscount!)}</Badge>}
                   {(r.goodsDue?.amount ?? 0) > 0 && <Badge tone="bg-red-500/15 text-red-600">Goods owed {rs(r.goodsDue!.amount)}</Badge>}
                   {r.kind === "club" && <Badge tone="bg-sky-500/15 text-sky-700">Club membership</Badge>}
+                  {r.kind === "membership" && <Badge tone="bg-violet-500/15 text-violet-700">Membership{r.time ? ` · ${r.time}` : ""}</Badge>}
                   {r.kind === "gift" && <Badge tone="bg-rose-500/15 text-rose-700">Gift Card points</Badge>}
                 </div>
               </div>
               <div className="shrink-0 space-y-2 text-right">
                 <p className={`font-bold ${r.status === "cancelled" ? "text-muted line-through" : ""}`}>{rs(r.amount)}</p>
                 <div className="flex flex-col items-end gap-1.5">
-                  {r.status === "unpaid" && r.kind !== "club" && r.kind !== "gift" && (
+                  {r.status === "unpaid" && r.kind !== "club" && r.kind !== "gift" && r.kind !== "membership" && (
                     <button onClick={() => { if (!guard("payments.collect")) return; if (r.kind === "court") setDetails(r); else setCollecting(r); }} className="rounded-full bg-brand px-3 py-1.5 text-xs font-semibold text-white">Mark paid</button>
                   )}
                   <button onClick={() => setDetails(r)} className="rounded-full border border-line px-3 py-1 text-xs font-semibold hover:bg-surface-2">Details</button>

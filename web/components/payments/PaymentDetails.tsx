@@ -8,7 +8,7 @@ import { prettyDate, rs } from "@/lib/bookings";
 import { CustomerGoods, CustomerGoodsItem, METHOD_LABEL, Row, customerGoods } from "@/lib/payments";
 
 const when = (iso: string) => new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true });
-const KIND: Record<string, string> = { court: "Court booking", gamezone: "Gamezone session", club: "Unique Club membership", gift: "Gift Card points" };
+const KIND: Record<string, string> = { court: "Court booking", gamezone: "Gamezone session", club: "Unique Club membership", membership: "Membership payment", gift: "Gift Card points" };
 
 const Line = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <div className="flex justify-between gap-4 py-2 text-sm"><dt className="text-muted">{label}</dt><dd className="text-right font-medium">{children}</dd></div>

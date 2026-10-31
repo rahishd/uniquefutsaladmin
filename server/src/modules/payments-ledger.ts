@@ -21,7 +21,7 @@ async function goodsOwed(phones: (string | null | undefined)[]) {
   return new Map(rows.map((r) => [r.userId, { amount: r._sum.amount ?? 0, count: r._count._all }]));
 }
 const filters = z.object({
-  kind: z.enum(["court", "gamezone", "club", "gift"]).default("court"),
+  kind: z.enum(["court", "gamezone", "club", "gift", "membership"]).default("court"),
   status: z.enum(["paid", "unpaid", "cancelled"]).optional(),
   mode: z.enum(["cash", "online", "esewa", "fonepay"]).optional(),
   from: dateStr.optional(),
@@ -62,6 +62,19 @@ const gzStatus = (s?: F["status"]): Prisma.GzBookingWhereInput =>
     : s === "unpaid" ? { paymentStatus: { not: "paid" }, status: { notIn: DEAD } }
     : s === "cancelled" ? { status: { in: DEAD } } : {};
 
+// Membership payments are the ledger rows the court list hides (notes MEMBERSHIP_PAYMENT): they are written when staff take the money, so they are always paid.
+function memberBase(f: F): Prisma.BookingWhereInput {
+  const m = methods(f.mode);
+  return {
+    AND: [
+      { notes: { contains: "MEMBERSHIP_PAYMENT" } }, dateRange(f), ...(m ? [{ paymentMethod: { in: m } }] : []),
+      ...(f.q ? [{ OR: [{ customerName: { contains: f.q, mode: "insensitive" as const } }, { customerPhone: { contains: f.q } }, { userId: { contains: f.q } }, { notes: { contains: f.q, mode: "insensitive" as const } }] }] : []),
+    ],
+  };
+}
+const memberStatus = (s?: F["status"]): Prisma.BookingWhereInput =>
+  s === "paid" ? { status: { notIn: DEAD } } : s === "unpaid" ? { id: "none" } : s === "cancelled" ? { status: { in: DEAD } } : {};
+
 const modeOf = (method: string) => (method === "venue" ? "cash" : "online");
 
 ledgerRouter.get("/ledger", requirePermission("payments.view"), handler(async (req, res) => {
@@ -82,6 +95,19 @@ ledgerRouter.get("/ledger", requirePermission("payments.view"), handler(async (r
         customer: r.guestName ?? (r.userId ? name.get(r.userId) ?? null : null), phone: r.guestPhone ?? r.userId, amount: r.total,
         status: DEAD.includes(r.status) ? "cancelled" : r.paymentStatus === "paid" ? "paid" : "unpaid", method: r.paymentMethod, mode: modeOf(r.paymentMethod), createdAt: r.createdAt,
         clubDiscount: r.clubDiscount,
+      })),
+    });
+  }
+
+  if (f.kind === "membership") {
+    const where: Prisma.BookingWhereInput = { AND: [memberBase(f), memberStatus(f.status)] };
+    const [rows, total] = await Promise.all([prisma.booking.findMany({ where, orderBy: { createdAt: "desc" }, take, skip }), prisma.booking.count({ where })]);
+    return send(res, {
+      total, page: pageNo, limit,
+      items: rows.map((r) => ({
+        kind: "membership", id: r.id, ref: r.id, code: /MEMBERSHIP_SUB:(\S+)/.exec(r.notes ?? "")?.[1] ?? r.id.slice(-6).toUpperCase(), date: r.date, time: (r.notes ?? "").split("\n")[0].replace("MEMBERSHIP_PAYMENT: ", ""),
+        customer: r.customerName, phone: r.customerPhone ?? r.userId, amount: r.totalPrice,
+        status: DEAD.includes(r.status) ? "cancelled" : "paid", method: r.paymentMethod, mode: modeOf(r.paymentMethod), createdAt: r.createdAt, clubDiscount: 0,
       })),
     });
   }
@@ -160,12 +186,18 @@ ledgerRouter.get("/summary", requirePermission("payments.view"), handler(async (
       }
       return [out.venue, out.fonepay];
     }
+    if (f.kind === "membership") {
+      if (!paid) return [];
+      const m = await prisma.booking.groupBy({ by: ["paymentMethod"], where: { AND: [memberBase(f), memberStatus("paid")] }, _sum: { totalPrice: true }, _count: { _all: true } });
+      return m.map((r) => ({ method: r.paymentMethod, sum: r._sum.totalPrice ?? 0, count: r._count._all }));
+    }
     const g = await prisma.booking.groupBy({ by: ["paymentMethod"], where: { AND: [courtBase(f), courtStatus(paid ? "paid" : "unpaid")] }, _sum: { totalPrice: true }, _count: { _all: true } });
     return g.map((r) => ({ method: r.paymentMethod, sum: r._sum.totalPrice ?? 0, count: r._count._all }));
   };
   const [paid, unpaid, cancelled] = await Promise.all([
     group(true), group(false),
     f.kind === "club" || f.kind === "gift" ? prisma.paymentOrder.count({ where: { purpose: f.kind === "gift" ? "gift_points" : "club", status: { in: ["expired", "failed", "refunded"] } } })
+      : f.kind === "membership" ? prisma.booking.count({ where: { AND: [memberBase(f), memberStatus("cancelled")] } })
       : f.kind === "gamezone" ? prisma.gzBooking.count({ where: { AND: [gzBase(f), gzStatus("cancelled")] } }) : prisma.booking.count({ where: { AND: [courtBase(f), courtStatus("cancelled")] } }),
   ]);
   const tot = (rows: Row[], pick?: (m: string) => boolean) => rows.filter((r) => !pick || pick(r.method)).reduce((n, r) => ({ sum: n.sum + r.sum, count: n.count + r.count }), { sum: 0, count: 0 });

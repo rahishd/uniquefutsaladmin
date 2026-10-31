@@ -22,7 +22,7 @@ Dates `YYYY-MM-DD`, times `HH:00`, Nepal time, money in whole rupees. List endpo
 | | `POST /bookings/:id/no-show` | bookings.write | |
 | | `POST /bookings/:id/mark-paid` | payments.write | `{method: venue|fonepay, fonepayQrId?}`; records how it was really paid. Fonepay needs `fonepayQrId`: a QR the gateway marked paid, for exactly the booking total (eSewa was removed) |
 | | `PUT /bookings/:id/player-stats` | bookings.write | goals and assists for registered players |
-| Payments | `GET /payments/ledger?kind=court|gamezone&status=paid|unpaid|cancelled&mode=cash|online|fonepay&from&to&q` | payments.read | one row per court booking or Gamezone session with paid / unpaid / cancelled and cash (pay at venue) or online (eSewa, Fonepay); `from`/`to` are game dates; membership ledger rows excluded |
+| Payments | `GET /payments/ledger?kind=court|gamezone&status=paid|unpaid|cancelled&mode=cash|online|fonepay&from&to&q` | payments.read | one row per court booking or Gamezone session with paid / unpaid / cancelled and cash (pay at venue) or online (eSewa, Fonepay); `from`/`to` are game dates; membership ledger rows are excluded from court and Gamezone, and `kind=membership` lists them instead (one row per membership payment, always paid, date = the day it was taken) |
 | | `GET /payments/summary` (same filters, without status) | payments.read | paid, unpaid, cancelled counts and sums, split cash / online / Fonepay (older eSewa payments still count as online) |
 | | `GET /payments?status&purpose&method&q` | payments.read | gateway payment orders |
 | | `GET /payments/reconciliation` | payments.read | paid orders whose booking is unpaid, expired-but-paid, failed gateway events |
