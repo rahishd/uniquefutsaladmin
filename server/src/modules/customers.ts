@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import ExcelJS from "exceljs";
 import { randomBytes } from "crypto";
 import { Router } from "express";
 import { z } from "zod";
@@ -20,19 +21,58 @@ export const customersRouter = Router();
 const pub = { phoneNumber: true, name: true, email: true, isActive: true, createdAt: true, freeMatchesAvailable: true, isVerified: true, avatar: true } as const;
 const DEAD = ["cancelled", "expired"];
 
-customersRouter.get("/", requirePermission("customers.view"), handler(async (req, res) => {
-  const q = req.query as Record<string, string | undefined>;
-  const { take, skip, pageNo, limit } = page(q);
+// Which customers a request means: the same search and filters for the list on screen and for the Excel export.
+async function customerWhere(q: Record<string, string | undefined>): Promise<Prisma.UserWhereInput> {
   const captains = q.mode === "captain" || q.mode === "player" ? (await prisma.userPrefs.findMany({ where: { mode: "captain" }, select: { userId: true } })).map((p) => p.userId) : [];
   // VIP = has an active VIP code; Membership = has a membership running today
   const vipPhones = q.mode === "vip" ? (await prisma.vipCode.findMany({ where: { active: true }, select: { userId: true } })).map((v) => v.userId) : [];
   const memberPhones = q.mode === "member" ? (await prisma.membershipSubscription.findMany({ where: { status: "active", endDate: { gte: new Date() } }, select: { userId: true } })).map((m) => m.userId) : [];
-  const where: Prisma.UserWhereInput = {
+  return {
     role: "user",
     ...(q.status === "suspended" ? { isActive: false } : q.status === "active" ? { isActive: true } : {}),
     ...(q.mode === "captain" ? { phoneNumber: { in: captains } } : q.mode === "player" ? { phoneNumber: { notIn: captains } } : q.mode === "vip" ? { phoneNumber: { in: vipPhones } } : q.mode === "member" ? { phoneNumber: { in: memberPhones } } : {}),
     ...(q.q ? { OR: [{ name: { contains: q.q, mode: "insensitive" } }, { phoneNumber: { contains: q.q } }, { email: { contains: q.q, mode: "insensitive" } }] } : {}),
   };
+}
+
+// Customers as an Excel file: name, phone and email (plus status, type and join date). Uses the same search and filters as the list,
+// so with no filter it is everyone. Only staff with the export permission (it is personal data), and every export is in the audit log.
+const EXPORT_MAX = 50_000;
+customersRouter.get("/export", requirePermission("customers.export"), handler(async (req, res) => {
+  const q = req.query as Record<string, string | undefined>;
+  const where = await customerWhere(q);
+  const [rows, captains] = await Promise.all([
+    prisma.user.findMany({ where, select: { name: true, phoneNumber: true, email: true, isActive: true, createdAt: true }, orderBy: [{ name: "asc" }, { createdAt: "asc" }], take: EXPORT_MAX }),
+    prisma.userPrefs.findMany({ where: { mode: "captain" }, select: { userId: true } }).then((c) => new Set(c.map((x) => x.userId))),
+  ]);
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "Unique Futsal";
+  const ws = wb.addWorksheet("Customers", { views: [{ state: "frozen", ySplit: 1 }] });
+  ws.columns = [
+    { header: "Name", key: "name", width: 28 }, { header: "Phone", key: "phone", width: 16 }, { header: "Email", key: "email", width: 34 },
+    { header: "Status", key: "status", width: 12 }, { header: "Type", key: "type", width: 12 }, { header: "Joined", key: "joined", width: 14 },
+  ];
+  ws.getRow(1).font = { bold: true };
+  ws.getRow(1).alignment = { vertical: "middle" };
+  for (const r of rows) {
+    // the phone is text, so Excel never turns it into 9.8E+09 or drops a leading zero
+    ws.addRow({ name: r.name ?? "", phone: r.phoneNumber, email: r.email ?? "", status: r.isActive ? "Active" : "Suspended", type: captains.has(r.phoneNumber) ? "Captain" : "Player", joined: todayKey(r.createdAt) });
+  }
+  ws.getColumn("phone").numFmt = "@";
+  ws.autoFilter = { from: "A1", to: "F1" };
+  await audit(req, "export", "customers", null, { count: rows.length, filter: { q: q.q ?? "", status: q.status ?? "", mode: q.mode ?? "" } });
+  res.set({
+    "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "Content-Disposition": `attachment; filename="unique-futsal-customers-${todayKey()}.xlsx"`,
+    "Cache-Control": "no-store",
+  });
+  res.send(Buffer.from(await wb.xlsx.writeBuffer()));
+}));
+
+customersRouter.get("/", requirePermission("customers.view"), handler(async (req, res) => {
+  const q = req.query as Record<string, string | undefined>;
+  const { take, skip, pageNo, limit } = page(q);
+  const where = await customerWhere(q);
   const [rows, total] = await Promise.all([prisma.user.findMany({ where, select: pub, orderBy: { createdAt: "desc" }, take, skip }), prisma.user.count({ where })]);
 
   // Quick numbers for the rows on this page only

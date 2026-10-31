@@ -1,4 +1,6 @@
-import { api } from "./api";
+import { ApiError, API_BASE, api, getToken } from "./api";
+import { showDenied } from "./access";
+import { nepalDay } from "./bookings";
 
 export type Mode = "captain" | "player";
 // what the Customers page can filter by: the customer type, VIP customers, or customers with a running membership
@@ -61,6 +63,27 @@ export const listCustomers = (p: { q: string; mode: Filter | ""; status: "" | "a
   if (p.status) qs.set("status", p.status);
   return api<CustomerList>(`/admin/customers?${qs}`);
 };
+
+// Downloads the customers as an Excel file (the same search and filters as the list; none = everyone). Needs the export permission.
+export async function downloadCustomersExcel(p: { q: string; mode: Filter | ""; status: "" | "active" | "suspended" }) {
+  const qs = new URLSearchParams();
+  if (p.q.trim()) qs.set("q", p.q.trim());
+  if (p.mode) qs.set("mode", p.mode);
+  if (p.status) qs.set("status", p.status);
+  const token = getToken();
+  const res = await fetch(`${API_BASE}/admin/customers/export?${qs}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (res.status === 403) showDenied();
+  if (!res.ok) throw new ApiError(res.status, (await res.json().catch(() => null))?.message ?? `Could not export (${res.status})`);
+  const name = `unique-futsal-customers-${nepalDay()}.xlsx`;
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
 
 export const getProfile = (phone: string) => api<Profile>(`/admin/customers/${encodeURIComponent(phone)}/profile`);
 export const saveVip = (phone: string, v: VipInput) => api(`/admin/customers/${encodeURIComponent(phone)}/vip`, { method: "PUT", body: JSON.stringify(v) });

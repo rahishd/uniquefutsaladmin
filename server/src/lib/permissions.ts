@@ -47,6 +47,7 @@ export const SECTIONS: Section[] = [
     { key: "customers.create", label: "Add Customer Manually" },
     { key: "customers.edit", label: "Edit Customer Details" },
     { key: "customers.suspend", label: "Suspend / Reactivate Account" },
+    { key: "customers.export", label: "Export Customers to Excel (names, phones, emails)" },
   ] },
   { id: "servicefunds", label: "Collect Service Payment", permissions: [
     { key: "servicefunds.view", label: "View Service Funds & Deposits" },

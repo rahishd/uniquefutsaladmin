@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Ban, ChevronLeft, ChevronRight, Phone, Search, UserPlus, Users } from "lucide-react";
+import { Ban, ChevronLeft, ChevronRight, FileSpreadsheet, Phone, Search, UserPlus, Users } from "lucide-react";
 import { Badge } from "../bookings/Badge";
 import AddCustomerSheet from "./AddCustomerSheet";
 import CustomerSheet from "./CustomerSheet";
@@ -9,7 +9,7 @@ import VipTag from "./VipTag";
 import { rs } from "@/lib/bookings";
 import { guard } from "@/lib/access";
 import { useHighlight } from "@/lib/highlight";
-import { CustomerList, CustomerRow, Filter, PAGE_SIZE, initials, listCustomers, setActive } from "@/lib/customers";
+import { CustomerList, CustomerRow, Filter, PAGE_SIZE, downloadCustomersExcel, initials, listCustomers, setActive } from "@/lib/customers";
 
 import { askConfirm } from "@/lib/confirm";
 const MODES: { id: Filter | ""; label: string }[] = [{ id: "", label: "Everyone" }, { id: "captain", label: "Captains" }, { id: "player", label: "Regular players" }, { id: "vip", label: "VIP" }, { id: "member", label: "Membership" }];
@@ -26,6 +26,7 @@ export default function CustomersPage() {
   const [error, setError] = useState("");
   const [open, setOpen] = useState<CustomerRow | null>(null);
   const [adding, setAdding] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [tick, setTick] = useState(0);
   const canSuspend = true;
 
@@ -54,6 +55,14 @@ export default function CustomersPage() {
   }, [q, mode, status, pageNo, tick]);
 
   const pick = (fn: () => void) => { fn(); setPageNo(1); setData(null); setError(""); };
+
+  // the customers as an Excel file, with the search and filters currently on screen (none = everyone)
+  async function exportExcel() {
+    if (!guard("customers.export")) return;
+    setExporting(true);
+    setError("");
+    try { await downloadCustomersExcel({ q, mode, status }); } catch (e) { setError(e instanceof Error ? e.message : "Could not export"); } finally { setExporting(false); }
+  }
   const pages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1;
   const input = "rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
 
@@ -64,7 +73,10 @@ export default function CustomersPage() {
           <h1 className="text-2xl font-bold">Customers</h1>
           <p className="text-sm text-muted">Everyone who has an account in the app. Tap a customer for their full history.</p>
         </div>
-        <button onClick={() => guard("customers.create") && setAdding(true)} className="flex shrink-0 items-center gap-1.5 rounded-full bg-brand px-4 py-2.5 text-sm font-semibold text-white"><UserPlus size={16} /> Add customer</button>
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          <button onClick={exportExcel} disabled={exporting} title="Download the customers (name, phone, email) as an Excel file" className="flex items-center gap-1.5 rounded-full border border-line bg-surface px-4 py-2.5 text-sm font-semibold text-foreground disabled:opacity-60"><FileSpreadsheet size={16} /> {exporting ? "Preparing…" : "Export Excel"}</button>
+          <button onClick={() => guard("customers.create") && setAdding(true)} className="flex items-center gap-1.5 rounded-full bg-brand px-4 py-2.5 text-sm font-semibold text-white"><UserPlus size={16} /> Add customer</button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" aria-label="Registered customers">
