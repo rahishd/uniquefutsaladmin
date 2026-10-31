@@ -5,15 +5,29 @@ import type { PdfSpec } from "@/lib/branded-pdf";
 
 const first = (name: string | null | undefined) => (name ?? "").trim().split(" ")[0] || "";
 
+// What a registered customer gets in the app (the welcome page lists these).
+const WELCOME_BENEFITS = [
+  "Book courts and Gamezone (PS5) from your phone, 10 days ahead.",
+  "Pay at the venue or online with Fonepay, no details to retype.",
+  "Earn loyalty points on every game and swap them for free games.",
+  "Refer & Earn: book for another team and you both get points.",
+  "Promo codes, special offers, Unique Club and membership plans.",
+  "Create or join a team, challenge others, climb the leaderboard.",
+  "Digital ID, booking history and a reminder 1 hour before games.",
+];
+
 /** A customer's mobile number and password: a new account, or a new password after staff changed it. */
 export function customerLoginPdf(c: { name: string | null; phone: string; password: string; reset?: boolean }): PdfSpec {
+  const hi = first(c.name);
   return {
-    purpose: c.reset ? "NEW PASSWORD" : "LOGIN DETAILS",
-    title: c.reset ? "Your Unique Futsal password was changed" : "Your Unique Futsal account is ready",
-    subtitle: c.reset ? "Use the new password below to sign in." : "Created for you by the Unique Futsal team.",
+    purpose: c.reset ? "NEW PASSWORD" : "WELCOME",
+    title: c.reset ? "Your Unique Futsal password was changed" : "Welcome to Unique Futsal Family",
+    subtitle: c.reset ? "Use the new password below to sign in." : `${hi ? `Hello ${hi}! ` : ""}Your account is ready. Here are your details.`,
+    ...(c.reset ? {} : { benefitsTitle: "What you get as a registered member", benefits: WELCOME_BENEFITS }),
     ref: `ACCOUNT-${c.phone}`,
     to: { name: c.name || "Customer", phone: c.phone },
-    rows: [{ label: "Mobile number", value: c.phone, big: true }, { label: c.reset ? "New password" : "Password", value: c.password, big: true }],
+    rows: [{ label: "Mobile number", value: c.phone, big: true, half: true }, { label: c.reset ? "New password" : "Password", value: c.password, big: true, half: true }],
+    ...(c.reset ? {} : { compact: true }),
     stepsTitle: "How to sign in",
     steps: ["Open the Unique Futsal app and tap Sign in.", "Enter the mobile number and password above.", c.reset ? "You can change the password any time from Profile." : "You can change the password any time from Profile."],
     note: "Keep this page private. Anyone who has it can sign in to this account.",

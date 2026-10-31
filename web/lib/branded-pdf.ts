@@ -15,6 +15,7 @@ export interface PdfRow {
   value: string;
   big?: boolean; // a highlighted box with large monospaced text (passwords, codes)
   link?: string; // the value is a tappable link
+  half?: boolean; // with `big`: two neighbouring half rows sit side by side in one line
 }
 export interface PdfTable {
   head: string[]; // the first column is wide and left aligned, the last is right aligned, the ones between are centred
@@ -38,8 +39,11 @@ export interface PdfSpec {
   total?: { label: string; value: string };
   after?: PdfRow[]; // rows under the total (how it was paid, points earned)
   blocks?: PdfBlock[]; // more headed sections, for reports
+  benefitsTitle?: string;
+  benefits?: string[]; // a short ticked list, for example what a registered customer gets
   stepsTitle?: string;
   steps?: string[];
+  compact?: boolean; // tighter spacing so a fuller page (welcome page) still fits on one page
   qr?: { data: string; label: string };
   note?: string;
   stamp?: string; // a faint stamp such as "PAID"
@@ -88,19 +92,19 @@ export async function buildPdf(spec: PdfSpec): Promise<Blob> {
   let y = 0;
 
   function firstHeader() {
-    fill(NAVY); doc.rect(0, 0, W, 40, "F"); fill(ORANGE); doc.rect(0, 40, W, 1.4, "F");
-    doc.addImage(LOGO_WHITE, "PNG", 10, 8, 22, 22);
-    font("bold", 18); text(WHITE); doc.text(VENUE.name, 36, 19);
-    font("normal", 7.4); text([200, 210, 255]); doc.text(VENUE.tagline, 36, 25);
+    fill(NAVY); doc.rect(0, 0, W, 29, "F"); fill(ORANGE); doc.rect(0, 29, W, 1.2, "F");
+    doc.addImage(LOGO_WHITE, "PNG", 10, 4.5, 20, 20);
+    font("bold", 17); text(WHITE); doc.text(VENUE.name, 34, 14.5);
+    font("normal", 7.4); text([200, 210, 255]); doc.text(VENUE.tagline, 34, 20.2);
     const chip = t(spec.purpose).toUpperCase();
     font("bold", 8);
     const cw = doc.getTextWidth(chip) + 9;
-    fill(ORANGE); doc.roundedRect(W - 10 - cw, 8, cw, 7.6, 3.8, 3.8, "F");
-    text(WHITE); doc.text(chip, W - 10 - cw / 2, 13.2, { align: "center" });
+    fill(ORANGE); doc.roundedRect(W - 10 - cw, 5.5, cw, 7.2, 3.6, 3.6, "F");
+    text(WHITE); doc.text(chip, W - 10 - cw / 2, 10.3, { align: "center" });
     font("normal", 7.6); text([200, 210, 255]);
-    if (spec.ref) doc.text(t(spec.ref), W - 10, 22, { align: "right" });
-    doc.text(when, W - 10, 26.5, { align: "right" });
-    y = 55;
+    if (spec.ref) doc.text(t(spec.ref), W - 10, 17.8, { align: "right" });
+    doc.text(when, W - 10, 22.2, { align: "right" });
+    y = spec.compact ? 42 : 45;
   }
 
   function slimHeader() {
@@ -113,7 +117,8 @@ export async function buildPdf(spec: PdfSpec): Promise<Blob> {
 
   firstHeader();
 
-  const ensure = (h: number) => { if (y + h > BOTTOM) { doc.addPage(); slimHeader(); } };
+  const limit = spec.compact ? 187 : BOTTOM;
+  const ensure = (h: number) => { if (y + h > limit) { doc.addPage(); slimHeader(); } };
 
   // ---------- pieces ----------
   function row(r: PdfRow) {
@@ -144,6 +149,23 @@ export async function buildPdf(spec: PdfSpec): Promise<Blob> {
     }
     y += Math.max(6.4, vl.length * 4.4 + 2);
     stroke(LINE); doc.setLineWidth(0.2); doc.line(MX, y - 3.4, W - MX, y - 3.4);
+  }
+
+  // two highlighted boxes in one line (for example mobile number and password)
+  function pair(a: PdfRow, b: PdfRow) {
+    const gap = 4, cw = (W - MX * 2 - gap) / 2, ch = 16;
+    ensure(ch + 4);
+    [a, b].forEach((r, i) => {
+      const x = MX + i * (cw + gap);
+      fill(SOFT); stroke(NAVY); doc.setLineWidth(0.35); doc.roundedRect(x, y, cw, ch, 2.5, 2.5, "FD");
+      font("bold", 6.4); text(MUTED); doc.text(t(r.label).toUpperCase(), x + 4, y + 5);
+      const v = t(r.value);
+      let size = 13.5;
+      font("bold", size, "courier"); text(NAVY);
+      while (size > 7 && doc.getTextWidth(v) > cw - 8) { size -= 0.5; doc.setFontSize(size); }
+      doc.text(v, x + 4, y + 12);
+    });
+    y += ch + 4.5;
   }
 
   function table(tb: PdfTable) {
@@ -202,12 +224,15 @@ export async function buildPdf(spec: PdfSpec): Promise<Blob> {
     const sl = doc.splitTextToSize(t(spec.subtitle), w); doc.text(sl, MX, y); y += sl.length * 4.6 + 2.4;
   }
   if (spec.to) {
-    y += 1.5; font("bold", 6.8); text(MUTED); doc.text("PREPARED FOR", MX, y); y += 4.6;
+    y += spec.compact ? 0.5 : 1.5; font("bold", 6.8); text(MUTED); doc.text("PREPARED FOR", MX, y); y += 4.4;
     font("bold", 11); text(INK); doc.text(t(spec.to.name) || "Customer", MX, y);
     if (spec.to.phone) { font("normal", 9); text(MUTED); doc.text(t(spec.to.phone), W - MX, y, { align: "right" }); }
-    y += 7;
+    y += spec.compact ? 6 : 7;
   }
-  for (const r of spec.rows ?? []) row(r);
+  const main = spec.rows ?? [];
+  for (let i = 0; i < main.length; i++) {
+    if (main[i].big && main[i].half && main[i + 1]?.big && main[i + 1]?.half) { pair(main[i], main[i + 1]); i++; } else row(main[i]);
+  }
   if (spec.table) table(spec.table);
   if (spec.total) {
     ensure(18);
@@ -222,6 +247,18 @@ export async function buildPdf(spec: PdfSpec): Promise<Blob> {
     for (const r of b.rows ?? []) row(r);
     if (b.table) table(b.table);
   }
+  if (spec.benefits?.length) {
+    ensure(20);
+    y += 1; font("bold", 9.5); text(NAVY); doc.text(t(spec.benefitsTitle ?? "What you get"), MX, y); y += 5.2;
+    for (const b of spec.benefits) {
+      const ls = doc.splitTextToSize(t(b), w - 9);
+      ensure(ls.length * 3.9 + 2.6);
+      fill(GREEN); doc.circle(MX + 2.2, y - 1, 2.2, "F");
+      stroke(WHITE); doc.setLineWidth(0.5); doc.line(MX + 1.2, y - 1, MX + 2, y - 0.2); doc.line(MX + 2, y - 0.2, MX + 3.3, y - 1.9);
+      font("normal", 8.4); text(INK); doc.text(ls, MX + 7, y); y += ls.length * 3.9 + (spec.compact ? 2.7 : 2.2);
+    }
+    y += spec.compact ? 1 : 1.5;
+  }
   if (spec.steps?.length) {
     ensure(34);
     y += 2; font("bold", 9.5); text(NAVY); doc.text(t(spec.stepsTitle ?? "Steps"), MX, y); y += 5.4;
@@ -231,7 +268,7 @@ export async function buildPdf(spec: PdfSpec): Promise<Blob> {
       fill(ORANGE); doc.circle(MX + 2.6, y - 1.1, 2.6, "F");
       font("bold", 7.4); text(WHITE); doc.text(String(i + 1), MX + 2.6, y + 0.2, { align: "center" });
       font("normal", 8.8); text(INK);
-      const ls = doc.splitTextToSize(t(s), sw - 9); doc.text(ls, MX + 8, y); y += ls.length * 4.2 + 3.4;
+      const ls = doc.splitTextToSize(t(s), sw - 9); doc.text(ls, MX + 8, y); y += ls.length * 4.2 + (spec.compact ? 3.1 : 3.4);
     });
     if (qr && spec.qr) {
       doc.addImage(qr, "PNG", W - MX - 28, top - 2, 28, 28);
