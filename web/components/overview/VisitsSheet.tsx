@@ -12,7 +12,7 @@ const device = (v: VisitRow) => [v.deviceName, v.os, v.browser].filter(Boolean).
 // Who opened the website in the chosen period: their name when signed in, where they were, their IP address and what device they used.
 // Everything except the name comes from the request itself, so some of it can be missing (for example no location for a private network).
 export default function VisitsSheet({ from, to, onClose }: { from: string; to: string; onClose: () => void }) {
-  const [data, setData] = useState<{ total: number; items: VisitRow[] } | null>(null);
+  const [data, setData] = useState<{ total: number; detailsRecorded: boolean; items: VisitRow[] } | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -40,6 +40,7 @@ export default function VisitsSheet({ from, to, onClose }: { from: string; to: s
         <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-5 py-4">
           {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600" role="alert">{error}</p>}
           {!data && !error && <p className="py-8 text-center text-sm text-muted">Loading the visitors…</p>}
+          {data && !data.detailsRecorded && <p className="rounded-xl bg-amber-500/10 p-3 text-sm text-amber-700">Name, place, IP and device are not recorded on this server yet. Run the database update (admin: npm run db:migrate, customer site: npx prisma migrate deploy) and restart both APIs.</p>}
           {data && data.items.length === 0 && <p className="py-8 text-center text-sm text-muted">Nobody visited in this period.</p>}
           {data?.items.map((v) => {
             const Dev = v.deviceType === "mobile" ? Smartphone : v.deviceType === "tablet" ? Tablet : Laptop;

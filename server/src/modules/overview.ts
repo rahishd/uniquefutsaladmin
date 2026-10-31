@@ -105,11 +105,15 @@ overviewRouter.get("/overview/visits", requirePermission("dashboard.view"), hand
   if (from > to) throw new AppError(400, "The From date must not be after the To date");
   if (to > today) throw new AppError(400, "Pick dates up to today");
   const where = { day: { gte: from, lte: to } };
-  const [rows, total] = await Promise.all([prisma.siteVisit.findMany({ where, orderBy: { lastAt: "desc" }, take: 300 }), prisma.siteVisit.count({ where })]);
+  // If the database update that adds the visitor details (sql/037) has not been applied yet, still list who came, and say so.
+  const [rows, total, detailsRecorded] = await Promise.all([prisma.siteVisit.findMany({ where, orderBy: { lastAt: "desc" }, take: 300 }), prisma.siteVisit.count({ where }), true]).catch(async () => {
+    const basic = await prisma.siteVisit.findMany({ where, orderBy: { lastAt: "desc" }, take: 300, select: { id: true, day: true, firstAt: true, lastAt: true, pages: true, registered: true } });
+    return [basic.map((b) => ({ ...b, userId: null, ip: null, city: null, region: null, country: null, deviceType: null, deviceName: null, os: null, browser: null })), await prisma.siteVisit.count({ where }), false] as const;
+  });
   const users = await prisma.user.findMany({ where: { phoneNumber: { in: rows.flatMap((r) => (r.userId ? [r.userId] : [])) } }, select: { phoneNumber: true, name: true } });
   const name = new Map(users.map((u) => [u.phoneNumber, u.name]));
   send(res, {
-    total,
+    total, detailsRecorded,
     items: rows.map((r) => ({
       id: r.id, day: r.day, firstAt: r.firstAt, lastAt: r.lastAt, pages: r.pages, registered: r.registered,
       name: r.userId ? name.get(r.userId) ?? null : null, phone: r.userId,

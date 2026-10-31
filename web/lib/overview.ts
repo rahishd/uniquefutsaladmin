@@ -17,4 +17,4 @@ export type VisitRow = {
   ip: string | null; city: string | null; region: string | null; country: string | null;
   deviceType: string | null; deviceName: string | null; os: string | null; browser: string | null;
 };
-export const getVisits = (from: string, to: string) => api<{ total: number; items: VisitRow[] }>(`/admin/overview/visits?from=${from}&to=${to}`);
+export const getVisits = (from: string, to: string) => api<{ total: number; detailsRecorded: boolean; items: VisitRow[] }>(`/admin/overview/visits?from=${from}&to=${to}`);
