@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import bcrypt from "bcryptjs";
 import { after, before, beforeEach, describe, it } from "node:test";
-import { api, app, prisma, request, reset, staff } from "./helpers";
+import { api, app, customer, prisma, request, reset, staff } from "./helpers";
 
 before(reset);
 beforeEach(reset);
@@ -75,5 +75,36 @@ describe("customer totals", () => {
     // adding a customer raises it
     await api.post("/customers", owner.auth, { name: "New One", phoneNumber: "9842000004" });
     assert.equal((await api.get("/customers", owner.auth)).body.data.totals.registered, 4);
+  });
+});
+
+describe("staff delete a customer profile", () => {
+  it("needs its own permission, and a staff account cannot be deleted here", async () => {
+    await customer("9841000010", "Tester");
+    const editor = await staffWith(["customers.view", "customers.edit", "customers.suspend"]);
+    assert.equal((await api.del("/customers/9841000010", editor.auth)).status, 403);
+    const owner = await staff("owner");
+    await prisma.user.create({ data: { phoneNumber: "9841000011", name: "Boss", password: "x", role: "admin" } });
+    assert.equal((await api.del("/customers/9841000011", owner.auth)).status, 403);
+    assert.equal((await api.del("/customers/9800000000", owner.auth)).status, 404);
+  });
+
+  it("deletes a profile with no history, together with its notices", async () => {
+    const owner = await staff("owner");
+    await customer("9841000012", "Test 3rd");
+    await prisma.notification.create({ data: { userId: "9841000012", type: "promo", title: "Hi", message: "Hello" } });
+    assert.equal((await api.del("/customers/9841000012", owner.auth)).status, 200);
+    assert.equal(await prisma.user.count({ where: { phoneNumber: "9841000012" } }), 0);
+    assert.equal(await prisma.notification.count({ where: { userId: "9841000012" } }), 0);
+  });
+
+  it("refuses when the customer has bookings or points, and keeps everything", async () => {
+    const owner = await staff("owner");
+    await customer("9841000013", "Has points");
+    await prisma.loyaltyEntry.create({ data: { userId: "9841000013", kind: "game", points: 5, earnedOn: "2026-10-31", expiresOn: null, detail: "x", sourceType: "t", sourceId: "1" } });
+    const r = await api.del("/customers/9841000013", owner.auth);
+    assert.equal(r.status, 409);
+    assert.match(r.body.message ?? r.body.error ?? "", /loyalty points/);
+    assert.equal(await prisma.user.count({ where: { phoneNumber: "9841000013" } }), 1);
   });
 });

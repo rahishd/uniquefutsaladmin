@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Eye, EyeOff, Pencil } from "lucide-react";
 import SendPdfButton from "../SendPdfButton";
 import { pdfFileName } from "@/lib/branded-pdf";
@@ -11,7 +12,7 @@ import { CustomerEdit, editCustomer } from "@/lib/customers";
 
 import { askConfirm } from "@/lib/confirm";
 // Staff fix a customer's details here. A new password needs no old one: customers who forget it are told to contact the venue.
-export default function EditCustomer({ phone, name, email, onSaved }: { phone: string; name: string | null; email: string | null; onSaved: (newPhone: string) => void }) {
+export default function EditCustomer({ phone, name, email, onSaved, extra, lead, bodyTarget }: { phone: string; name: string | null; email: string | null; onSaved: (newPhone: string) => void; extra?: ReactNode; lead?: ReactNode; bodyTarget?: HTMLElement | null }) {
   const [open, setOpen] = useState(false);
   const [f, setF] = useState({ name: name ?? "", phone, email: email ?? "", password: "" });
   const [show, setShow] = useState(false);
@@ -46,16 +47,16 @@ export default function EditCustomer({ phone, name, email, onSaved }: { phone: s
     } finally { setBusy(false); }
   }
 
-  if (!open) return (
+  const bar = (
     <div className="space-y-2">
-      <button onClick={() => setOpen(true)} className="flex w-full items-center justify-center gap-2 rounded-xl bg-surface-2 py-3 text-sm font-semibold"><Pencil size={16} /> Edit details / set password</button>
-      {done && <p className="rounded-xl bg-brand/10 p-3 text-sm text-brand">{done}</p>}
-      {share && (
-        <SendPdfButton label={`Send the new password (PDF) on WhatsApp to ${share.phone}`} build={() => customerLoginPdf({ name: share.name, phone: share.phone, password: share.password, reset: true })} filename={pdfFileName("new-password", share.phone)} phone={share.phone} message={`Hello ${share.name.split(" ")[0] || "there"}! Your new Unique Futsal password is in the attached PDF.`} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] py-3 text-sm font-semibold text-white" />
-      )}
+      <div className="grid grid-cols-3 gap-2">
+        {lead}
+        <button onClick={() => setOpen(!open)} className={`flex items-center justify-center gap-1.5 rounded-xl py-3 text-sm font-semibold ${open ? "bg-brand/15 text-brand" : "bg-surface-2"}`}><Pencil size={16} /> Edit profile</button>
+      </div>
+      {extra}
     </div>
   );
-  return (
+  const body = open ? (
     <section className="space-y-3 rounded-2xl border border-line p-4">
       <h3 className="font-bold">Edit customer</h3>
       <label className="block text-xs text-muted">Name<input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} className={input} /></label>
@@ -76,5 +77,18 @@ export default function EditCustomer({ phone, name, email, onSaved }: { phone: s
         <button onClick={save} disabled={busy} className="rounded-xl bg-brand py-2.5 text-sm font-semibold text-white disabled:opacity-60">{busy ? "Saving…" : "Save"}</button>
       </div>
     </section>
+  ) : (
+    <>
+      {done && <p className="rounded-xl bg-brand/10 p-3 text-sm text-brand">{done}</p>}
+      {share && (
+        <div><SendPdfButton label={`Send the new password (PDF) on WhatsApp to ${share.phone}`} build={() => customerLoginPdf({ name: share.name, phone: share.phone, password: share.password, reset: true })} filename={pdfFileName("new-password", share.phone)} phone={share.phone} message={`Hello ${share.name.split(" ")[0] || "there"}! Your new Unique Futsal password is in the attached PDF.`} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] py-3 text-sm font-semibold text-white" /></div>
+      )}
+    </>
+  );
+  return (
+    <>
+      {bar}
+      {bodyTarget ? createPortal(body, bodyTarget) : <div className="mt-3">{body}</div>}
+    </>
   );
 }

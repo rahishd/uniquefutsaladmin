@@ -99,3 +99,4 @@ export const initials = (name: string | null, phone: string) =>
 
 export type CustomerEdit = { name?: string; email?: string | null; phoneNumber?: string; password?: string };
 export const editCustomer = (phone: string, v: CustomerEdit) => api(`/admin/customers/${encodeURIComponent(phone)}`, { method: "PATCH", body: JSON.stringify(v) });
+export const deleteCustomer = (phone: string) => api(`/admin/customers/${encodeURIComponent(phone)}`, { method: "DELETE" });

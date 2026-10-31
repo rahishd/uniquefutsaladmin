@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { MessageCircle, Phone, ShieldCheck, ShieldOff, X } from "lucide-react";
+import { MessageCircle, Phone, ShieldCheck, ShieldOff, Trash2, X } from "lucide-react";
 import { Badge } from "../bookings/Badge";
 import CancellationsSection from "./CancellationsSection";
 import EditCustomer from "./EditCustomer";
@@ -14,7 +14,7 @@ import { prettyDate, rs, STATUS as BOOKING_STATUS } from "@/lib/bookings";
 import { STATUS as COMPLAINT_STATUS, ago } from "@/lib/complaints";
 import { CustomerLedger, getCustomer as getLoyalty } from "@/lib/loyalty";
 import { METHOD_LABEL } from "@/lib/payments";
-import { CustomerRow, Profile, getProfile, initials, setActive } from "@/lib/customers";
+import { CustomerRow, Profile, deleteCustomer, getProfile, initials, setActive } from "@/lib/customers";
 
 import { askConfirm } from "@/lib/confirm";
 function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
@@ -45,6 +45,7 @@ export default function CustomerSheet({ customer, onClose, onChanged }: { custom
   const [p, setP] = useState<Profile | null>(null);
   const [loyalty, setLoyalty] = useState<CustomerLedger | null>(null);
   const [error, setError] = useState("");
+  const [bodyEl, setBodyEl] = useState<HTMLDivElement | null>(null); // where the edit form is drawn: in the scrolling part, not the pinned top
   const [busy, setBusy] = useState("");
   const canWrite = true;
 
@@ -56,6 +57,23 @@ export default function CustomerSheet({ customer, onClose, onChanged }: { custom
     getLoyalty(customer.phoneNumber).then((d) => { if (live) setLoyalty(d); }).catch(() => { if (live) setLoyalty({ approxBalance: 0, rows: [], vouchers: [] }); });
     return () => { live = false; };
   }, [customer.phoneNumber]);
+
+  async function removeProfile() {
+    if (!guard("customers.delete") || !p) return;
+    const who = p.user.name ?? p.user.phoneNumber;
+    if (!(await askConfirm(`Delete the profile of ${who} (${p.user.phoneNumber})? This cannot be undone. Only customers with no bookings, payments or points can be deleted.`))) return;
+    setBusy("delete");
+    setError("");
+    try {
+      await deleteCustomer(p.user.phoneNumber);
+      onChanged();
+      onClose();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not delete the customer");
+    } finally {
+      setBusy("");
+    }
+  }
 
   async function toggleActive() {
     if (!guard("customers.suspend")) return;
@@ -78,9 +96,18 @@ export default function CustomerSheet({ customer, onClose, onChanged }: { custom
   const name = p?.user.name ?? customer.name ?? "Customer";
   const isCaptain = (p?.profile.mode ?? customer.mode) === "captain";
 
+  const lead = (
+    <>
+          <a href={`tel:${customer.phoneNumber}`} className="flex items-center justify-center gap-1.5 rounded-xl bg-brand py-3 text-sm font-semibold text-white"><Phone size={16} /> Call</a>
+          <a href={`https://wa.me/977${customer.phoneNumber}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-1.5 rounded-xl bg-surface-2 py-3 text-sm font-semibold"><MessageCircle size={16} /> WhatsApp</a>
+    </>
+  );
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center" onClick={onClose}>
-      <div role="dialog" aria-label={`Customer ${name}`} onClick={(e) => e.stopPropagation()} className="max-h-[94vh] w-full max-w-xl space-y-4 overflow-y-auto rounded-t-3xl bg-surface p-5 sm:rounded-3xl">
+      <div role="dialog" aria-label={`Customer ${name}`} onClick={(e) => e.stopPropagation()} className="flex max-h-[94vh] w-full max-w-xl flex-col overflow-hidden rounded-t-3xl bg-surface sm:rounded-3xl">
+        {/* pinned: who this is and what can be done; everything below scrolls */}
+        <div className="shrink-0 space-y-4 px-5 pb-4 pt-5 shadow-[0_8px_10px_-10px_rgba(0,0,0,0.35)]">
         <div className="flex items-start gap-3">
           <span className="relative grid h-14 w-14 shrink-0 place-items-center rounded-full bg-brand/15 text-lg font-bold text-brand">
             {initials(customer.name, customer.phoneNumber)}
@@ -96,21 +123,25 @@ export default function CustomerSheet({ customer, onClose, onChanged }: { custom
               {p && <Badge tone="bg-surface-2 text-muted">Joined {prettyDate(p.user.createdAt.slice(0, 10))}</Badge>}
             </div>
           </div>
+          {p && canWrite && (
+            <button onClick={toggleActive} disabled={busy === "active"} className={`flex shrink-0 items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-semibold disabled:opacity-60 ${p.user.isActive ? "border-red-500/40 text-red-600" : "border-brand text-brand"}`}>
+              {p.user.isActive ? <><ShieldOff size={14} /> Suspend</> : <><ShieldCheck size={14} /> Reactivate</>}
+            </button>
+          )}
           <button onClick={onClose} aria-label="Close" className="rounded-full p-1 hover:bg-surface-2"><X size={22} /></button>
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          <a href={`tel:${customer.phoneNumber}`} className="flex items-center justify-center gap-2 rounded-xl bg-brand py-3 text-sm font-semibold text-white"><Phone size={16} /> Call {customer.phoneNumber}</a>
-          <a href={`https://wa.me/977${customer.phoneNumber}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 rounded-xl bg-surface-2 py-3 text-sm font-semibold"><MessageCircle size={16} /> WhatsApp</a>
+        {!p && <div className="grid grid-cols-2 gap-2">{lead}</div>}
+        {p && <EditCustomer key={p.user.phoneNumber} phone={p.user.phoneNumber} name={p.user.name} email={p.user.email} bodyTarget={bodyEl} onSaved={(np) => { onChanged(); if (np !== p.user.phoneNumber) onClose(); }} lead={lead} extra={<button onClick={removeProfile} disabled={busy === "delete"} className="flex w-full items-center justify-center gap-2 rounded-xl bg-red-500/10 py-3 text-sm font-semibold text-red-600 disabled:opacity-50"><Trash2 size={16} /> {busy === "delete" ? "Deleting…" : "Delete customer profile"}</button>} />}
         </div>
 
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 pb-5 pt-4">
+        <div ref={setBodyEl} className="space-y-2 empty:hidden" />
         {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600" role="alert">{error}</p>}
         {!p && !error && <p className="py-8 text-center text-sm text-muted">Loading the customer&apos;s history…</p>}
 
         {p && (
           <>
-            <EditCustomer key={p.user.phoneNumber} phone={p.user.phoneNumber} name={p.user.name} email={p.user.email} onSaved={(np) => { onChanged(); if (np !== p.user.phoneNumber) onClose(); }} />
-
             <div className="grid grid-cols-2 gap-2">
               <Tile label="Games played" value={String(p.games.played)} sub={p.games.gamezoneSessions ? `+ ${p.games.gamezoneSessions} Gamezone` : undefined} />
               <Tile label="Paid so far" value={rs(p.payments.paid.amount)} sub={`${p.payments.paid.count} payments`} tone="text-brand" />
@@ -253,13 +284,9 @@ export default function CustomerSheet({ customer, onClose, onChanged }: { custom
               </div>
             </Section>
 
-            {canWrite && (
-              <button onClick={toggleActive} disabled={busy === "active"} className={`flex w-full items-center justify-center gap-2 rounded-xl border py-3 text-sm font-semibold disabled:opacity-60 ${p.user.isActive ? "border-red-500/40 text-red-600" : "border-brand text-brand"}`}>
-                {p.user.isActive ? <><ShieldOff size={16} /> Suspend this account</> : <><ShieldCheck size={16} /> Reactivate this account</>}
-              </button>
-            )}
           </>
         )}
+        </div>
       </div>
     </div>
   );

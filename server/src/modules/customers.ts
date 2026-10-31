@@ -363,3 +363,42 @@ async function setActive(req: import("express").Request, active: boolean) {
 
 customersRouter.post("/:phone/suspend", requirePermission("customers.suspend"), handler(async (req, res) => { await setActive(req, false); send(res, null, "Customer suspended"); }));
 customersRouter.post("/:phone/unsuspend", requirePermission("customers.suspend"), handler(async (req, res) => { await setActive(req, true); send(res, null, "Customer reactivated"); }));
+
+// Delete a customer profile. Only an account with no history can go: a booking, payment, points, membership or any other record is part of the
+// venue's books, so those customers are suspended instead. Small personal rows (notices, settings, saved devices, ID card) are removed with it.
+const REMOVABLE = new Set([
+  "Notification", "UserPrefs", "PushSubscription", "Passkey", "DigitalId", "ArrivalCheckin", "MatchFollow", "VipCode", "FreeGameVoucher",
+  "Review", "ChatMember", "ChallengePrompt", "PlayerRequest", "PlayerRequestJoin", "GoalRushGame", "PlayerGameStat", "MembershipAttendance",
+]);
+const HISTORY: Record<string, string> = {
+  Booking: "bookings", GzBooking: "Gamezone sessions", PaymentOrder: "payments", Transaction: "payments", Order: "orders", MembershipSubscription: "memberships",
+  GoodsSale: "goods sales", GoodsDue: "goods on credit", Checkout: "bills", FonepayQr: "payments", EvCharge: "EV charging", ClubMember: "Unique Club",
+  LoyaltyEntry: "loyalty points", AcademyEnrollment: "academy classes", Complaint: "complaints", InsuranceClaim: "insurance claims", Registration: "tournament entries",
+  WheelchairRequest: "wheelchair requests", TeamMember: "a team (remove them from it first)", Wallet: "a wallet",
+};
+
+customersRouter.delete("/:phone", requirePermission("customers.delete"), handler(async (req, res) => {
+  const phone = param(req, "phone");
+  const u = await prisma.user.findUnique({ where: { phoneNumber: phone } });
+  if (!u) throw new AppError(404, "Customer not found");
+  if (u.role !== "user") throw new AppError(403, "Staff and admin accounts are managed under Staff");
+  const cols = await prisma.$queryRaw<{ table_name: string; column_name: string }[]>`
+    SELECT table_name, column_name FROM information_schema.columns
+    WHERE table_schema = 'public' AND data_type IN ('text', 'character varying')
+      AND column_name IN ('userId', 'customerPhone', 'contactPhone', 'phone') AND table_name NOT IN ('User', 'StaffUser', 'AuditLog')`;
+  const keep = new Set<string>();
+  const remove: { table: string; column: string }[] = [];
+  for (const c of cols) {
+    const [{ n }] = await prisma.$queryRawUnsafe<{ n: bigint }[]>(`SELECT COUNT(*) AS n FROM "${c.table_name}" WHERE "${c.column_name}" = $1`, phone);
+    if (Number(n) === 0) continue;
+    if (REMOVABLE.has(c.table_name)) remove.push({ table: c.table_name, column: c.column_name });
+    else keep.add(HISTORY[c.table_name] ?? c.table_name);
+  }
+  if (keep.size) throw new AppError(409, `This customer has ${[...keep].join(", ")}, which the venue must keep. Suspend the account instead.`);
+  await prisma.$transaction(async (tx) => {
+    for (const r of remove) await tx.$executeRawUnsafe(`DELETE FROM "${r.table}" WHERE "${r.column}" = $1`, phone);
+    await tx.user.delete({ where: { phoneNumber: phone } });
+  });
+  await audit(req, "delete-customer", "customer", phone, { name: u.name, email: u.email });
+  send(res, null, "Customer deleted");
+}));
