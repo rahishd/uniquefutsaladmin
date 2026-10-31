@@ -9,6 +9,7 @@ import SendPdfButton from "../SendPdfButton";
 import { pdfFileName } from "@/lib/branded-pdf";
 import { salesReportPdf } from "@/lib/report-pdfs";
 import { issuePdfCode } from "@/lib/verify";
+import VisitsSheet from "./VisitsSheet";
 
 const field = "rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
 const nepalToday = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kathmandu" }).format(new Date());
@@ -41,6 +42,7 @@ export default function OverviewPage() {
   const [ov, setOv] = useState<Overview | null>(null);
   const [r, setR] = useState<Report | null>(null);
   const [error, setError] = useState("");
+  const [showVisits, setShowVisits] = useState(false);
 
   const today = nepalToday();
   const [f, t] = range === "today" ? [today, today] : range === "yesterday" ? [shift(today, -1), shift(today, -1)] : [from, to];
@@ -90,6 +92,8 @@ export default function OverviewPage() {
         )}
       </div>
 
+      {showVisits && !invalid && <VisitsSheet from={f} to={t} onClose={() => setShowVisits(false)} />}
+
       {invalid && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600" role="alert">The From date must not be after the Till date.</p>}
       {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600" role="alert">{error}</p>}
       {!shown && !error && !invalid && <p className="py-10 text-center text-sm text-muted">Loading…</p>}
@@ -109,11 +113,12 @@ export default function OverviewPage() {
               </div>
               <div className="glass-card rounded-2xl p-4"><p className="flex items-center gap-2 text-sm text-muted"><QrCode size={16} /> Fonepay</p><p className="text-2xl font-bold">{rs(o.today.fonepay)}</p></div>
               <div className="glass-card rounded-2xl p-4"><p className="flex items-center gap-2 text-sm text-muted"><Banknote size={16} /> Cash</p><p className="text-2xl font-bold">{rs(o.today.cash)}</p></div>
-              <div className="glass-card rounded-2xl p-4">
+              <button type="button" onClick={() => setShowVisits(true)} className="glass-card block w-full rounded-2xl p-4 text-left transition hover:shadow-md" aria-label="Show who visited the website">
                 <p className="flex items-center gap-2 text-sm text-muted"><Globe size={16} /> Website visits</p>
                 <p className="text-2xl font-bold">{o.visits.visitors}</p>
                 <p className="mt-1 text-xs text-muted">{o.visits.visitors === 1 ? "visitor" : "visitors"}: {o.visits.pageViews} pages opened · {o.visits.signedIn} signed in{o.visits.visitors !== o.visits.previous && <span className={`ml-1 font-semibold ${o.visits.visitors > o.visits.previous ? "text-green-700" : "text-red-600"}`}>({o.visits.visitors > o.visits.previous ? "+" : "-"}{Math.abs(o.visits.visitors - o.visits.previous)} vs {prev})</span>}</p>
-              </div>
+                <p className="mt-1.5 text-xs font-semibold text-brand">View who visited →</p>
+              </button>
             </div>
 
             <Section n={1} title={`Futsal games (${label})`} total={`Total: ${rs(gameTotal)}`}>

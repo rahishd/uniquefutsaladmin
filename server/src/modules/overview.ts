@@ -95,6 +95,30 @@ overviewRouter.get("/overview", requirePermission("dashboard.view"), handler(asy
   });
 }));
 
+// Who visited the website in a period (the Website visits card): newest first, with what the request showed (IP, rough place, device) and the
+// customer's name when they were signed in. One row per visitor per day.
+overviewRouter.get("/overview/visits", requirePermission("dashboard.view"), handler(async (req, res) => {
+  const today = todayKey();
+  const q = parse(z.object({ from: dateStr.optional(), to: dateStr.optional() }), req.query);
+  const from = q.from ?? q.to ?? today;
+  const to = q.to ?? from;
+  if (from > to) throw new AppError(400, "The From date must not be after the To date");
+  if (to > today) throw new AppError(400, "Pick dates up to today");
+  const where = { day: { gte: from, lte: to } };
+  const [rows, total] = await Promise.all([prisma.siteVisit.findMany({ where, orderBy: { lastAt: "desc" }, take: 300 }), prisma.siteVisit.count({ where })]);
+  const users = await prisma.user.findMany({ where: { phoneNumber: { in: rows.flatMap((r) => (r.userId ? [r.userId] : [])) } }, select: { phoneNumber: true, name: true } });
+  const name = new Map(users.map((u) => [u.phoneNumber, u.name]));
+  send(res, {
+    total,
+    items: rows.map((r) => ({
+      id: r.id, day: r.day, firstAt: r.firstAt, lastAt: r.lastAt, pages: r.pages, registered: r.registered,
+      name: r.userId ? name.get(r.userId) ?? null : null, phone: r.userId,
+      ip: r.ip, city: r.city, region: r.region, country: r.country,
+      deviceType: r.deviceType, deviceName: r.deviceName, os: r.os, browser: r.browser,
+    })),
+  });
+}));
+
 // ---- broadcast ----
 const AUDIENCE = z.enum(["all", "captains", "customer"]);
 type Aud = { type: string; audience: z.infer<typeof AUDIENCE>; phone?: string };

@@ -1159,6 +1159,15 @@ model SiteVisit {
   pages      Int      @default(1)
   firstAt    DateTime @default(now())
   lastAt     DateTime @default(now())
+  userId     String?
+  ip         String?
+  city       String?
+  region     String?
+  country    String?
+  deviceType String?
+  deviceName String?
+  os         String?
+  browser    String?
 
   @@unique([day, visitor])
   @@index([day])
