@@ -27,8 +27,11 @@ const ICON: Record<string, React.ElementType> = {
 
 const SEEN = "uf-activity-seen";
 const READ = "uf-activity-read";
+const CLEARED = "uf-activity-cleared";
 const readIds = (): string[] => { try { return JSON.parse(localStorage.getItem(READ) ?? "[]"); } catch { return []; } };
 const saveIds = (ids: string[]) => { try { localStorage.setItem(READ, JSON.stringify(ids.slice(-200))); } catch { /* not remembered */ } };
+const readCleared = () => { try { return localStorage.getItem(CLEARED) ?? ""; } catch { return ""; } };
+const saveCleared = (iso: string) => { try { localStorage.setItem(CLEARED, iso); } catch { /* the list simply comes back on reload */ } };
 const readSeen = () => { try { return localStorage.getItem(SEEN) ?? ""; } catch { return ""; } };
 const saveSeen = (iso: string) => { try { localStorage.setItem(SEEN, iso); } catch { /* private window: the badge simply resets on reload */ } };
 
@@ -50,6 +53,7 @@ export default function NotificationBell() {
   // nothing is "new" the first time this browser opens the portal
   const [seen, setSeen] = useState(() => { if (typeof window === "undefined") return ""; const v = readSeen(); if (v) return v; const now = new Date().toISOString(); saveSeen(now); return now; });
   const [read, setRead] = useState<string[]>(() => (typeof window === "undefined" ? [] : readIds()));
+  const [cleared, setCleared] = useState(() => (typeof window === "undefined" ? "" : readCleared())); // items older than this were cleared from the list
   const [toast, setToast] = useState<Item | null>(null);
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
@@ -122,7 +126,8 @@ export default function NotificationBell() {
 
   const rows = ITEMS.filter((i) => (c?.[i.key] ?? 0) > 0);
   const isNew = (i: Item) => !!seen && i.at > seen && !read.includes(i.id);
-  const fresh = feed.filter(isNew).length;
+  const shown = feed.filter((i) => !cleared || i.at > cleared);
+  const fresh = shown.filter(isNew).length;
   // arrivals are information, not a to-do, so they do not count on the red badge
   const badge = rows.filter((r) => r.key !== "arrivalsToday").reduce((n, r) => n + (c?.[r.key] ?? 0), 0) + fresh;
 
@@ -134,6 +139,7 @@ export default function NotificationBell() {
       return !o;
     });
   }
+  function clearAll() { const now = new Date().toISOString(); saveCleared(now); setCleared(now); }
   function markSeen() { const now = new Date().toISOString(); saveSeen(now); setSeen(now); }
 
   return (
@@ -156,13 +162,15 @@ export default function NotificationBell() {
         <div role="dialog" aria-label="Notifications" className="absolute right-0 top-12 z-50 flex max-h-[80vh] w-[min(24rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-line bg-surface text-foreground shadow-xl">
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
             <p className="text-sm font-semibold">What customers just did</p>
-            {fresh > 0 && <button type="button" onClick={markSeen} className="text-xs font-semibold text-brand">Mark all as read</button>}
+            {fresh > 0
+              ? <button type="button" onClick={markSeen} className="text-xs font-semibold text-brand">Mark all as read</button>
+              : shown.length > 0 && <button type="button" onClick={clearAll} className="text-xs font-semibold text-red-600">Clear all</button>}
           </div>
           <div className="overflow-y-auto">
             {!allowed && <p className="px-4 py-6 text-center text-sm text-muted">Alerts are shown to accounts that can see the Dashboard.</p>}
-            {allowed && feed.length === 0 && <p className="px-4 py-5 text-center text-sm text-muted">Nothing new from customers in the last 24 hours.</p>}
+            {allowed && shown.length === 0 && <p className="px-4 py-5 text-center text-sm text-muted">Nothing new from customers in the last 24 hours.</p>}
             <ul>
-              {feed.slice(0, 15).map((i) => {
+              {shown.slice(0, 15).map((i) => {
                 const I = ICON[i.type] ?? Bell;
                 const unread = isNew(i);
                 return (
