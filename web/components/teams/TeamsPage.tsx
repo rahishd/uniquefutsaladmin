@@ -221,7 +221,7 @@ function ResultsTab({ onChanged }: { onChanged: () => void }) {
 
 // ---------- who owes what at the venue ----------
 function VenueTab({ onChanged }: { onChanged: () => void }) {
-  const [date, setDate] = useState("");
+  const [date, setDate] = useState(nepalToday()); // opens on today; "All dates" shows every day
   const [rows, setRows] = useState<Settlement[] | null>(null);
   const [error, setError] = useState("");
   const [tick, setTick] = useState(0);

@@ -88,7 +88,7 @@ describe("bookings", () => {
     const retro = await api.post("/bookings/walk-in", fd.auth, { date: addDaysKey(today, -1), startTime: "10:00", customerName: "Ram", customerPhone: "9877000001", paid: true, priceOverride: 1150 });
     assert.equal(retro.status, 201);
     assert.equal(retro.body.data.status, "completed");
-    assert.equal(Number((await prisma.loyaltyEntry.findFirstOrThrow({ where: { userId: "9877000001" } })).points), 115);
+    assert.equal(Number((await prisma.loyaltyEntry.findFirstOrThrow({ where: { userId: "9877000001" } })).points), 11.5);
     assert.equal((await api.post("/bookings/walk-in", fd.auth, { date: tomorrow, startTime: "10:00", customerName: "Ram", customerPhone: "123" })).status, 400);
   });
 
@@ -101,7 +101,7 @@ describe("bookings", () => {
     assert.equal(paid.status, "completed");
     const entries = await prisma.loyaltyEntry.findMany({ where: { userId: "9822222222" } });
     assert.equal(entries.length, 1);
-    assert.equal(Number(entries[0].points), 125);
+    assert.equal(Number(entries[0].points), 12.5);
     assert.equal((await api.post(`/bookings/${paid.id}/complete`, fd.auth)).status, 409, "already completed");
     assert.equal(await prisma.loyaltyEntry.count(), 1);
 
@@ -229,6 +229,24 @@ describe("courts, promos, loyalty, customers", () => {
     const v = await prisma.freeGameVoucher.create({ data: { userId: "9844444444", period: "Day", cost: 125 } });
     assert.equal((await api.post(`/loyalty/vouchers/${v.id}/void`, mgr.auth)).status, 200);
     assert.equal((await api.post(`/loyalty/vouchers/${v.id}/void`, mgr.auth)).status, 409);
+  });
+
+  it("items earn Rs.100 = 1 point to one decimal, and at most 10 points a day (Rs. 1,000 of items) per customer", async () => {
+    await customer("9844444455");
+    await customer("9844444466");
+    const fd = await staff("frontdesk");
+    const sell = (phone: string, amount: number) => api.post("/loyalty/goods-sale", fd.auth, { phone, amount });
+    const earned = async (phone: string) => (await prisma.loyaltyEntry.findMany({ where: { userId: phone, kind: "goods" } })).reduce((n, e) => n + Number(e.points), 0);
+
+    assert.equal((await sell("9844444455", 550)).body.data.points, 5.5, "Rs. 550 = 5.5 points");
+    assert.equal((await sell("9844444455", 600)).body.data.points, 4.5, "only the 4.5 left of today's 10");
+    assert.equal((await sell("9844444455", 300)).body.data.points, 0, "nothing more today");
+    assert.equal(await earned("9844444455"), 10);
+    const entry = (await prisma.loyaltyEntry.findMany({ where: { userId: "9844444455", kind: "goods" } })).find((e) => Number(e.points) === 4.5)!;
+    assert.match(entry.detail, /at most 10 points a day/);
+
+    assert.equal((await sell("9844444466", 5000)).body.data.points, 10, "a big order still gives only 10");
+    assert.equal((await sell("9844444466", 99)).body.data.points, 0);
   });
 
   it("customers: search, never expose the password, suspend and reactivate", async () => {

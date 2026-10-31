@@ -25,7 +25,7 @@ export default function ReferPage() {
     <div className="w-full space-y-4">
       <div>
         <h1 className="text-2xl font-bold">Refer &amp; Earn</h1>
-        <p className="text-sm text-muted">A customer books a game for another team. You check it, and both get loyalty points.</p>
+        <p className="text-sm text-muted">A customer books a game for another team. You check it, and both get loyalty points (5 each by default) if the other team has a registered account. The booked game also earns its own game points.</p>
       </div>
       {ov && (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">

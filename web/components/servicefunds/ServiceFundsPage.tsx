@@ -27,9 +27,9 @@ const PRESETS: Preset[] = [
 // Gamezone are not included), and each day's share is deposited automatically. Here staff see what came in today and in any
 // period, what is in each service now, withdraw money, deposit by hand to manual services, and read the whole history.
 export default function ServiceFundsPage() {
-  const [preset, setPreset] = useState("month");
-  const [from, setFrom] = useState(PRESETS[3].range()[0]);
-  const [to, setTo] = useState(PRESETS[3].range()[1]);
+  const [preset, setPreset] = useState("today");
+  const [from, setFrom] = useState(PRESETS[0].range()[0]);
+  const [to, setTo] = useState(PRESETS[0].range()[1]);
   const [view, setView] = useState<FundsView | null>(null);
   const [coll, setColl] = useState<Collections | null>(null);
   const [tick, setTick] = useState(0);

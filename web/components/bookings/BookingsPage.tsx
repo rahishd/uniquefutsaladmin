@@ -5,7 +5,7 @@ import { CalendarDays, ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { useHighlight } from "@/lib/highlight";
 import { Badge } from "./Badge";
 import BookingDetailSheet from "./BookingDetailSheet";
-import { Booking, BookingList, METHOD, PAGE_SIZE, PAYMENT, STATUS, Scope, bookingCounts, listBookings, prettyDate, rs, tags } from "@/lib/bookings";
+import { Booking, BookingList, METHOD, PAGE_SIZE, PAYMENT, STATUS, Scope, bookingCounts, listBookings, nepalDay, prettyDate, rs, tags } from "@/lib/bookings";
 
 const TABS: { scope: Scope; label: string }[] = [
   { scope: "today", label: "Today" },
@@ -49,6 +49,8 @@ function BookingCard({ b, onOpen }: { b: Booking; onOpen: () => void }) {
 
 export default function BookingsPage() {
   const [scope, setScope] = useState<Scope>("today");
+  const [day, setDay] = useState(""); // one chosen day (YYYY-MM-DD); empty = use the Today / Upcoming / Previous tabs
+  const [custom, setCustom] = useState(false); // the Custom date picker is open
   const [status, setStatus] = useState("");
   const [search, setSearch] = useState("");
   const [q, setQ] = useState(""); // search text after a short pause
@@ -77,11 +79,11 @@ export default function BookingsPage() {
 
   useEffect(() => {
     let live = true;
-    listBookings({ scope, page: pageNo, q, status })
+    listBookings({ scope, date: day, page: pageNo, q, status })
       .then((d) => { if (live) { setData(d); setError(""); } })
       .catch((e) => { if (live) setError(e instanceof Error ? e.message : "Could not load bookings"); });
     return () => { live = false; };
-  }, [scope, pageNo, q, status, reload]);
+  }, [scope, day, pageNo, q, status, reload]);
 
   const loading = !data && !error;
   const pages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1;
@@ -105,11 +107,29 @@ export default function BookingsPage() {
 
       <div className="grid grid-cols-3 gap-1 rounded-2xl bg-surface p-1 shadow-sm" role="tablist">
         {TABS.map((t) => (
-          <button key={t.scope} role="tab" aria-selected={scope === t.scope} onClick={() => pick(() => setScope(t.scope))}
-            className={`rounded-xl px-2 py-2.5 text-sm font-semibold ${scope === t.scope ? "bg-brand text-white" : "text-muted hover:bg-surface-2"}`}>
-            {t.label}{counts ? <span className={`ml-1.5 rounded-full px-1.5 text-xs ${scope === t.scope ? "bg-white/25" : "bg-surface-2"}`}>{counts[t.scope]}</span> : null}
+          <button key={t.scope} role="tab" aria-selected={!day && scope === t.scope} onClick={() => pick(() => { setScope(t.scope); setDay(""); setCustom(false); })}
+            className={`rounded-xl px-2 py-2.5 text-sm font-semibold ${!day && scope === t.scope ? "bg-brand text-white" : "text-muted hover:bg-surface-2"}`}>
+            {t.label}{counts ? <span className={`ml-1.5 rounded-full px-1.5 text-xs ${!day && scope === t.scope ? "bg-white/25" : "bg-surface-2"}`}>{counts[t.scope]}</span> : null}
           </button>
         ))}
+      </div>
+
+      {/* pick one day: yesterday, today, tomorrow, or any date */}
+      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Pick a day">
+        {([["Yesterday", nepalDay(-1)], ["Today", nepalDay(0)], ["Tomorrow", nepalDay(1)]] as const).map(([label, d]) => {
+          const on = day === d && !custom;
+          return (
+            <button key={label} type="button" aria-pressed={on} onClick={() => pick(() => { setDay(d); setCustom(false); })}
+              className={`rounded-full border px-4 py-2 text-sm font-semibold ${on ? "border-brand bg-brand text-white" : "border-line bg-surface text-muted hover:bg-surface-2"}`}>{label}</button>
+          );
+        })}
+        <button type="button" aria-pressed={custom} onClick={() => pick(() => { setCustom(true); setDay((d) => d || nepalDay(0)); })}
+          className={`inline-flex items-center gap-1.5 rounded-full border px-4 py-2 text-sm font-semibold ${custom ? "border-brand bg-brand text-white" : "border-line bg-surface text-muted hover:bg-surface-2"}`}><CalendarDays size={15} /> Custom</button>
+        {custom && (
+          <input type="date" value={day} aria-label="Choose a date" onChange={(e) => { const v = e.target.value; if (v) pick(() => setDay(v)); }}
+            className="rounded-xl border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-brand" />
+        )}
+        {day && <button type="button" onClick={() => pick(() => { setDay(""); setCustom(false); })} className="px-2 text-sm font-semibold text-brand">Clear</button>}
       </div>
 
       <div className="flex gap-2">
@@ -130,14 +150,14 @@ export default function BookingsPage() {
       {data && data.items.length === 0 && (
         <div className="grid place-items-center gap-2 rounded-2xl bg-surface py-14 text-center text-muted shadow-sm">
           <CalendarDays size={34} strokeWidth={1.5} />
-          <p>{q || status ? "No bookings match your search." : EMPTY[scope]}</p>
+          <p>{q || status ? "No bookings match your search." : day ? `No bookings on ${prettyDate(day)}.` : EMPTY[scope]}</p>
         </div>
       )}
 
       <div className="space-y-5">
         {groups.map(([date, rows]) => (
           <section key={date} className="space-y-2">
-            {scope !== "today" && <h2 className="px-1 text-sm font-semibold text-muted">{prettyDate(date)}</h2>}
+            {(day || scope !== "today") && <h2 className="px-1 text-sm font-semibold text-muted">{prettyDate(date)}</h2>}
             {rows.map((b) => <div key={b.id} data-hl={`b-${b.id}`}><BookingCard b={b} onOpen={() => setOpen(b)} /></div>)}
           </section>
         ))}

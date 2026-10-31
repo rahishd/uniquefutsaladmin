@@ -1,6 +1,8 @@
 import { api } from "./api";
 
 export type Mode = "captain" | "player";
+// what the Customers page can filter by: the customer type, VIP customers, or customers with a running membership
+export type Filter = Mode | "vip" | "member";
 
 export type CustomerRow = {
   phoneNumber: string;
@@ -52,7 +54,7 @@ export type VipInput = { code: string; type: "percent" | "flat"; value: number; 
 
 export const PAGE_SIZE = 20;
 
-export const listCustomers = (p: { q: string; mode: Mode | ""; status: "" | "active" | "suspended"; page: number }) => {
+export const listCustomers = (p: { q: string; mode: Filter | ""; status: "" | "active" | "suspended"; page: number }) => {
   const qs = new URLSearchParams({ page: String(p.page), limit: String(PAGE_SIZE) });
   if (p.q.trim()) qs.set("q", p.q.trim());
   if (p.mode) qs.set("mode", p.mode);

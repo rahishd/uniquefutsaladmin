@@ -39,8 +39,14 @@ export type BookingDetail = {
 
 export const PAGE_SIZE = 20;
 
-export const listBookings = (p: { scope: Scope; page: number; q: string; status: string }) => {
-  const qs = new URLSearchParams({ scope: p.scope, page: String(p.page), limit: String(PAGE_SIZE) });
+// A Nepal calendar day as YYYY-MM-DD: 0 = today, -1 = yesterday, 1 = tomorrow.
+export const nepalDay = (offsetDays = 0) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kathmandu", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(Date.now() + offsetDays * 86_400_000));
+
+// `date` (one chosen day) wins over `scope` (the Today / Upcoming / Previous tabs)
+export const listBookings = (p: { scope: Scope; date?: string; page: number; q: string; status: string }) => {
+  const qs = new URLSearchParams({ page: String(p.page), limit: String(PAGE_SIZE) });
+  if (p.date) qs.set("date", p.date);
+  else qs.set("scope", p.scope);
   if (p.q.trim()) qs.set("q", p.q.trim());
   if (p.status) qs.set("status", p.status);
   return api<BookingList>(`/admin/bookings?${qs}`);

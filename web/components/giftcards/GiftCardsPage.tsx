@@ -6,7 +6,7 @@ import { CalendarDays, ChevronLeft, ChevronRight, Gift, Phone, Search, Star, X }
 import { Badge } from "../bookings/Badge";
 import { ApiError } from "@/lib/api";
 import { guard } from "@/lib/access";
-import { prettyDate, rs } from "@/lib/bookings";
+import { nepalDay, prettyDate, rs } from "@/lib/bookings";
 import { GiftItem, GiftKind, GiftList, GiftStatus, PAGE_SIZE, STATUS, cancelGift, loadGifts } from "@/lib/gifts";
 
 const field = "rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
@@ -18,8 +18,8 @@ const when = (iso: string) => new Date(iso).toLocaleString("en-GB", { day: "nume
 export default function GiftCardsPage() {
   const [kind, setKind] = useState<GiftKind | "">("");
   const [status, setStatus] = useState<GiftStatus | "">("");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+  const [from, setFrom] = useState(nepalDay());
+  const [to, setTo] = useState(nepalDay());
   const [search, setSearch] = useState("");
   const [q, setQ] = useState("");
   const [pageNo, setPageNo] = useState(1);

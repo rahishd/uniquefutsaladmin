@@ -6,8 +6,11 @@ import { addMonthsKey, todayKey } from "./dates";
 
 export type LoyaltyKind = "game" | "captain_win" | "goods" | "membership" | "referral" | "goal_rush" | "gift";
 
-export const pointsForGame = (priceRs: number) => Math.floor(Math.max(0, priceRs)) / 10; // price/10, 1 decimal
-export const pointsForGoods = (amountRs: number) => Math.floor(Math.max(0, amountRs) / 100);
+// Court and add-on items: every Rs. 100 of the bill = 1 point, cut to one decimal (court Rs. 1,000 = 10 points, items Rs. 550 = 5.5).
+export const pointsForGame = (priceRs: number) => Math.floor(Math.max(0, priceRs) / 10) / 10;
+export const pointsForGoods = (amountRs: number) => Math.floor(Math.max(0, amountRs) / 10) / 10;
+// Items count only up to Rs. 1,000 a day per customer: at most 10 points a day, however much is bought.
+export const GOODS_DAILY_MAX_POINTS = 10;
 export const GZ_POINTS_PER_HOUR = 5; // Gamezone: every hour played earns 5 points
 
 function expiryFor(kind: LoyaltyKind, earnedOn: string): string | null {
@@ -51,6 +54,22 @@ export async function awardPoints(p: { userId: string; kind: LoyaltyKind; points
   }
   await notify(prisma, { userId: p.userId, type: "points", title: "Points earned", message: `+${p.points} loyalty points: ${p.detail}`, href: await pointsHref(p.userId, p.sourceType, p.sourceId), dedupeKey: `points-${p.kind}-${p.sourceType}-${p.sourceId}` });
   return true;
+}
+
+// Points for goods (add-on items) paid by a customer, within the daily limit. Returns the points actually given (0 when none).
+// A sale already counted gives nothing again. Several sales in one day share the limit.
+export async function awardGoodsPoints(p: { userId: string; amountRs: number; sourceId: string; detail: string; earnedOn?: string }): Promise<number> {
+  const want = pointsForGoods(p.amountRs);
+  if (want <= 0) return 0;
+  const earnedOn = p.earnedOn ?? todayKey();
+  if (await prisma.loyaltyEntry.findFirst({ where: { userId: p.userId, kind: "goods", sourceType: "goods", sourceId: p.sourceId }, select: { id: true } })) return 0;
+  const today = await prisma.loyaltyEntry.findMany({ where: { userId: p.userId, kind: "goods", earnedOn, points: { gt: 0 } }, select: { points: true } });
+  const already = today.reduce((n, e) => n + Number(e.points), 0);
+  const room = Math.max(0, Math.round((GOODS_DAILY_MAX_POINTS - already) * 10) / 10);
+  const pts = Math.min(want, room);
+  if (pts <= 0) return 0;
+  const detail = pts < want ? `${p.detail} (items earn at most ${GOODS_DAILY_MAX_POINTS} points a day)` : p.detail;
+  return (await awardPoints({ userId: p.userId, kind: "goods", points: pts, sourceType: "goods", sourceId: p.sourceId, detail, earnedOn })) ? pts : 0;
 }
 
 // A completed, paid regular game earns price/100 points. Guests, free-game, membership and challenge bookings earn none.

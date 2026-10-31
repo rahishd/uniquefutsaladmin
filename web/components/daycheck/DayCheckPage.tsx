@@ -10,8 +10,10 @@ import { DayCheckView, getDayCheck, markDayChecked, reopenDay } from "@/lib/dayC
 const field = "w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
 const SOURCES: [keyof DayCheckView["figures"]["bySource"], string][] = [["games", "Games"], ["goods", "Goods"], ["gamezone", "Gamezone"], ["tournaments", "Tournaments"]];
 
-const diffTone = (d: number) => (d === 0 ? "text-emerald-600" : "text-red-600");
-const diffText = (d: number) => (d === 0 ? "Matches" : d > 0 ? `${rs(d)} more than counted` : `${rs(-d)} short`);
+// Only the TOTAL matters (cash and Fonepay together): staff do not always enter the payment method correctly, so 1000 cash + 500 Fonepay
+// counted still matches 500 cash + 1000 Fonepay received. Equal or more is green; less is red and the owner should ask the staff.
+const diffTone = (d: number) => (d < 0 ? "text-red-600" : "text-emerald-600");
+const diffText = (d: number, hint = false) => (d === 0 ? "Matches" : d > 0 ? `${rs(d)} more than counted` : `${rs(-d)} short${hint ? ". Contact with staff" : ""}`);
 
 // The owner's daily check: look at the day's dashboard, enter what was really received, and mark the day as checked.
 export default function DayCheckPage() {
@@ -108,14 +110,14 @@ export default function DayCheckPage() {
           </section>
 
           {c ? (
-            <section aria-label="Checked" className="rounded-2xl border border-emerald-300 bg-emerald-50 p-4 dark:bg-emerald-950/20">
-              <p className="flex items-center gap-2 font-semibold text-emerald-700"><CheckCircle2 size={20} /> Checked by {c.checkedByName}</p>
+            <section aria-label="Checked" className={`rounded-2xl border p-4 ${c.difference < 0 ? "border-red-300 bg-red-50 dark:bg-red-950/20" : "border-emerald-300 bg-emerald-50 dark:bg-emerald-950/20"}`}>
+              <p className={`flex items-center gap-2 font-semibold ${c.difference < 0 ? "text-red-700" : "text-emerald-700"}`}><CheckCircle2 size={20} /> Checked by {c.checkedByName}</p>
               <p className="mt-0.5 text-xs text-muted">{new Date(c.checkedAt).toLocaleString("en-GB", { timeZone: "Asia/Kathmandu", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</p>
               <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
-                <div><dt className="text-muted">Cash received</dt><dd className="font-semibold">{rs(c.receivedCash)} <span className={`text-xs ${diffTone(c.differenceCash)}`}>({diffText(c.differenceCash)})</span></dd></div>
-                <div><dt className="text-muted">Fonepay received</dt><dd className="font-semibold">{rs(c.receivedFonepay)} <span className={`text-xs ${diffTone(c.differenceFonepay)}`}>({diffText(c.differenceFonepay)})</span></dd></div>
+                <div><dt className="text-muted">Counted by the portal</dt><dd className="font-semibold">{rs(c.expectedCash + c.expectedFonepay)}</dd></div>
+                <div><dt className="text-muted">You received (cash + Fonepay)</dt><dd className="font-semibold">{rs(c.receivedCash + c.receivedFonepay)}</dd></div>
               </dl>
-              <p className={`mt-3 text-sm font-semibold ${diffTone(c.difference)}`}>Overall: {diffText(c.difference)}</p>
+              <p className={`mt-3 text-sm font-semibold ${diffTone(c.difference)}`}>{diffText(c.difference, true)}</p>
               {c.note && <p className="mt-2 rounded-xl bg-white/60 p-3 text-sm dark:bg-white/5">{c.note}</p>}
               {data.changedSinceCheck && (
                 <p className="mt-3 flex items-start gap-2 rounded-xl bg-amber-100 p-3 text-sm text-amber-800"><AlertTriangle size={18} className="mt-0.5 shrink-0" /> The day&apos;s takings changed after you checked it (it was {rs(c.expectedCash + c.expectedFonepay)}, now {rs(f.total)}). Reopen it to check again.</p>
@@ -124,7 +126,10 @@ export default function DayCheckPage() {
             </section>
           ) : (
             <section aria-label="Received" className="space-y-3 rounded-2xl border border-line bg-surface p-4">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">What you received</h2>
+              <div>
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">What you received</h2>
+                <p className="mt-1 text-xs text-muted">Cash and Fonepay are added together and compared with the total above. It does not matter which box an amount is in.</p>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <label className="block text-xs font-medium text-muted">Cash (Rs.)
                   <input inputMode="numeric" value={cash} onChange={(e) => setCash(e.target.value.replace(/[^\d.]/g, ""))} className={`${field} mt-1`} />
@@ -133,7 +138,7 @@ export default function DayCheckPage() {
                   <input inputMode="numeric" value={fonepay} onChange={(e) => setFonepay(e.target.value.replace(/[^\d.]/g, ""))} className={`${field} mt-1`} />
                 </label>
               </div>
-              {valid && <p className={`text-sm font-semibold ${diffTone(diff)}`}>{diffText(diff)}</p>}
+              {valid && <p className={`text-sm font-semibold ${diffTone(diff)}`}>{diffText(diff, true)}</p>}
               <label className="block text-xs font-medium text-muted">Note (optional)
                 <textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} rows={2} placeholder="e.g. Rs. 100 given for water" className={`${field} mt-1`} />
               </label>

@@ -211,7 +211,7 @@ export const modules: Module[] = [
   {
     slug: "loyalty", title: "Loyalty Points", group: "Customers", icon: "star",
     summary: "Points ledger, expiry and free-game vouchers.",
-    clientFeatures: ["Game points price/100, goods Rs.100 = 1", "Expiry (game 3 months, goods 1 year)", "Claim a free game voucher per shift", "Expiring-soon warnings"],
+    clientFeatures: ["Game points price/100, goods Rs.100 = 1 (at most 10 points a day from items)", "Expiry (game 3 months, goods 1 year)", "Claim a free game voucher per shift", "Expiring-soon warnings"],
     adminTasks: ["Numbers for 7 / 30 days or this month: points given by kind, spent, owed now, expiring in 30 days", "Customers with points: search, sort, open one for the ledger, vouchers and an adjustment with a reason", "Activity feed of every earning and spending, with filters", "Free-game vouchers across customers, void an unused one", "Goods points come from Sell goods in Inventory"],
     endpoints: [
       e("GET", "/admin/loyalty/overview", "given, spent, owed, expiring soon, vouchers"), e("GET", "/admin/loyalty/customers", "customers with points (q, sort, page)"),
@@ -397,7 +397,7 @@ export const modules: Module[] = [
   {
     slug: "inventory", title: "Inventory & Goods", group: "Business", icon: "box",
     summary: "Products sold at the venue: stock, restocking, counter sales and goods points.",
-    clientFeatures: ["Goods points: Rs. 100 = 1 point, kept for a year", "Bottled water is taken from stock when a booking is paid"],
+    clientFeatures: ["Goods points: Rs. 100 = 1 point, up to 10 points a day, kept for a year", "Bottled water is taken from stock when a booking is paid"],
     adminTasks: ["Add categories and products with price, cost and a low-stock warning", "Restock, remove or count stock, every change is logged", "Sell goods at the counter (cash or online), optionally to a registered customer for points", "See sales and the stock log"],
     endpoints: [
       e("GET", "/admin/inventory/overview", "counts, stock value, sales today and this week"), e("GET", "/admin/inventory/categories", "categories"),

@@ -6,7 +6,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db";
 import { audit } from "../lib/audit";
-import { awardPoints, notify, pointsForGame, pointsForGoods } from "../lib/customer-effects";
+import { awardGoodsPoints, notify, pointsForGame } from "../lib/customer-effects";
 import { DEAD, Tx, creditGoods, lockProducts, paysSchema, sellGoods, settle } from "../lib/settle";
 import { addDaysKey, todayKey } from "../lib/dates";
 import { AppError, handler, page, param, parse, send } from "../lib/http";
@@ -204,8 +204,7 @@ inventoryRouter.post("/sales", requirePermission("inventory.sell"), handler(asyn
   const sale = (await prisma.$transaction((tx) => sellGoods(tx, merged, pay, req.staff!.id, customer?.phoneNumber ?? null, who))).sale;
   let points = 0;
   if (customer) {
-    points = pointsForGoods(sale.amount);
-    if (!(await awardPoints({ userId: customer.phoneNumber, kind: "goods", points, sourceType: "goods", sourceId: sale.id, detail: `Goods Rs. ${sale.amount}` }))) points = 0;
+    points = await awardGoodsPoints({ userId: customer.phoneNumber, amountRs: sale.amount, sourceId: sale.id, detail: `Goods Rs. ${sale.amount}` });
   }
   await audit(req, "sell", "inventory_sale", sale.id, { amount: sale.amount, items: sale.items, payment: b.payments ?? b.payment, customer: customer?.phoneNumber ?? "walk-in", points });
   send(res, { id: sale.id, amount: sale.amount, items: sale.items, points, customerName: customer?.name ?? null }, "Sale recorded", 201);

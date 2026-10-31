@@ -59,7 +59,7 @@ bookingsRouter.get("/", requirePermission("bookings.view"), handler(async (req, 
     ],
   };
   // Upcoming reads soonest first; today by start time; previous newest first.
-  const asc = scope === "upcoming" || scope === "today";
+  const asc = scope === "upcoming" || scope === "today" || !!q.date; // one chosen day reads by start time too
   const [rows, total] = await Promise.all([
     prisma.booking.findMany({ where, orderBy: asc ? [{ date: "asc" }, { startTime: "asc" }] : [{ date: "desc" }, { startTime: "desc" }], take, skip }),
     prisma.booking.count({ where }),

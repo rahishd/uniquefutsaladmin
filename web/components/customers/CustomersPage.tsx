@@ -9,14 +9,14 @@ import VipTag from "./VipTag";
 import { rs } from "@/lib/bookings";
 import { guard } from "@/lib/access";
 import { useHighlight } from "@/lib/highlight";
-import { CustomerList, CustomerRow, Mode, PAGE_SIZE, initials, listCustomers, setActive } from "@/lib/customers";
+import { CustomerList, CustomerRow, Filter, PAGE_SIZE, initials, listCustomers, setActive } from "@/lib/customers";
 
 import { askConfirm } from "@/lib/confirm";
-const MODES: { id: Mode | ""; label: string }[] = [{ id: "", label: "Everyone" }, { id: "captain", label: "Captains" }, { id: "player", label: "Regular players" }];
+const MODES: { id: Filter | ""; label: string }[] = [{ id: "", label: "Everyone" }, { id: "captain", label: "Captains" }, { id: "player", label: "Regular players" }, { id: "vip", label: "VIP" }, { id: "member", label: "Membership" }];
 
 export default function CustomersPage() {
   useHighlight();
-  const [mode, setMode] = useState<Mode | "">("");
+  const [mode, setMode] = useState<Filter | "">("");
   const [status, setStatus] = useState<"" | "active" | "suspended">("");
   const [search, setSearch] = useState("");
   const [q, setQ] = useState("");
@@ -84,10 +84,10 @@ export default function CustomersPage() {
         })}
       </div>
 
-      <div className="grid grid-cols-3 gap-1 rounded-2xl bg-surface p-1 shadow-sm" role="tablist" aria-label="Customer type">
+      <div className="flex gap-1 overflow-x-auto rounded-2xl bg-surface p-1 shadow-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="tablist" aria-label="Customer type">
         {MODES.map((m) => (
           <button key={m.label} role="tab" aria-selected={mode === m.id} onClick={() => pick(() => setMode(m.id))}
-            className={`rounded-xl px-2 py-2.5 text-sm font-semibold ${mode === m.id ? "bg-brand text-white" : "text-muted hover:bg-surface-2"}`}>{m.label}</button>
+            className={`flex-1 whitespace-nowrap rounded-xl px-3 py-2.5 text-sm font-semibold ${mode === m.id ? "bg-brand text-white" : "text-muted hover:bg-surface-2"}`}>{m.label}</button>
         ))}
       </div>
 

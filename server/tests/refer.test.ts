@@ -107,7 +107,7 @@ describe("Refer & Earn (admin)", () => {
 
   it("settings: points, pause, and the customer app reads the same row", async () => {
     const mgr = await staff("admin");
-    assert.deepEqual((await api.get("/refer/settings", mgr.auth)).body.data, { enabled: true, referrerPoints: 10, friendPoints: 10 });
+    assert.deepEqual((await api.get("/refer/settings", mgr.auth)).body.data, { enabled: true, referrerPoints: 5, friendPoints: 5 });
     assert.equal((await api.put("/refer/settings", mgr.auth, { enabled: false, referrerPoints: 12.34, friendPoints: 3 })).status, 200);
     const stored = JSON.parse((await prisma.settings.findUnique({ where: { key: "referEarn" } }))!.value);
     assert.deepEqual(stored, { enabled: false, referrerPoints: 12.3, friendPoints: 3 });

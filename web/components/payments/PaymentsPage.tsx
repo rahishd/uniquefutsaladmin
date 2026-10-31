@@ -40,7 +40,7 @@ function Card({ title, value, sub, tone }: { title: string; value: string; sub: 
 
 export default function PaymentsPage() {
   useHighlight();
-  const [f, setF] = useState<Filters>({ kind: "court", status: "", mode: "", period: "month", from: "", to: "", q: "" });
+  const [f, setF] = useState<Filters>({ kind: "court", status: "", mode: "", period: "today", from: "", to: "", q: "" });
   const [search, setSearch] = useState("");
   const [pageNo, setPageNo] = useState(1);
   const [data, setData] = useState<Ledger | null>(null);
@@ -92,12 +92,12 @@ export default function PaymentsPage() {
         <p className="text-sm text-muted">Who has paid, who still owes, and how: cash at the venue or online.</p>
       </div>
 
-      <div className="grid grid-cols-3 gap-1 rounded-2xl bg-surface p-1 shadow-sm" role="tablist" aria-label="Payment type">
-        {([["court", "Court bookings"], ["gamezone", "Gamezone"], ["club", "Unique Club"], ["membership", "Membership"], ["gift", "Gift Card"], ["goods", "Goods on credit"], ["ev", "EV charging"]] as [Kind | "goods" | "ev", string][]).map(([id, label]) => {
+      <div className="flex gap-1 overflow-x-auto rounded-2xl bg-surface p-1 shadow-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="tablist" aria-label="Payment type">
+        {([["court", "Court bookings"], ["gamezone", "Gamezone"], ["membership", "Membership"], ["club", "Unique Club"], ["gift", "Gift Card"], ["goods", "Goods on credit"], ["ev", "EV charging"]] as [Kind | "goods" | "ev", string][]).map(([id, label]) => {
           const on = id === "goods" || id === "ev" ? view === id : view === "payments" && f.kind === id;
           return (
             <button key={id} role="tab" aria-selected={on} onClick={() => { if (id === "goods" || id === "ev") setView(id); else { setView("payments"); change({ kind: id }); } }}
-              className={`rounded-xl py-2.5 text-sm font-semibold ${on ? "bg-brand text-white" : "text-muted hover:bg-surface-2"}`}>{label}</button>
+              className={`flex-1 whitespace-nowrap rounded-xl px-2 py-2.5 text-[13px] font-semibold xl:px-3 xl:text-sm ${on ? "bg-brand text-white" : "text-muted hover:bg-surface-2"}`}>{label}</button>
           );
         })}
       </div>

@@ -35,8 +35,8 @@ function Bars({ items, pick, label, unit = "" }: { items: { key: string; value: 
 }
 
 export default function ReportsPage() {
-  const [range, setRange] = useState<Range>("week");
-  const [from, setFrom] = useState(shiftDay(nepalToday(), -6));
+  const [range, setRange] = useState<Range>("today");
+  const [from, setFrom] = useState(nepalToday());
   const [to, setTo] = useState(nepalToday());
   const [d, setD] = useState<Summary | null>(null);
   const [error, setError] = useState("");

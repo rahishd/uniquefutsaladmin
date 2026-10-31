@@ -244,13 +244,13 @@ function VouchersTab({ tick, onChanged }: { tick: number; onChanged: () => void 
 
 function RulesTab() {
   const rows: [string, string][] = [
-    ["A paid game", "Price ÷ 10 points (Rs. 1,250 = 125 points), added when the game is completed and paid. Free-game and challenge games earn none."],
+    ["A paid game", "Price ÷ 100 points, to one decimal (Rs. 1,000 = 10 points, Rs. 1,250 = 12.5), added when the game is completed and paid. A game booked for another team earns the same, on the booker's own account. Free-game and challenge games earn none."],
     ["Gamezone", "Every hour played = 5 points (a 2 hour session = 10), added when the session is completed and paid. Guests earn none."],
-    ["Goods", "Every Rs. 100 = 1 point, added when the goods are paid. Goods taken on credit earn when they are paid."],
+    ["Goods (add-on items)", "Every Rs. 100 = 1 point, to one decimal (Rs. 550 = 5.5 points), added when the goods are paid. A customer earns at most 10 points a day from items (Rs. 1,000); more than that earns nothing extra that day. Goods taken on credit earn when they are paid."],
     ["Membership", "3 months = 30 points, 6 months = 70 points, one month = 0. Added once when the payment is verified, and again for each renewal."],
     ["Winning a challenge game", "5 points to the winning captain, once, when the result is approved."],
-    ["Refer & Earn", "Points for both people when staff approve a referral. The amounts are set on the Refer & Earn page."],
-    ["Free game", "Costs the shift price ÷ 10 in points (a Rs. 1,250 morning game = 125 points). There is no 10-games rule: the customer can claim as soon as they hold that many points. They claim it in the app and use the voucher when booking."],
+    ["Refer & Earn", "5 points each (the person who booked and the other team's captain) when staff approve a referral, and only when the other team has a registered account. If it is not approved, nobody gets points. The amounts can be changed on the Refer & Earn page."],
+    ["Free game", "Costs the shift price ÷ 10 in points (a Rs. 1,250 morning game = 125 points, about 10 games' worth). There is no 10-games rule: the customer can claim as soon as they hold that many points. They claim it in the app and use the voucher when booking."],
     ["How long points last", "Game and challenge points: 3 months from the game. Goods: 1 year. Referral: 12 months. Membership: never. Spending uses the points that expire soonest first."],
     ["Adjustments", "Staff can add or take away up to 200 points with a reason. The customer is told. Adjusting is limited to people with that permission."],
   ];
@@ -267,7 +267,7 @@ function RulesTab() {
 type Range = "today" | "7" | "30" | "month";
 export default function LoyaltyPage() {
   const [tab, setTab] = useState<Tab>("customers");
-  const [range, setRange] = useState<Range>("30");
+  const [range, setRange] = useState<Range>("today");
   const [tick, setTick] = useState(0);
   const today = nepalToday();
   const [from, to] = range === "today" ? [today, today] : range === "7" ? [shift(today, -6), today] : range === "30" ? [shift(today, -29), today] : [`${today.slice(0, 8)}01`, today];

@@ -12,6 +12,8 @@ const nepalToday = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kath
 const shift = (key: string, days: number) => new Date(new Date(`${key}T00:00:00Z`).getTime() + days * 86_400_000).toISOString().slice(0, 10);
 const when = (iso: string) => new Date(iso).toLocaleString("en-GB", { timeZone: "Asia/Kathmandu", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true });
 const EMPTY: AuditQuery = { q: "", staffId: "", entity: "", action: "", from: "", to: "" };
+// the log opens on today; "All time" is one tap away
+const TODAY = (): AuditQuery => ({ ...EMPTY, from: nepalToday(), to: nepalToday() });
 type Range = "all" | "today" | "yesterday" | "custom";
 
 // Colour by what kind of action it was
@@ -44,8 +46,8 @@ function Entry({ r }: { r: AuditRow }) {
 }
 
 export default function AuditPage() {
-  const [f, setF] = useState<AuditQuery>(EMPTY);
-  const [range, setRange] = useState<Range>("all");
+  const [f, setF] = useState<AuditQuery>(TODAY);
+  const [range, setRange] = useState<Range>("today");
   const [search, setSearch] = useState("");
   const [pageNo, setPageNo] = useState(1);
   const [data, setData] = useState<AuditList | null>(null);
@@ -71,7 +73,7 @@ export default function AuditPage() {
     else if (r === "today") set({ from: t, to: t });
     else if (r === "yesterday") set({ from: shift(t, -1), to: shift(t, -1) });
   };
-  const filtered = !!(f.q || f.staffId || f.entity || f.action || f.from || f.to);
+  const filtered = !!(f.q || f.staffId || f.entity || f.action || range !== "today");
   const pages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1;
   const s = facets?.summary;
 
@@ -124,7 +126,7 @@ export default function AuditPage() {
               <label className="flex items-center gap-1.5 text-sm">Till <input type="date" className={input} value={f.to} max={nepalToday()} onChange={(e) => set({ to: e.target.value })} /></label>
             </>
           )}
-          {filtered && <button onClick={() => { setSearch(""); setRange("all"); setF(EMPTY); setPageNo(1); setData(null); }} className="ml-auto text-sm font-semibold text-brand">Clear filters</button>}
+          {filtered && <button onClick={() => { setSearch(""); setRange("today"); setF(TODAY()); setPageNo(1); setData(null); }} className="ml-auto text-sm font-semibold text-brand">Clear filters</button>}
         </div>
       </div>
 

@@ -24,10 +24,13 @@ customersRouter.get("/", requirePermission("customers.view"), handler(async (req
   const q = req.query as Record<string, string | undefined>;
   const { take, skip, pageNo, limit } = page(q);
   const captains = q.mode === "captain" || q.mode === "player" ? (await prisma.userPrefs.findMany({ where: { mode: "captain" }, select: { userId: true } })).map((p) => p.userId) : [];
+  // VIP = has an active VIP code; Membership = has a membership running today
+  const vipPhones = q.mode === "vip" ? (await prisma.vipCode.findMany({ where: { active: true }, select: { userId: true } })).map((v) => v.userId) : [];
+  const memberPhones = q.mode === "member" ? (await prisma.membershipSubscription.findMany({ where: { status: "active", endDate: { gte: new Date() } }, select: { userId: true } })).map((m) => m.userId) : [];
   const where: Prisma.UserWhereInput = {
     role: "user",
     ...(q.status === "suspended" ? { isActive: false } : q.status === "active" ? { isActive: true } : {}),
-    ...(q.mode === "captain" ? { phoneNumber: { in: captains } } : q.mode === "player" ? { phoneNumber: { notIn: captains } } : {}),
+    ...(q.mode === "captain" ? { phoneNumber: { in: captains } } : q.mode === "player" ? { phoneNumber: { notIn: captains } } : q.mode === "vip" ? { phoneNumber: { in: vipPhones } } : q.mode === "member" ? { phoneNumber: { in: memberPhones } } : {}),
     ...(q.q ? { OR: [{ name: { contains: q.q, mode: "insensitive" } }, { phoneNumber: { contains: q.q } }, { email: { contains: q.q, mode: "insensitive" } }] } : {}),
   };
   const [rows, total] = await Promise.all([prisma.user.findMany({ where, select: pub, orderBy: { createdAt: "desc" }, take, skip }), prisma.user.count({ where })]);

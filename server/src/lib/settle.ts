@@ -4,7 +4,7 @@ import { randomInt } from "crypto";
 import { Booking, GoodsDue, Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../db";
-import { awardForCompletedBooking, awardPoints, notify, pointsForGame, pointsForGoods } from "./customer-effects";
+import { awardForCompletedBooking, awardGoodsPoints, notify, pointsForGame } from "./customer-effects";
 import { AppError } from "./http";
 
 export type Tx = Prisma.TransactionClient;
@@ -207,12 +207,11 @@ export async function settle(inp: SettleInput) {
     return { row, bill, total, gameTotal, goodsTotal, newSale, dueSales, pays, clubSaved };
   });
 
-  // Loyalty points: goods (Rs. 100 = 1) when they are paid, each game that has been played when it is paid; a game still to be played earns its points when it is completed.
+  // Loyalty points: goods (Rs. 100 = 1, up to 10 points a day) when they are paid, each game that has been played when it is paid; a game still to be played earns its points when it is completed.
   let pointsGoods = 0, pointsGames = 0, waiting = 0;
   if (inp.userId) {
     for (const s of [...out.dueSales, ...(out.newSale ? [{ saleId: out.newSale.id, amount: out.newSale.amount }] : [])]) {
-      const pts = pointsForGoods(s.amount);
-      if (await awardPoints({ userId: inp.userId, kind: "goods", points: pts, sourceType: "goods", sourceId: s.saleId, detail: `Goods Rs. ${s.amount}${code ? ` (bill ${code})` : ""}` })) pointsGoods += pts;
+      pointsGoods += await awardGoodsPoints({ userId: inp.userId, amountRs: s.amount, sourceId: s.saleId, detail: `Goods Rs. ${s.amount}${code ? ` (bill ${code})` : ""}` });
     }
   }
   for (const g of games) {

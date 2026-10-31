@@ -15,7 +15,7 @@ export const referRouter = Router();
 
 const KEY = "referEarn";
 type Rules = { enabled: boolean; referrerPoints: number; friendPoints: number };
-const DEFAULTS: Rules = { enabled: true, referrerPoints: 10, friendPoints: 10 };
+const DEFAULTS: Rules = { enabled: true, referrerPoints: 5, friendPoints: 5 }; // 5 points each, when the booked team has a registered account
 const STATUSES = ["pending", "approved", "rejected"] as const;
 const pts = z.number().min(0, "0 or more").max(200, "200 at most").transform((n) => Math.round(n * 10) / 10);
 

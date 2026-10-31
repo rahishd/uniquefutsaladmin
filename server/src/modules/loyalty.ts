@@ -3,7 +3,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db";
 import { audit } from "../lib/audit";
-import { awardPoints, notify, pointsForGoods, pointsHref } from "../lib/customer-effects";
+import { awardGoodsPoints, awardPoints, notify, pointsHref } from "../lib/customer-effects";
 import { addDaysKey, todayKey } from "../lib/dates";
 import { AppError, dateStr, handler, page, param, parse, send } from "../lib/http";
 import { requirePermission } from "../middleware/auth";
@@ -129,16 +129,15 @@ loyaltyRouter.get("/customers/:phone", requirePermission("loyalty.view"), handle
   send(res, { approxBalance: Math.round((valid + spent) * 10) / 10, rows, vouchers });
 }));
 
-// Goods bought at the venue: Rs. 100 = 1 point (kept for a year).
+// Goods bought at the venue: Rs. 100 = 1 point, at most 10 points a day per customer (kept for a year).
 loyaltyRouter.post("/goods-sale", requirePermission("loyalty.goods"), handler(async (req, res) => {
   const b = parse(z.object({ phone, amount: z.number().int().min(1).max(1000000), items: z.string().max(200).optional() }), req.body);
   const user = await prisma.user.findUnique({ where: { phoneNumber: b.phone }, select: { phoneNumber: true } });
   if (!user) throw new AppError(404, "No registered customer with this number");
   const sale = await prisma.goodsSale.create({ data: { userId: b.phone, phone: b.phone, amount: b.amount, items: b.items ?? null, soldBy: req.staff!.id } });
-  const points = pointsForGoods(b.amount);
-  const awarded = await awardPoints({ userId: b.phone, kind: "goods", points, sourceType: "goods", sourceId: sale.id, detail: `Goods Rs. ${b.amount}` });
+  const points = await awardGoodsPoints({ userId: b.phone, amountRs: b.amount, sourceId: sale.id, detail: `Goods Rs. ${b.amount}` });
   await audit(req, "goods-sale", "loyalty", sale.id, { phone: b.phone, amount: b.amount, points });
-  send(res, { saleId: sale.id, points: awarded ? points : 0 }, "Sale recorded", 201);
+  send(res, { saleId: sale.id, points }, "Sale recorded", 201);
 }));
 
 // Manual correction with a reason: managers and owners only. Positive adds game-type points, negative removes (spent).
