@@ -12,8 +12,9 @@ import { CustomerEdit, editCustomer } from "@/lib/customers";
 
 import { askConfirm } from "@/lib/confirm";
 // Staff fix a customer's details here. A new password needs no old one: customers who forget it are told to contact the venue.
-export default function EditCustomer({ phone, name, email, onSaved, extra, lead, bodyTarget }: { phone: string; name: string | null; email: string | null; onSaved: (newPhone: string) => void; extra?: ReactNode; lead?: ReactNode; bodyTarget?: HTMLElement | null }) {
-  const [open, setOpen] = useState(false);
+// The sheet owns whether the form is open (open / setOpen): the form replaces the customer's stats while it is open.
+// The four buttons sit in two rows: Customer Stats | Edit profile, then lead (Suspend) | extra (Delete).
+export default function EditCustomer({ phone, name, email, onSaved, extra, lead, stats, open, setOpen, bodyTarget }: { phone: string; name: string | null; email: string | null; onSaved: (newPhone: string) => void; extra?: ReactNode; lead?: ReactNode; stats?: ReactNode; open: boolean; setOpen: (open: boolean) => void; bodyTarget?: HTMLElement | null }) {
   const [f, setF] = useState({ name: name ?? "", phone, email: email ?? "", password: "" });
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -48,11 +49,10 @@ export default function EditCustomer({ phone, name, email, onSaved, extra, lead,
   }
 
   const bar = (
-    <div className="space-y-2">
-      <div className="grid grid-cols-3 gap-2">
-        {lead}
-        <button onClick={() => setOpen(!open)} className={`flex items-center justify-center gap-1.5 rounded-xl py-3 text-sm font-semibold ${open ? "bg-brand/15 text-brand" : "bg-surface-2"}`}><Pencil size={16} /> Edit profile</button>
-      </div>
+    <div className="grid grid-cols-2 gap-2">
+      {stats}
+      <button onClick={() => setOpen(!open)} className={`flex h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-2 text-sm font-semibold ${open ? "bg-brand text-white" : "bg-surface-2"}`}><Pencil size={16} /> Edit profile</button>
+      {lead}
       {extra}
     </div>
   );

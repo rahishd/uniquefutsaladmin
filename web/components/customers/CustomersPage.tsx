@@ -68,14 +68,14 @@ export default function CustomersPage() {
 
   return (
     <div className="w-full space-y-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold">Customers</h1>
           <p className="text-sm text-muted">Everyone who has an account in the app. Tap a customer for their full history.</p>
         </div>
-        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-          <button onClick={exportExcel} disabled={exporting} title="Download the customers (name, phone, email) as an Excel file" className="flex items-center gap-1.5 rounded-full border border-line bg-surface px-4 py-2.5 text-sm font-semibold text-foreground disabled:opacity-60"><FileSpreadsheet size={16} /> {exporting ? "Preparing…" : "Export Excel"}</button>
-          <button onClick={() => guard("customers.create") && setAdding(true)} className="flex items-center gap-1.5 rounded-full bg-brand px-4 py-2.5 text-sm font-semibold text-white"><UserPlus size={16} /> Add customer</button>
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0 sm:flex-wrap sm:items-center sm:justify-end">
+          <button onClick={exportExcel} disabled={exporting} title="Download the customers (name, phone, email) as an Excel file" className="flex items-center justify-center gap-1.5 whitespace-nowrap rounded-full border border-line bg-surface px-4 py-2.5 text-sm font-semibold text-foreground disabled:opacity-60"><FileSpreadsheet size={16} /> {exporting ? "Preparing…" : "Export Excel"}</button>
+          <button onClick={() => guard("customers.create") && setAdding(true)} className="flex items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-brand px-4 py-2.5 text-sm font-semibold text-white"><UserPlus size={16} /> Add customer</button>
         </div>
       </div>
 

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { MessageCircle, Phone, ShieldCheck, ShieldOff, Trash2, X } from "lucide-react";
+import { BarChart3, MessageCircle, Phone, ShieldCheck, ShieldOff, Trash2, X } from "lucide-react";
 import { Badge } from "../bookings/Badge";
 import CancellationsSection from "./CancellationsSection";
 import EditCustomer from "./EditCustomer";
@@ -47,6 +47,7 @@ export default function CustomerSheet({ customer, onClose, onChanged }: { custom
   const [error, setError] = useState("");
   const [bodyEl, setBodyEl] = useState<HTMLDivElement | null>(null); // where the edit form is drawn: in the scrolling part, not the pinned top
   const [busy, setBusy] = useState("");
+  const [editing, setEditing] = useState(false); // the edit form replaces the stats; Customer Stats goes back
   const canWrite = true;
 
   useEffect(() => {
@@ -96,12 +97,12 @@ export default function CustomerSheet({ customer, onClose, onChanged }: { custom
   const name = p?.user.name ?? customer.name ?? "Customer";
   const isCaptain = (p?.profile.mode ?? customer.mode) === "captain";
 
-  const lead = (
-    <>
-          <a href={`tel:${customer.phoneNumber}`} className="flex items-center justify-center gap-1.5 rounded-xl bg-brand py-3 text-sm font-semibold text-white"><Phone size={16} /> Call</a>
-          <a href={`https://wa.me/977${customer.phoneNumber}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-1.5 rounded-xl bg-surface-2 py-3 text-sm font-semibold"><MessageCircle size={16} /> WhatsApp</a>
-    </>
-  );
+  const stats = <button onClick={() => setEditing(false)} aria-pressed={!editing} className={`flex h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-2 text-sm font-semibold ${editing ? "bg-surface-2" : "bg-brand text-white"}`}><BarChart3 size={16} /> Customer Stats</button>;
+  const lead = p && canWrite ? (
+    <button onClick={toggleActive} disabled={busy === "active"} className={`flex h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-2 text-sm font-semibold disabled:opacity-60 ${p.user.isActive ? "bg-amber-500/15 text-amber-700" : "bg-brand/10 text-brand"}`}>
+      {p.user.isActive ? <><ShieldOff size={16} /> Suspend</> : <><ShieldCheck size={16} /> Reactivate</>}
+    </button>
+  ) : null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center" onClick={onClose}>
@@ -109,30 +110,31 @@ export default function CustomerSheet({ customer, onClose, onChanged }: { custom
         {/* pinned: who this is and what can be done; everything below scrolls */}
         <div className="shrink-0 space-y-4 px-5 pb-4 pt-5 shadow-[0_8px_10px_-10px_rgba(0,0,0,0.35)]">
         <div className="flex items-start gap-3">
-          <span className="relative grid h-14 w-14 shrink-0 place-items-center rounded-full bg-brand/15 text-lg font-bold text-brand">
+          <span className="relative grid h-12 w-12 shrink-0 place-items-center rounded-full bg-brand/15 text-base font-bold text-brand sm:h-14 sm:w-14 sm:text-lg">
             {initials(customer.name, customer.phoneNumber)}
             {isCaptain && <span title="Captain" className="absolute -right-1 -top-1 grid h-5 w-5 place-items-center rounded-full bg-amber-400 text-[11px] font-black text-white">C</span>}
           </span>
           <div className="min-w-0 flex-1">
             <h2 className="truncate text-xl font-bold">{name}</h2>
             <p className="text-sm text-muted">{customer.phoneNumber}{p?.user.email ? ` · ${p.user.email}` : ""}</p>
-            <div className="mt-1.5 flex flex-wrap gap-1.5">
+            <div className="mt-1.5 flex flex-wrap gap-1.5 [&_*]:whitespace-nowrap">
               {(p?.vip ?? customer.vip) && <VipTag />}
               <Badge tone={isCaptain ? "bg-amber-400/20 text-amber-700" : "bg-surface-2 text-muted"}>{isCaptain ? "Captain" : "Regular player"}</Badge>
               {p && !p.user.isActive && <Badge tone="bg-red-500/15 text-red-600">Suspended</Badge>}
               {p && <Badge tone="bg-surface-2 text-muted">Joined {prettyDate(p.user.createdAt.slice(0, 10))}</Badge>}
             </div>
           </div>
-          {p && canWrite && (
-            <button onClick={toggleActive} disabled={busy === "active"} className={`flex shrink-0 items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-semibold disabled:opacity-60 ${p.user.isActive ? "border-red-500/40 text-red-600" : "border-brand text-brand"}`}>
-              {p.user.isActive ? <><ShieldOff size={14} /> Suspend</> : <><ShieldCheck size={14} /> Reactivate</>}
-            </button>
-          )}
           <button onClick={onClose} aria-label="Close" className="rounded-full p-1 hover:bg-surface-2"><X size={22} /></button>
         </div>
 
-        {!p && <div className="grid grid-cols-2 gap-2">{lead}</div>}
-        {p && <EditCustomer key={p.user.phoneNumber} phone={p.user.phoneNumber} name={p.user.name} email={p.user.email} bodyTarget={bodyEl} onSaved={(np) => { onChanged(); if (np !== p.user.phoneNumber) onClose(); }} lead={lead} extra={<button onClick={removeProfile} disabled={busy === "delete"} className="flex w-full items-center justify-center gap-2 rounded-xl bg-red-500/10 py-3 text-sm font-semibold text-red-600 disabled:opacity-50"><Trash2 size={16} /> {busy === "delete" ? "Deleting…" : "Delete customer profile"}</button>} />}
+        {/* reach the customer: two even buttons on their own row, so the name and badges above keep the full width on a phone */}
+        <div className="grid grid-cols-2 gap-2">
+          <a href={`tel:${customer.phoneNumber}`} className="flex items-center justify-center gap-1.5 rounded-xl border border-brand py-2.5 text-sm font-semibold text-brand"><Phone size={16} /> Call</a>
+          <a href={`https://wa.me/977${customer.phoneNumber}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-1.5 rounded-xl border border-[#25D366] py-2.5 text-sm font-semibold text-[#128C7E]"><MessageCircle size={16} /> WhatsApp</a>
+        </div>
+
+        {!p && <div className="grid grid-cols-2 gap-2">{stats}{lead}</div>}
+        {p && <EditCustomer key={p.user.phoneNumber} phone={p.user.phoneNumber} name={p.user.name} email={p.user.email} bodyTarget={bodyEl} open={editing} setOpen={setEditing} stats={stats} onSaved={(np) => { onChanged(); if (np !== p.user.phoneNumber) onClose(); }} lead={lead} extra={<button onClick={removeProfile} disabled={busy === "delete"} className="flex h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-2 text-sm font-semibold bg-red-500/10 text-red-600 disabled:opacity-50"><Trash2 size={16} /> {busy === "delete" ? "Deleting…" : "Delete profile"}</button>} />}
         </div>
 
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 pb-5 pt-4">
@@ -140,7 +142,7 @@ export default function CustomerSheet({ customer, onClose, onChanged }: { custom
         {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600" role="alert">{error}</p>}
         {!p && !error && <p className="py-8 text-center text-sm text-muted">Loading the customer&apos;s history…</p>}
 
-        {p && (
+        {p && !editing && (
           <>
             <div className="grid grid-cols-2 gap-2">
               <Tile label="Games played" value={String(p.games.played)} sub={p.games.gamezoneSessions ? `+ ${p.games.gamezoneSessions} Gamezone` : undefined} />
