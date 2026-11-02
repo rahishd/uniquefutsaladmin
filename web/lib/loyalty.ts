@@ -37,7 +37,7 @@ export const listLedger = (p: { kind: "" | Kind; q: string; from: string; to: st
 };
 export const listVouchers = (status: "" | "unused" | "used" | "void", page: number) => api<Paged<VoucherRow>>(`/admin/loyalty/vouchers?status=${status}&page=${page}&limit=${PAGE_SIZE}`);
 export const getCustomer = (phone: string) => api<CustomerLedger>(`/admin/loyalty/customers/${phone}`);
-export const adjustPoints = (b: { phone: string; points: number; reason: string }) => api<null>("/admin/loyalty/adjust", { method: "POST", body: JSON.stringify(b) });
+export const adjustPoints = (b: { phone: string; points: number; reason: string }) => api<{ name: string | null }>("/admin/loyalty/adjust", { method: "POST", body: JSON.stringify(b) });
 export const voidVoucher = (id: string) => api<null>(`/admin/loyalty/vouchers/${id}/void`, { method: "POST", body: "{}" });
 
 export const fmtDay = (k: string) => new Date(`${k}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });

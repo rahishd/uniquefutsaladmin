@@ -143,7 +143,8 @@ loyaltyRouter.post("/goods-sale", requirePermission("loyalty.goods"), handler(as
 // Manual correction with a reason: managers and owners only. Positive adds game-type points, negative removes (spent).
 loyaltyRouter.post("/adjust", requirePermission("loyalty.adjust"), handler(async (req, res) => {
   const b = parse(z.object({ phone, points: z.number().refine((n) => n !== 0 && Math.abs(n) <= 200, "between -200 and 200, not 0"), reason: z.string().min(5).max(200) }), req.body);
-  if (!(await prisma.user.findUnique({ where: { phoneNumber: b.phone } }))) throw new AppError(404, "No registered customer with this number");
+  const user = await prisma.user.findUnique({ where: { phoneNumber: b.phone }, select: { name: true } });
+  if (!user) throw new AppError(404, "No registered customer with this number");
   const sourceId = `${Date.now()}-${req.staff!.id}`;
   const pts = Math.round(b.points * 10) / 10;
   if (pts > 0) {
@@ -153,7 +154,7 @@ loyaltyRouter.post("/adjust", requirePermission("loyalty.adjust"), handler(async
     await notify(prisma, { userId: b.phone, type: "points", title: "Points adjusted", message: `${pts} points: ${b.reason}`, href: await pointsHref(b.phone, "adjustment", sourceId) });
   }
   await audit(req, "adjust", "loyalty", b.phone, { points: pts, reason: b.reason });
-  send(res, null, "Points adjusted");
+  send(res, { name: user.name }, "Points adjusted");
 }));
 
 loyaltyRouter.post("/vouchers/:id/void", requirePermission("loyalty.void"), handler(async (req, res) => {

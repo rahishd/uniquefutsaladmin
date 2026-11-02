@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, Phone, Search, Star, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Gift, Phone, Plus, Search, Star, X } from "lucide-react";
 import { Badge } from "../bookings/Badge";
 import { ApiError } from "@/lib/api";
 import { guard } from "@/lib/access";
@@ -138,6 +138,53 @@ function CustomerSheet({ h, onClose, onChanged }: { h: Holder; onClose: () => vo
   );
 }
 
+// ---------- top up: give points to any registered customer, even one with none yet ----------
+const QUICK_POINTS = [5, 10, 20, 50];
+function TopUpSheet({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const [phone, setPhone] = useState("");
+  const [amount, setAmount] = useState("");
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [done, setDone] = useState("");
+  const value = Number(amount);
+  const ok = /^9\d{9}$/.test(phone) && value >= 0.1 && value <= 200 && reason.trim().length >= 5;
+
+  async function save() {
+    if (!guard("loyalty.adjust")) return;
+    setBusy(true); setErr(""); setDone("");
+    try {
+      const r = await adjustPoints({ phone, points: value, reason: reason.trim() });
+      setDone(`${num(value)} points added to ${r?.name ?? phone}. They have been told.`);
+      setPhone(""); setAmount(""); setReason(""); onDone();
+    } catch (e) { setErr(msg(e)); } finally { setBusy(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center" onClick={onClose}>
+      <div role="dialog" aria-label="Top up points" onClick={(e) => e.stopPropagation()} className="max-h-[94vh] w-full max-w-md space-y-3 overflow-y-auto rounded-t-3xl bg-surface p-5 sm:rounded-3xl">
+        <div className="flex items-start justify-between gap-3">
+          <div><h2 className="flex items-center gap-2 text-lg font-bold"><Gift size={20} className="text-brand" /> Top up points</h2><p className="text-sm text-muted">Give loyalty points to a registered customer.</p></div>
+          <button onClick={onClose} aria-label="Close" className="rounded-full p-1 hover:bg-surface-2"><X size={20} /></button>
+        </div>
+        <label className="block text-sm font-semibold">Customer mobile number
+          <input inputMode="numeric" className={`${input} mt-1 w-full`} value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))} placeholder="98XXXXXXXX" /></label>
+        <div>
+          <label className="block text-sm font-semibold">Points to add
+            <input inputMode="decimal" className={`${input} mt-1 w-full`} value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, "").slice(0, 5))} placeholder="0.1 to 200" /></label>
+          <div className="mt-2 flex gap-2">{QUICK_POINTS.map((n) => <button key={n} type="button" onClick={() => setAmount(String(n))} className="rounded-full border border-line px-3 py-1 text-xs font-semibold hover:bg-surface-2">+{n}</button>)}</div>
+        </div>
+        <label className="block text-sm font-semibold">Reason
+          <input className={`${input} mt-1 w-full`} value={reason} maxLength={200} onChange={(e) => setReason(e.target.value)} placeholder="The customer is told, at least 5 letters" /></label>
+        {err && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600" role="alert">{err}</p>}
+        {done && <p className="rounded-xl bg-green-500/10 p-3 text-sm font-semibold text-green-700" role="status">{done}</p>}
+        <button onClick={save} disabled={busy || !ok} className="w-full rounded-full bg-brand px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Adding…" : `Add ${amount || "…"} points`}</button>
+        <p className="text-[11px] text-muted">Top-up points last 3 months, like game points. To take points away, open the customer under Customers.</p>
+      </div>
+    </div>
+  );
+}
+
 // ---------- tabs ----------
 function CustomersTab({ onChanged, tick }: { onChanged: () => void; tick: number }) {
   const [search, setSearch] = useState("");
@@ -269,6 +316,7 @@ export default function LoyaltyPage() {
   const [tab, setTab] = useState<Tab>("customers");
   const [range, setRange] = useState<Range>("today");
   const [tick, setTick] = useState(0);
+  const [topUp, setTopUp] = useState(false);
   const today = nepalToday();
   const [from, to] = range === "today" ? [today, today] : range === "7" ? [shift(today, -6), today] : range === "30" ? [shift(today, -29), today] : [`${today.slice(0, 8)}01`, today];
   const { data: ov, error } = useLoad<LoyaltyOverview>(() => getOverview(from, to), [from, to, tick]);
@@ -283,11 +331,13 @@ export default function LoyaltyPage() {
           <h1 className="flex items-center gap-2 text-2xl font-bold"><Star className="text-brand" /> Loyalty Points</h1>
           <p className="text-sm text-muted">What customers have earned, what they hold now, what is about to expire, and their free-game vouchers.</p>
         </div>
+        <button onClick={() => (guard("loyalty.adjust") ? setTopUp(true) : undefined)} className="flex items-center gap-1.5 rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm"><Plus size={16} /> Top up points</button>
         <div className="flex gap-1 rounded-2xl bg-surface p-1 shadow-sm" role="tablist" aria-label="Period for the numbers">
           {([["today", "Today"], ["7", "7 days"], ["30", "30 days"], ["month", "This month"]] as const).map(([id, l]) => <button key={id} role="tab" aria-selected={range === id} onClick={() => setRange(id)} className={`whitespace-nowrap rounded-xl px-3 py-1.5 text-sm font-semibold ${range === id ? "bg-brand text-white" : "text-muted"}`}>{l}</button>)}
         </div>
       </div>
 
+      {topUp && <TopUpSheet onClose={() => setTopUp(false)} onDone={changed} />}
       {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600" role="alert">{error}</p>}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         {([
