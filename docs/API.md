@@ -53,6 +53,7 @@ Dates `YYYY-MM-DD`, times `HH:00`, Nepal time, money in whole rupees. List endpo
 | Loyalty | `GET /loyalty/customers/:phone` | loyalty.read | |
 | | `POST /loyalty/goods-sale` | loyalty.write | Rs. 100 = 1 point, once per sale |
 | | `POST /loyalty/adjust` | loyalty.adjust | manager/owner, reason required |
+| Top up points (offer) | `POST /loyalty/offer`, `GET /loyalty/offers?status&page`, `POST /loyalty/offers/:id/withdraw` | loyalty.adjust (list: loyalty.view) | Creates a PointsOffer (pending) and tells the customer. Nothing is added to their balance until they tap "Add to my points" in the app (customer `POST /loyalty/offers/:id/claim`, once). Staff can withdraw a pending offer. |
 | | `POST /loyalty/vouchers/:id/void` | loyalty.adjust | unused vouchers only |
 | Teams | `GET /teams`, `GET /teams/disputes`, `GET /teams/settlements?date` | teams.read | |
 | | `POST /teams/results/:id/resolve` | teams.write | `{action: approve|void, scoreSubmitter?, scoreOther?, note?}`; approval gives the winning captain 5 points once |

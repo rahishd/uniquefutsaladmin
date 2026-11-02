@@ -6,11 +6,11 @@ import { Badge } from "../bookings/Badge";
 import { ApiError } from "@/lib/api";
 import { guard } from "@/lib/access";
 import {
-  CustomerLedger, Holder, KINDS, Kind, LedgerRow, LoyaltyOverview, PAGE_SIZE, Paged, VoucherRow, adjustPoints, fmtDay, getCustomer, getOverview, kindOf, listHolders, listLedger, listVouchers, pts, voidVoucher,
+  CustomerLedger, Holder, KINDS, Kind, LedgerRow, LoyaltyOverview, PAGE_SIZE, Paged, OfferRow, VoucherRow, adjustPoints, fmtDay, getCustomer, getOverview, kindOf, listHolders, listLedger, listOffers, listVouchers, offerPoints, pts, voidVoucher, withdrawOffer,
 } from "@/lib/loyalty";
 
 import { askConfirm } from "@/lib/confirm";
-type Tab = "customers" | "activity" | "vouchers" | "rules";
+type Tab = "customers" | "activity" | "offers" | "vouchers" | "rules";
 const input = "rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
 const msg = (e: unknown) => (e instanceof ApiError || e instanceof Error ? e.message : "Something went wrong");
 const nepalToday = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kathmandu" }).format(new Date());
@@ -154,8 +154,8 @@ function TopUpSheet({ onClose, onDone }: { onClose: () => void; onDone: () => vo
     if (!guard("loyalty.adjust")) return;
     setBusy(true); setErr(""); setDone("");
     try {
-      const r = await adjustPoints({ phone, points: value, reason: reason.trim() });
-      setDone(`${num(value)} points added to ${r?.name ?? phone}. They have been told.`);
+      const r = await offerPoints({ phone, points: value, reason: reason.trim() });
+      setDone(`${num(value)} points offered to ${r?.name ?? phone}. They were told, and the points are added when they tap Add to my points in the app.`);
       setPhone(""); setAmount(""); setReason(""); onDone();
     } catch (e) { setErr(msg(e)); } finally { setBusy(false); }
   }
@@ -164,7 +164,7 @@ function TopUpSheet({ onClose, onDone }: { onClose: () => void; onDone: () => vo
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center" onClick={onClose}>
       <div role="dialog" aria-label="Top up points" onClick={(e) => e.stopPropagation()} className="max-h-[94vh] w-full max-w-md space-y-3 overflow-y-auto rounded-t-3xl bg-surface p-5 sm:rounded-3xl">
         <div className="flex items-start justify-between gap-3">
-          <div><h2 className="flex items-center gap-2 text-lg font-bold"><Gift size={20} className="text-brand" /> Top up points</h2><p className="text-sm text-muted">Give loyalty points to a registered customer.</p></div>
+          <div><h2 className="flex items-center gap-2 text-lg font-bold"><Gift size={20} className="text-brand" /> Top up points</h2><p className="text-sm text-muted">Offer loyalty points to a registered customer as a gift.</p></div>
           <button onClick={onClose} aria-label="Close" className="rounded-full p-1 hover:bg-surface-2"><X size={20} /></button>
         </div>
         <label className="block text-sm font-semibold">Customer mobile number
@@ -178,8 +178,8 @@ function TopUpSheet({ onClose, onDone }: { onClose: () => void; onDone: () => vo
           <input className={`${input} mt-1 w-full`} value={reason} maxLength={200} onChange={(e) => setReason(e.target.value)} placeholder="The customer is told, at least 5 letters" /></label>
         {err && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600" role="alert">{err}</p>}
         {done && <p className="rounded-xl bg-green-500/10 p-3 text-sm font-semibold text-green-700" role="status">{done}</p>}
-        <button onClick={save} disabled={busy || !ok} className="w-full rounded-full bg-brand px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Adding…" : `Add ${amount || "…"} points`}</button>
-        <p className="text-[11px] text-muted">Top-up points last 3 months, like game points. To take points away, open the customer under Customers.</p>
+        <button onClick={save} disabled={busy || !ok} className="w-full rounded-full bg-brand px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Sending…" : `Offer ${amount || "…"} points`}</button>
+        <p className="text-[11px] text-muted">The customer sees a gift card with your reason and taps Add to my points. Until then nothing is added; you can withdraw it under Offers. Added points last 3 months, like game points.</p>
       </div>
     </div>
   );
@@ -257,6 +257,40 @@ function ActivityTab({ tick }: { tick: number }) {
   );
 }
 
+function OffersTab({ tick, onChanged }: { tick: number; onChanged: () => void }) {
+  const [status, setStatus] = useState<"" | OfferRow["status"]>("pending");
+  const [pageNo, setPageNo] = useState(1);
+  const [n, setN] = useState(0);
+  const [err, setErr] = useState("");
+  const { data, error } = useLoad<Paged<OfferRow>>(() => listOffers(status, pageNo), [status, pageNo, tick, n]);
+  async function withdraw(o: OfferRow) {
+    if (!guard("loyalty.adjust")) return;
+    if (!(await askConfirm(`Withdraw the offer of ${num(o.points)} points to ${o.name ?? o.phone}? They will not be able to add it.`))) return;
+    try { await withdrawOffer(o.id); setN((x) => x + 1); onChanged(); setErr(""); } catch (e) { setErr(msg(e)); }
+  }
+  const tone = { pending: "bg-amber-500/15 text-amber-700", claimed: "bg-green-500/15 text-green-700", withdrawn: "bg-surface-2 text-muted" } as const;
+  const label = { pending: "Waiting", claimed: "Added", withdrawn: "Withdrawn" } as const;
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-1 overflow-x-auto rounded-2xl bg-surface p-1 shadow-sm" role="tablist" aria-label="Offer status">
+        {([["pending", "Waiting"], ["claimed", "Added"], ["withdrawn", "Withdrawn"], ["", "All"]] as const).map(([id, l]) => <button key={l} role="tab" aria-selected={status === id} onClick={() => { setStatus(id); setPageNo(1); }} className={`flex-1 whitespace-nowrap rounded-xl px-3 py-2 text-sm font-semibold ${status === id ? "bg-brand text-white" : "text-muted hover:bg-surface-2"}`}>{l}</button>)}
+      </div>
+      <p className="text-sm text-muted">Points you offered with Top up points. They are added to the customer only when they tap Add to my points in the app.</p>
+      {err && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600" role="alert">{err}</p>}
+      <Status error={error} loading={!data} empty={data && data.items.length === 0 ? "No offers here." : undefined} />
+      <ul className="grid gap-2 xl:grid-cols-2">
+        {data?.items.map((o) => (
+          <li key={o.id} className="flex items-center justify-between gap-3 rounded-2xl bg-surface p-3.5 shadow-sm">
+            <span className="min-w-0"><span className="block font-bold">{o.name ?? o.phone} <span className="text-xs font-normal text-muted">{o.phone}</span></span><span className="block text-sm">{o.reason}</span><span className="block text-xs text-muted">Offered {fmtDay(o.createdAt.slice(0, 10))}{o.claimedAt ? ` · added ${fmtDay(o.claimedAt.slice(0, 10))}` : ""}</span></span>
+            <span className="flex shrink-0 flex-col items-end gap-1"><span className="text-lg font-bold text-green-700">+{num(o.points)}</span><Badge tone={tone[o.status]}>{label[o.status]}</Badge>{o.status === "pending" && <button onClick={() => withdraw(o)} className="text-xs font-semibold text-red-600">Withdraw</button>}</span>
+          </li>
+        ))}
+      </ul>
+      {data && <Pager page={pageNo} total={data.total} onPage={setPageNo} />}
+    </div>
+  );
+}
+
 function VouchersTab({ tick, onChanged }: { tick: number; onChanged: () => void }) {
   const [status, setStatus] = useState<"" | "unused" | "used" | "void">("unused");
   const [pageNo, setPageNo] = useState(1);
@@ -321,7 +355,7 @@ export default function LoyaltyPage() {
   const [from, to] = range === "today" ? [today, today] : range === "7" ? [shift(today, -6), today] : range === "30" ? [shift(today, -29), today] : [`${today.slice(0, 8)}01`, today];
   const { data: ov, error } = useLoad<LoyaltyOverview>(() => getOverview(from, to), [from, to, tick]);
   const changed = () => setTick((t) => t + 1);
-  const tabs: { id: Tab; label: string }[] = [{ id: "customers", label: "Customers" }, { id: "activity", label: "Activity" }, { id: "vouchers", label: "Free-game vouchers" }, { id: "rules", label: "How it works" }];
+  const tabs: { id: Tab; label: string }[] = [{ id: "customers", label: "Customers" }, { id: "activity", label: "Activity" }, { id: "offers", label: "Offers" }, { id: "vouchers", label: "Free-game vouchers" }, { id: "rules", label: "How it works" }];
   const given = ov?.period.byKind.filter((k) => k.points > 0) ?? [];
 
   return (
@@ -356,6 +390,7 @@ export default function LoyaltyPage() {
       </div>
       {tab === "customers" && <CustomersTab tick={tick} onChanged={changed} />}
       {tab === "activity" && <ActivityTab tick={tick} />}
+      {tab === "offers" && <OffersTab tick={tick} onChanged={changed} />}
       {tab === "vouchers" && <VouchersTab tick={tick} onChanged={changed} />}
       {tab === "rules" && <RulesTab />}
     </div>

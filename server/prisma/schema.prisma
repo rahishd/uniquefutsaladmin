@@ -1513,3 +1513,17 @@ model GzClock {
 
   @@index([endedAt])
 }
+
+// Loyalty points staff offer to a customer; the customer taps "Add to my points" to take them (migration 20261119000001_points_offer).
+model PointsOffer {
+  id        String    @id @default(cuid())
+  userId    String // User.phoneNumber
+  points    Decimal   @db.Decimal(8, 1)
+  reason    String
+  status    String    @default("pending") // pending | claimed | withdrawn
+  createdBy String
+  createdAt DateTime  @default(now())
+  claimedAt DateTime?
+
+  @@index([userId, status])
+}

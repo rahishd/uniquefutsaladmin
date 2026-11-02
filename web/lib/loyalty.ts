@@ -38,6 +38,10 @@ export const listLedger = (p: { kind: "" | Kind; q: string; from: string; to: st
 export const listVouchers = (status: "" | "unused" | "used" | "void", page: number) => api<Paged<VoucherRow>>(`/admin/loyalty/vouchers?status=${status}&page=${page}&limit=${PAGE_SIZE}`);
 export const getCustomer = (phone: string) => api<CustomerLedger>(`/admin/loyalty/customers/${phone}`);
 export const adjustPoints = (b: { phone: string; points: number; reason: string }) => api<{ name: string | null }>("/admin/loyalty/adjust", { method: "POST", body: JSON.stringify(b) });
+export type OfferRow = { id: string; phone: string; name: string | null; points: number; reason: string; status: "pending" | "claimed" | "withdrawn"; createdAt: string; claimedAt: string | null };
+export const offerPoints = (b: { phone: string; points: number; reason: string }) => api<{ id: string; name: string | null }>("/admin/loyalty/offer", { method: "POST", body: JSON.stringify(b) });
+export const listOffers = (status: "" | OfferRow["status"], page: number) => api<Paged<OfferRow>>(`/admin/loyalty/offers?status=${status}&page=${page}&limit=${PAGE_SIZE}`);
+export const withdrawOffer = (id: string) => api<null>(`/admin/loyalty/offers/${id}/withdraw`, { method: "POST", body: "{}" });
 export const voidVoucher = (id: string) => api<null>(`/admin/loyalty/vouchers/${id}/void`, { method: "POST", body: "{}" });
 
 export const fmtDay = (k: string) => new Date(`${k}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });

@@ -66,6 +66,24 @@ describe("Loyalty points page", () => {
     assert.equal((await api.get("/loyalty/vouchers", mgr.auth)).body.data.total, 2);
   });
 
+  it("offers points as a gift the customer must accept, lists the offers and lets staff withdraw one", async () => {
+    const mgr = await staff("admin");
+    await customer("9890000002", "Sita Rai");
+    const made = await api.post("/loyalty/offer", mgr.auth, { phone: "9890000002", points: 20, reason: "A gift for your birthday" });
+    assert.equal(made.status, 201);
+    assert.equal(await prisma.loyaltyEntry.count({ where: { userId: "9890000002" } }), 0, "nothing is added until the customer takes it");
+    assert.equal((await prisma.notification.findFirstOrThrow({ where: { userId: "9890000002", type: "points" } })).href, "/points");
+    const list = await api.get("/loyalty/offers?status=pending", mgr.auth);
+    assert.equal(list.body.data.items[0].points, 20);
+    assert.equal(list.body.data.items[0].name, "Sita Rai");
+    assert.equal((await api.post("/loyalty/offer", mgr.auth, { phone: "9899999999", points: 5, reason: "Nobody has this number" })).status, 404);
+    const id = made.body.data.id as string;
+    assert.equal((await api.post(`/loyalty/offers/${id}/withdraw`, mgr.auth)).status, 200);
+    assert.equal((await api.post(`/loyalty/offers/${id}/withdraw`, mgr.auth)).status, 409, "already withdrawn");
+    const acc = await staff("accountant");
+    assert.equal((await api.post("/loyalty/offer", acc.auth, { phone: "9890000002", points: 5, reason: "Not allowed here" })).status, 403);
+  });
+
   it("adjusts points and voids a voucher as before, and needs the loyalty permission", async () => {
     const mgr = await staff("admin");
     await customer("9890000001", "Raju Rai");

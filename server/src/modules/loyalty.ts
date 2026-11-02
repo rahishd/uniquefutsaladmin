@@ -157,6 +157,37 @@ loyaltyRouter.post("/adjust", requirePermission("loyalty.adjust"), handler(async
   send(res, { name: user.name }, "Points adjusted");
 }));
 
+// Top up: offer points to a customer. They are not added until the customer taps "Add to my points" in the app.
+loyaltyRouter.post("/offer", requirePermission("loyalty.adjust"), handler(async (req, res) => {
+  const b = parse(z.object({ phone, points: z.number().min(0.1).max(200), reason: z.string().min(5).max(200) }), req.body);
+  const user = await prisma.user.findUnique({ where: { phoneNumber: b.phone }, select: { name: true } });
+  if (!user) throw new AppError(404, "No registered customer with this number");
+  const pts = Math.round(b.points * 10) / 10;
+  const offer = await prisma.pointsOffer.create({ data: { userId: b.phone, points: new Prisma.Decimal(pts.toFixed(1)), reason: b.reason, createdBy: req.staff!.id } });
+  await notify(prisma, { userId: b.phone, type: "points", title: "A gift of loyalty points", message: `Unique Futsal offers you ${pts} loyalty points: ${b.reason}. Open Points and tap Add to my points.`, href: "/points" });
+  await audit(req, "offer", "loyalty", offer.id, { phone: b.phone, points: pts, reason: b.reason });
+  send(res, { id: offer.id, name: user.name }, "Offer sent", 201);
+}));
+
+loyaltyRouter.get("/offers", requirePermission("loyalty.view"), handler(async (req, res) => {
+  const status = ["pending", "claimed", "withdrawn"].find((x) => x === req.query.status);
+  const where: Prisma.PointsOfferWhereInput = status ? { status } : {};
+  const { take, skip, pageNo, limit } = page(req.query as Record<string, unknown>);
+  const [rows, total] = await Promise.all([prisma.pointsOffer.findMany({ where, orderBy: { createdAt: "desc" }, take, skip }), prisma.pointsOffer.count({ where })]);
+  const users = await prisma.user.findMany({ where: { phoneNumber: { in: [...new Set(rows.map((r) => r.userId))] } }, select: { phoneNumber: true, name: true } });
+  const name = new Map(users.map((u) => [u.phoneNumber, u.name]));
+  send(res, { items: rows.map((r) => ({ id: r.id, phone: r.userId, name: name.get(r.userId) ?? null, points: Number(r.points), reason: r.reason, status: r.status, createdAt: r.createdAt, claimedAt: r.claimedAt })), total, page: pageNo, limit });
+}));
+
+// Take back an offer the customer has not added yet
+loyaltyRouter.post("/offers/:id/withdraw", requirePermission("loyalty.adjust"), handler(async (req, res) => {
+  const id = param(req, "id");
+  const done = await prisma.pointsOffer.updateMany({ where: { id, status: "pending" }, data: { status: "withdrawn" } });
+  if (done.count !== 1) throw new AppError(409, "This offer was already added by the customer or withdrawn");
+  await audit(req, "withdraw-offer", "loyalty", id, {});
+  send(res, null, "Offer withdrawn");
+}));
+
 loyaltyRouter.post("/vouchers/:id/void", requirePermission("loyalty.void"), handler(async (req, res) => {
   const id = param(req, "id");
   const v = await prisma.freeGameVoucher.findUnique({ where: { id } });
