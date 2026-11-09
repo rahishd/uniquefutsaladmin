@@ -13,6 +13,7 @@ import ReminderPopup from "./reminders/ReminderPopup";
 import NotificationBell from "./NotificationBell";
 import SirenToggle from "./SirenToggle";
 import { getToken } from "@/lib/api";
+import { withBase } from "@/lib/base";
 import { currentAdmin, logout, refreshAdmin, setAvatar, type Admin } from "@/lib/auth";
 
 // Pages used all day, in this order (Overview is the landing page). Everything else sits behind the "More" button.
@@ -105,12 +106,13 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[264px_minmax(0,1fr)]">
         <header className="sticky top-0 z-30 flex h-auto min-h-16 min-w-0 items-center pb-2 pt-[max(calc(env(safe-area-inset-top)_-_0.625rem),0.5rem)] md:h-16 md:pb-0 md:pt-0 justify-between gap-3 bg-header pl-2 pr-4 text-white lg:col-span-2 lg:pl-3 lg:pr-8">
-          <div className="flex shrink-0 items-center gap-3 pr-2">
+          {/* the logo and name reload the portal from its home page (a plain link, not a client-side one, so it is a real restart) */}
+          <a href={withBase("/")} aria-label="Unique Futsal, reload the portal" className="flex shrink-0 items-center gap-3 pr-2 text-white no-underline">
             {/* the player alone, turned white for the navy bar */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/logo-mark.png" alt="" aria-hidden className="h-9 w-auto brightness-0 invert" />
             <span className="hidden text-sm font-bold tracking-wide sm:inline">UNIQUE FUTSAL</span>
-          </div>
+          </a>
           <span aria-hidden className="hidden h-8 w-px shrink-0 bg-white/30 sm:block" />
           {/* the frequent pages as icons, on every page, for quick switching (the name shows on hover or long press) */}
           <nav aria-label="Frequent pages" className="mx-2 flex min-w-0 flex-1 items-center justify-start gap-1.5 overflow-x-auto py-1 [mask-image:linear-gradient(to_right,transparent,#000_10px,#000_calc(100%-10px),transparent)] md:mx-3 md:justify-center md:gap-2.5 md:[mask-image:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
