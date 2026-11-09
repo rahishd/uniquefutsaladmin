@@ -131,6 +131,7 @@ function Gallery({ tick, onChanged }: { tick: number; onChanged: () => void }) {
   const [busy, setBusy] = useState("");
   const [edit, setEdit] = useState<Photo | null>(null);
   const [local, setLocal] = useState(0);
+  const [batch, setBatch] = useState(""); // an event name for the photos being added, e.g. "Tihar Cup 2083"
   const picker = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -148,7 +149,7 @@ function Gallery({ tick, onChanged }: { tick: number; onChanged: () => void }) {
       for (const f of Array.from(files)) {
         setBusy(`Uploading ${done + 1} of ${files.length}…`);
         const image = await shrink(f);
-        await addPhoto({ title: f.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").slice(0, 80) || "Photo", image });
+        await addPhoto({ title: batch.trim().slice(0, 80) || f.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").slice(0, 80) || "Photo", image });
         done++;
       }
       setNote(`${done} photo${done === 1 ? "" : "s"} added. Rename them or reorder below.`);
@@ -180,10 +181,11 @@ function Gallery({ tick, onChanged }: { tick: number; onChanged: () => void }) {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-muted">Landscape and portrait photos both work. They are shrunk to 1600 px automatically. Customers see them in the Gallery on Home, in this order.</p>
+        <p className="text-sm text-muted">Pick as many photos as you like at once, during or after a tournament. They are shrunk to 1600 px automatically. The Gallery shows on Home just under Quick Access as soon as there is at least one photo: customers slide through the first photos, open one to download it, and &quot;View more&quot; opens all of them, in this order.</p>
         <button onClick={() => { if (guard("content.gallery")) picker.current?.click(); }} disabled={!!busy} className="flex items-center gap-1.5 rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"><ImagePlus size={16} /> {busy || "Add photos"}</button>
         <input ref={picker} type="file" accept="image/jpeg,image/png,image/webp" multiple className="sr-only" aria-label="Choose photos" onChange={(e) => upload(e.target.files)} />
       </div>
+      <label className="block space-y-1 text-sm font-medium">Event name for the photos you add next <span className="font-normal text-muted">(optional, for example Tihar Cup 2083: it becomes each photo&apos;s title, and you can rename them later)</span><input value={batch} maxLength={80} onChange={(e) => setBatch(e.target.value)} placeholder="Tihar Cup 2083" className={`${field} w-full sm:w-96`} /></label>
       {note && <p className="rounded-xl bg-brand/10 p-3 text-sm text-brand" role="status">{note}</p>}
       {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600" role="alert">{error}</p>}
       {!photos && !error && <p className="py-8 text-center text-sm text-muted">Loading photos…</p>}
