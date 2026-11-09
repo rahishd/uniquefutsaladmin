@@ -19,9 +19,11 @@ export type Overview = { photos: number; hiddenPhotos: number; ads: number; live
 export const PLACES: { id: Place; label: string; hint: string; size: string }[] = [
   { id: "header", label: "Header", hint: "A slim banner under the company bar, on every page", size: "1200 x 185 px (wide strip)" },
   { id: "footer", label: "Footer", hint: "A banner at the bottom of every page", size: "1200 x 210 px (wide strip)" },
-  { id: "inline", label: "In the Home page", hint: "A larger banner between the sections of Home", size: "1280 x 560 px (16:7)" },
+  { id: "inline", label: "Home banner (slides)", hint: "Right under the search bar on Home. Add several and customers swipe left or right to see each offer", size: "1280 x 560 px (16:7)" },
   { id: "popup", label: "Pop-up", hint: "Opens over the screen; the customer can close it", size: "1080 x 1350 px (portrait) or 1080 x 1080 px" },
 ];
+// the shape each picture is shown in, so the preview shows what will be cut off
+export const RATIO: Record<Place, string> = { header: "1200 / 185", footer: "1200 / 210", inline: "16 / 7", popup: "4 / 5" };
 export const placeLabel = (p: Place) => PLACES.find((x) => x.id === p)!.label;
 
 export const STATE: Record<AdState, { label: string; tone: string }> = {

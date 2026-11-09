@@ -27,7 +27,7 @@ export default function ContentPage() {
     <div className="w-full space-y-4">
       <div>
         <h1 className="text-2xl font-bold">Site Content</h1>
-        <p className="text-sm text-muted">Gallery photos and ads shown in the customer app, and today's customer birthdays to wish. Ads can run at set hours, in a loop, in the header or footer, or as a pop-up.</p>
+        <p className="text-sm text-muted">Gallery photos and ads shown in the customer app, and today&apos;s customer birthdays to wish. Ads can run at set hours, in the header or footer, as a pop-up, or as Home banners under the search bar (add several and customers swipe through them).</p>
       </div>
       {ov && (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">

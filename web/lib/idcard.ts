@@ -168,7 +168,7 @@ export async function drawIdCard(
   c.fillText(member ? "★  Unique Club Member" : "Customer", cx, 792);
 
   // the details in one panel: label, value, with a thin line between rows
-  const rows: [string, string][] = [["USER ID", card.phone], ["OFFICE CONTACT NO.", OFFICE_PHONE], ["CARD TYPE", member ? "Unique Club Member" : "Digital ID"]];
+  const rows: [string, string][] = [["USER ID", card.phone], ["CARD TYPE", member ? "Unique Club Member" : "Digital ID"]];
   if (member && card.club?.validUntil) rows.push(["VALID UNTIL", card.club.validUntil.slice(0, 10)]);
   const rowH = 58;
   const px = 70;
@@ -191,6 +191,17 @@ export async function drawIdCard(
     c.font = `700 28px ${FONT}`;
     c.fillText(value, px + 300, y);
   });
+
+  // who to call when the card is lost or found (the venue's office number), under the details
+  const noteY = py + ph + 46;
+  c.textAlign = "center";
+  c.fillStyle = MUTED;
+  c.font = `600 21px ${FONT}`;
+  c.fillText("If lost & found, contact", cx, noteY);
+  c.fillStyle = NAVY;
+  c.font = `800 34px ${FONT}`;
+  c.fillText(OFFICE_PHONE, cx, noteY + 44);
+  c.textAlign = "left";
 
   // the QR on the left and what to do on the right, centred on each other
   const panel = { x: 90, y: 1110, s: 210 };

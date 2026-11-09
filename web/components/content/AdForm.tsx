@@ -5,7 +5,7 @@ import { ImagePlus, X } from "lucide-react";
 import Switch from "../Switch";
 import { ApiError } from "@/lib/api";
 import { guard } from "@/lib/access";
-import { Ad, DAYS, Freq, PLACES, Place, addAd, addMinutes, clock, editAd, picUrl, shrink, spanText } from "@/lib/content";
+import { Ad, DAYS, Freq, PLACES, Place, RATIO, addAd, addMinutes, clock, editAd, picUrl, shrink, spanText } from "@/lib/content";
 
 const field = "rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
 const msg = (e: unknown) => (e instanceof ApiError || e instanceof Error ? e.message : "Something went wrong");
@@ -78,17 +78,18 @@ export default function AdForm({ ad, onClose, onSaved }: { ad: Ad | null; onClos
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <p className="text-sm font-semibold">Picture</p>
-            <button type="button" onClick={() => picker.current?.click()} className="grid min-h-32 w-full place-items-center overflow-hidden rounded-xl border-2 border-dashed border-line bg-surface-2 text-sm text-muted">
+            <p className="rounded-xl bg-brand/10 px-3 py-2 text-xs font-medium text-brand">Picture size for {info.label.toLowerCase()}: <strong>{info.size}</strong>. JPG, PNG or WebP. Keep words away from the edges so nothing is cut off.</p>
+            <button type="button" onClick={() => picker.current?.click()} style={{ aspectRatio: RATIO[place] }} className="grid w-full place-items-center overflow-hidden rounded-xl border-2 border-dashed border-line bg-surface-2 text-sm text-muted">
               {shown ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={shown} alt="Ad preview" className="max-h-52 w-full object-contain" />
+                <img src={shown} alt="Ad preview" className="h-full w-full object-cover" />
               ) : <span className="flex flex-col items-center gap-1 p-4"><ImagePlus size={26} /> {pic ? "Preparing…" : "Choose a picture"}</span>}
             </button>
             <input ref={picker} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" aria-label="Choose the ad picture" onChange={(e) => choose(e.target.files?.[0])} />
-            <p className="text-xs text-muted">Best size for {info.label.toLowerCase()}: {info.size}. {shown ? "Tap the picture to replace it." : ""}</p>
+            <p className="text-xs text-muted">{shown ? "This is how it will look in the app. Tap the picture to replace it." : "The box above is the exact shape the picture is shown in."}{place === "inline" ? " Add as many Home banners as you like: customers slide through them." : ""}</p>
           </div>
           <div className="space-y-3">
-            <label className={lab}>Ad name <span className="font-normal text-muted">(only you see it)</span><input value={title} maxLength={80} onChange={(e) => setTitle(e.target.value)} placeholder="Coca-Cola morning offer" className={`${field} w-full`} /></label>
+            <label className={lab}>Ad name <span className="font-normal text-muted">(shown under a Home banner)</span><input value={title} maxLength={80} onChange={(e) => setTitle(e.target.value)} placeholder="Coca-Cola morning offer" className={`${field} w-full`} /></label>
             <label className={lab}>Link <span className="font-normal text-muted">(optional)</span><input value={link} maxLength={300} onChange={(e) => setLink(e.target.value)} placeholder="/book or https://..." className={`${field} w-full`} /></label>
           </div>
         </div>
