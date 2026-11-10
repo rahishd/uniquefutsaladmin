@@ -18,15 +18,14 @@ import { currentAdmin, logout, refreshAdmin, setAvatar, type Admin } from "@/lib
 
 // Pages used all day, in this order (Overview is the landing page). Everything else sits behind the "More" button.
 const frequents: { href: string; label: string; icon: React.ElementType }[] = [
-  { href: "/overview", label: "Overview", icon: BarChart3 },
-  { href: "/arrivals", label: "Arrivals", icon: icons.bell },
+  { href: "/overview", label: "Overview and Reports", icon: BarChart3 },
   { href: "/slots", label: "Slots", icon: icons.clock },
   { href: "/bookings", label: "Bookings", icon: icons.calendar },
   { href: "/sales", label: "Sales", icon: ShoppingCart },
   { href: "/payments", label: "Payments", icon: icons.wallet },
   { href: "/gamezone", label: "Gamezone", icon: icons.gamepad },
   { href: "/customers", label: "Customers", icon: icons.users },
-  { href: "/membership", label: "Membership", icon: icons.badge },
+  { href: "/membership", label: "Membership, UC & Children's Academy", icon: icons.badge },
   { href: "/tournaments", label: "Tournaments", icon: icons.trophy },
   { href: "/ev-charging", label: "EV Charging", icon: icons.battery },
   { href: "/verify", label: "Verify Documents", icon: icons.shield },
@@ -88,9 +87,10 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const initials = (admin?.name ?? who).split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || who[0];
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
-  const link = (href: string, label: string, Icon: React.ElementType) => (
+  const link = (href: string, label: string, Icon: React.ElementType, n?: number) => (
     <Link key={href} href={href} onClick={() => setOpen(false)} className={`flex items-center gap-3 rounded-xl px-3 py-2 text-sm ${isActive(href) ? "bg-brand/10 font-semibold text-brand" : "text-muted hover:bg-surface-2 hover:text-foreground"}`}>
-      <Icon size={18} /> {label}
+      {n !== undefined && <span aria-hidden className="w-5 shrink-0 text-right text-xs font-bold tabular-nums opacity-70">{n}.</span>}
+      <Icon size={18} className="shrink-0" /> {label}
     </Link>
   );
 
@@ -160,7 +160,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
               <Star size={22} /> Frequents
               <ChevronDown size={16} className={`ml-auto transition-transform ${frequentsOpen ? "rotate-180" : ""}`} />
             </button>
-            {frequentsOpen && <div className="space-y-0.5">{visible.map((f) => link(f.href, f.label, f.icon))}</div>}
+            {frequentsOpen && <div className="space-y-0.5">{visible.map((f, i) => link(f.href, f.label, f.icon, i + 1))}</div>}
           </div>
           <div>
             <button onClick={() => setMore(!moreOpen)} aria-expanded={moreOpen} className="flex w-full items-center gap-3 rounded-2xl bg-[#87ceeb] px-4 py-3.5 text-base font-bold text-[#0c0b5d] shadow-sm transition hover:bg-[#6bb8d9]">
@@ -169,16 +169,19 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             </button>
             {moreOpen && (
               <div className="mt-3 space-y-5">
-                {groups.map((g) => {
+                {(() => {
+                  let n = visible.length;
+                  return groups.map((g) => {
                   const items = modules.filter((m) => m.group === g && canSeePage(m.slug) && !frequents.some((f) => f.href === `/${m.slug}`));
                   if (!items.length) return null;
                   return (
                     <div key={g}>
                       <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wide text-muted">{g}</p>
-                      <div className="space-y-0.5">{items.map((m) => link(`/${m.slug}`, m.title, icons[m.icon]))}</div>
+                      <div className="space-y-0.5">{items.map((m) => link(`/${m.slug}`, m.title, icons[m.icon], ++n))}</div>
                     </div>
                   );
-                })}
+                  });
+                })()}
               </div>
             )}
           </div>

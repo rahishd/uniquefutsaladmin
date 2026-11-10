@@ -18,6 +18,7 @@ export type SlotBooking = {
   discountAmount: number;
   voucherId: string | null;
   waterBottles?: number;
+  checkedInAt?: string | null; // when the customer tapped "I'm coming" in the app
 };
 
 export type Hour = {

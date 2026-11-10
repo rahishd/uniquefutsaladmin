@@ -1,5 +1,6 @@
-import NotificationsPage from "@/components/notifications/NotificationsPage";
+import { redirect } from "next/navigation";
 
+// Notifications now live in Pop-Ups and Site Content (the "Notifications" tab). The old address still works.
 export default function Page() {
-  return <NotificationsPage />;
+  redirect("/content?tab=notifications");
 }

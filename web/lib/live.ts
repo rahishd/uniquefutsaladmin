@@ -12,7 +12,7 @@ const PAGES: Record<string, string[]> = {
   booking: ["/slots", "/bookings"],
   payment: ["/payments"],
   customer: ["/customers"],
-  arrival: ["/arrivals"],
+  arrival: ["/slots"],
   gamezone: ["/gamezone"],
   membership: ["/membership"],
   order: ["/payments"],
@@ -22,7 +22,7 @@ const PAGES: Record<string, string[]> = {
   challenge: ["/teams"],
   result: ["/teams", "/disputes"],
   wheelchair: ["/wheelchair"],
-  insurance: ["/insurance"],
+  insurance: ["/wheelchair"],
 };
 
 let items: LiveItem[] = [];

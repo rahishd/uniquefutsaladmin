@@ -5,7 +5,7 @@ import { Crown } from "lucide-react";
 import { Profile } from "@/lib/customers";
 
 // Read-only: the Customers page only shows that a VIP privilege was given, and its code.
-// Giving, changing, pausing and removing a VIP code is done on the VIP Privilege page.
+// Giving, changing, pausing and removing a VIP code is done on the VIP side of the Promocodes & VIP page.
 export default function VipSection({ p }: { p: Profile }) {
   const vip = p.vip;
   return (
@@ -19,7 +19,7 @@ export default function VipSection({ p }: { p: Profile }) {
       ) : (
         <p className="text-sm text-muted">No VIP privilege given.</p>
       )}
-      <Link href="/vip" className="inline-block text-sm font-semibold text-brand">{vip ? "Manage on the VIP Privilege page" : "Give VIP privilege on the VIP Privilege page"}</Link>
+      <Link href="/promos?tab=vip" className="inline-block text-sm font-semibold text-brand">{vip ? "Manage on the Promocodes & VIP page" : "Give VIP privilege on the VIP Privilege page"}</Link>
     </section>
   );
 }

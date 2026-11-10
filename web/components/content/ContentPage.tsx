@@ -6,17 +6,23 @@ import { Badge } from "../bookings/Badge";
 import Switch from "../Switch";
 import AdForm from "./AdForm";
 import BirthdaysPanel from "./BirthdaysPanel";
+import PartnersPage from "./PartnersPage";
+import NotificationsPage from "../notifications/NotificationsPage";
 import { ApiError } from "@/lib/api";
-import { guard } from "@/lib/access";
+import { canSeePage, guard } from "@/lib/access";
 import { Ad, PLACES, Photo, STATE, addPhoto, deleteAd, deletePhoto, editAd, editPhoto, listAds, listPhotos, overview as fetchOverview, picUrl, placeLabel, reorderPhotos, scheduleText, shrink, Overview, Place } from "@/lib/content";
 
 import { askConfirm } from "@/lib/confirm";
-type Tab = "ads" | "gallery" | "birthdays";
+type Tab = "ads" | "gallery" | "partners" | "birthdays" | "notifications";
 const msg = (e: unknown) => (e instanceof ApiError || e instanceof Error ? e.message : "Something went wrong");
 const field = "rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
 
 export default function ContentPage() {
-  const [tab, setTab] = useState<Tab>("ads");
+  // /content?tab=notifications opens the notices tab (the old Notifications address and the bell link use it)
+  const [tab, setTab] = useState<Tab>(() => {
+    const t = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("tab") : null;
+    return t === "notifications" || t === "gallery" || t === "partners" || t === "birthdays" ? t : "ads";
+  });
   const [ov, setOv] = useState<Overview | null>(null);
   const [tick, setTick] = useState(0);
   const [birthdays, setBirthdays] = useState<number | null>(null);
@@ -26,8 +32,8 @@ export default function ContentPage() {
   return (
     <div className="w-full space-y-4">
       <div>
-        <h1 className="text-2xl font-bold">Site Content</h1>
-        <p className="text-sm text-muted">Gallery photos and ads shown in the customer app, and today&apos;s customer birthdays to wish. Ads can run at set hours, in the header or footer, as a pop-up, or as Home banners under the search bar (add several and customers swipe through them).</p>
+        <h1 className="text-2xl font-bold">Pop-Ups and Site Content</h1>
+        <p className="text-sm text-muted">Pop-up ads, gallery photos, Corporate Network logos and notices sent to the customers&apos; bell, and today&apos;s customer birthdays to wish. Ads can run at set hours, in the header or footer, as a pop-up, or as Home banners under the search bar (add several and customers swipe through them).</p>
       </div>
       {ov && (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -37,11 +43,11 @@ export default function ContentPage() {
         </div>
       )}
       <div className="flex gap-1 rounded-2xl bg-surface p-1 shadow-sm" role="tablist">
-        {([["ads", "Ads"], ["gallery", "Gallery"], ["birthdays", "Birthdays"]] as const).map(([id, label]) => (
+        {([["ads", "Ads"], ["gallery", "Gallery"], ["partners", "Corporate Network"], ["birthdays", "Birthdays"], ["notifications", "Notifications"]] as const).filter(([id]) => id !== "notifications" || canSeePage("notifications")).map(([id, label]) => (
           <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={`flex-1 rounded-xl px-3 py-2.5 text-sm font-semibold ${tab === id ? "bg-brand text-white" : "text-muted hover:bg-surface-2"}`}>{label}{id === "birthdays" && birthdays ? <span className="ml-1.5 rounded-full bg-amber-500 px-1.5 py-0.5 text-[11px] font-bold text-white">{birthdays}</span> : null}</button>
         ))}
       </div>
-      {tab === "ads" ? <Ads tick={tick} onChanged={changed} /> : tab === "gallery" ? <Gallery tick={tick} onChanged={changed} /> : <BirthdaysPanel onCount={setBirthdays} />}
+      {tab === "ads" ? <Ads tick={tick} onChanged={changed} /> : tab === "gallery" ? <Gallery tick={tick} onChanged={changed} /> : tab === "partners" ? <PartnersPage /> : tab === "notifications" ? <NotificationsPage /> : <BirthdaysPanel onCount={setBirthdays} />}
     </div>
   );
 }

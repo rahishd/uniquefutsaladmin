@@ -1,5 +1,5 @@
-import PromosPage from "@/components/promos/PromosPage";
+import PromosHub from "@/components/promos/PromosHub";
 
 export default function Page() {
-  return <PromosPage />;
+  return <PromosHub />;
 }

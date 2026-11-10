@@ -1,5 +1,5 @@
-import WheelchairPage from "@/components/wheelchair/WheelchairPage";
+import WheelchairHub from "@/components/wheelchair/WheelchairHub";
 
 export default function Page() {
-  return <WheelchairPage />;
+  return <WheelchairHub />;
 }

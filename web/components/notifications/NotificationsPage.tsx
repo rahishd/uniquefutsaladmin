@@ -68,7 +68,7 @@ export default function NotificationsPage() {
   return (
     <div className="w-full space-y-4">
       <div>
-        <h1 className="flex items-center gap-2 text-2xl font-bold"><Megaphone className="text-brand" /> Notifications</h1>
+        <h2 className="flex items-center gap-2 text-lg font-bold"><Megaphone className="text-brand" /> Notifications</h2>
         <p className="text-sm text-muted">Send a notice to customers. It shows in their bell in the app, and as a push alert if they allowed it.</p>
       </div>
 

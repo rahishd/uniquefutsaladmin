@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { BadgeCheck, CalendarDays, CalendarPlus, Clock, Droplets, Gift, Hand, Lock, Plus, Tag, Trophy, UserRound, Wallet, X } from "lucide-react";
+import { BadgeCheck, BellRing, CalendarDays, CalendarPlus, Clock, Droplets, Gift, Hand, Lock, Plus, Tag, Trophy, UserRound, Wallet, X } from "lucide-react";
+import { HelpCircle } from "lucide-react";
 import BookSlotModal from "./BookSlotModal";
 import BulkBookModal from "./BulkBookModal";
 import DatePicker from "./DatePicker";
@@ -33,7 +34,7 @@ function look(b: SlotBooking) {
   return { bg: "bg-red-600 text-white", chip: "bg-white/20 text-white", btn: "text-red-600", tone: "UNPAID" };
 }
 
-function BookedCard({ h, onOpen, onReject }: { h: Hour; onOpen: () => void; onReject: () => void }) {
+function BookedCard({ h, onOpen, onReject, today }: { h: Hour; onOpen: () => void; onReject: () => void; today: boolean }) {
   const b = h.booking as SlotBooking;
   const c = look(b);
   const label = STATUS_LABEL[b.status] ?? b.status.toUpperCase();
@@ -52,6 +53,14 @@ function BookedCard({ h, onOpen, onReject }: { h: Hour; onOpen: () => void; onRe
   if (b.promoCode) tags.push({ icon: Tag, text: `PROMO ${b.promoCode}${b.discountAmount > 0 ? ` (-${rs(b.discountAmount)})` : ""}` });
   if (isStaffBooked(b)) tags.push({ icon: Hand, text: isBulk(b) ? "BOOKED BY STAFF (BULK)" : "BOOKED BY STAFF" });
   if (waived) tags.push({ icon: Droplets, text: "MINERAL WATER WAIVED" });
+  // the customer's "I'm coming" tap, for today's games that are still on (finished and rejected ones need no arrival)
+  const endHour = Number(b.endTime.slice(0, 2)) || 24;
+  if (today && live && !tournament && h.hour < endHour && nowHour() < endHour) {
+    if (b.checkedInAt) {
+      const t = new Date(b.checkedInAt).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Kathmandu" });
+      tags.unshift({ icon: BellRing, text: `COMING · CONFIRMED ${t.toUpperCase()}` });
+    } else tags.unshift({ icon: HelpCircle, text: "ARRIVAL NOT CONFIRMED" });
+  }
   return (
     <div className={`flex flex-col gap-3 rounded-2xl ${c.bg} p-3 shadow-sm sm:flex-row sm:items-center sm:gap-4 sm:p-4`}>
       <button onClick={onOpen} className="flex min-w-0 flex-1 items-center gap-3 text-left sm:gap-4" aria-label={`Details for ${b.customerName ?? "booking"}`}>
@@ -91,7 +100,7 @@ function Legend() {
   return (
     <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted" aria-label="Colour guide">
       {items.map(([bg, l]) => <span key={l} className="flex items-center gap-1.5"><span className={`h-3 w-3 rounded ${bg}`} />{l}</span>)}
-      <span>Chips on each game show Guest, Paid or Unpaid, Promo code with its amount, Free game, booked by staff and Mineral water waived.</span>
+      <span>Chips on each game show Guest, Paid or Unpaid, Promo code with its amount, Free game, booked by staff and Mineral water waived. On today&apos;s games, Coming means the customer tapped I&apos;m coming in the app; Arrival not confirmed means they have not yet.</span>
     </div>
   );
 }
@@ -186,7 +195,7 @@ export default function SlotsPage() {
               <li key={h.hour} data-hl={h.booking && Number(h.booking.startTime.slice(0, 2)) === h.hour ? `b-${h.booking.id}` : undefined} className="flex items-center gap-3 sm:gap-4">
                 <span className="w-16 shrink-0 text-xs font-extrabold sm:w-20 sm:text-sm">{hourLabel(h.hour)}</span>
                 <div className="min-w-0 flex-1">
-                  {h.state === "booked" && h.booking && <BookedCard h={h} onOpen={() => open(h)} onReject={() => reject(h)} />}
+                  {h.state === "booked" && h.booking && <BookedCard h={h} today={date === todayKey()} onOpen={() => open(h)} onReject={() => reject(h)} />}
 
                   {h.state === "blocked" && (
                     <div className="flex items-center gap-3 rounded-2xl border border-line bg-surface-2 p-3 sm:p-4">

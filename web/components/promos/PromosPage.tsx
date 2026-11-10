@@ -150,7 +150,7 @@ export default function PromosPage() {
     <div className="w-full space-y-4 lg:space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="flex items-center gap-2 text-2xl font-bold"><Tag className="text-brand" /> Promo Codes</h1>
+          <h1 className="flex items-center gap-2 text-2xl font-bold"><Tag className="text-brand" /> Promocodes &amp; VIP</h1>
           <p className="text-sm text-muted">Discount codes customers type when they book or join. The customer app shows the live ones and the server checks each code again at payment.</p>
         </div>
         <button onClick={() => guard("promos.create") && setSheet("new")} className="flex shrink-0 items-center gap-1.5 rounded-full bg-brand px-4 py-2.5 text-sm font-semibold text-white"><Plus size={16} /> New code</button>

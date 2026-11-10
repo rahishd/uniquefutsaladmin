@@ -51,7 +51,7 @@ export default function PartnersPage() {
   return (
     <div className="w-full space-y-4">
       <header>
-        <h1 className="text-2xl font-bold">Corporate Network</h1>
+        <h2 className="text-lg font-bold">Corporate Network</h2>
         <p className="text-sm text-muted">The companies and institutions you work with. Their logos move across Home in the customer app under &ldquo;Corporate Network. We Trusted&rdquo;, in the order shown here.</p>
       </header>
 

@@ -1,5 +1,5 @@
-import OverviewPage from "@/components/overview/OverviewPage";
+import OverviewHub from "@/components/overview/OverviewHub";
 
 export default function Page() {
-  return <OverviewPage />;
+  return <OverviewHub />;
 }

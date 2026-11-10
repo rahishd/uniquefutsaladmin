@@ -1,5 +1,6 @@
-import AcademyPage from "@/components/academy/AcademyPage";
+import { redirect } from "next/navigation";
 
+// The Children's Academy now lives on the Membership page (the "Children's Academy" switch). The old address still works.
 export default function Page() {
-  return <AcademyPage />;
+  redirect("/membership?tab=academy");
 }

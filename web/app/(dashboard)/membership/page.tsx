@@ -1,5 +1,5 @@
-import MembershipPage from "@/components/membership/MembershipPage";
+import MembershipHub from "@/components/membership/MembershipHub";
 
 export default function Page() {
-  return <MembershipPage />;
+  return <MembershipHub />;
 }

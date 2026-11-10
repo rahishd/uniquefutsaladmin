@@ -229,18 +229,6 @@ model Settings {
   updatedAt DateTime @updatedAt
 }
 
-model Expense {
-  id        String   @id @default(cuid())
-  itemName  String
-  category  String
-  quantity  String?
-  price     Float
-  date      String
-  notes     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
 model Tournament {
   id            String         @id @default(cuid())
   name          String

@@ -115,7 +115,7 @@ export default function WheelchairPage() {
   return (
     <div className="w-full space-y-4">
       <div>
-        <h1 className="text-2xl font-bold">Wheelchair Requests</h1>
+        <h1 className="text-2xl font-bold">Wheelchair &amp; Health Insurance</h1>
         <p className="text-sm text-muted">Customers tell us when they are coming with a wheelchair. Confirm, decline or reply, and they are told in their app.</p>
       </div>
 

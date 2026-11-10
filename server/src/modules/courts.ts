@@ -34,10 +34,17 @@ courtsRouter.put("/pricing", requirePermission("courts.price"), handler(async (r
 }));
 
 // Day view: every hour is free, booked (with who) or blocked.
+// the booking as the slots grid shows it, with the time the customer tapped "I'm coming" in the app (null until they do)
+function withArrival<T extends { id: string; checkedInAt: Date | null }>(b: T | undefined, comingAt: Map<string, Date>) {
+  return b ? { ...b, checkedInAt: comingAt.get(b.id) ?? b.checkedInAt ?? null } : null;
+}
+
 courtsRouter.get("/slots", requirePermission("slots.view"), handler(async (req, res) => {
   const date = parse(dateStr, req.query.date ?? todayKey());
   const [slots, blocks] = await Promise.all([prisma.bookingSlot.findMany({ where: { date } }), prisma.slotBlock.findMany({ where: { date } })]);
-  const bookings = await prisma.booking.findMany({ where: { id: { in: slots.map((s) => s.bookingId) } }, select: { id: true, code: true, customerName: true, customerPhone: true, userId: true, status: true, paymentStatus: true, startTime: true, endTime: true, duration: true, totalPrice: true, source: true, notes: true, promoCode: true, discountAmount: true, voucherId: true, waterBottles: true } });
+  const bookings = await prisma.booking.findMany({ where: { id: { in: slots.map((s) => s.bookingId) } }, select: { id: true, code: true, customerName: true, customerPhone: true, userId: true, status: true, paymentStatus: true, startTime: true, endTime: true, duration: true, totalPrice: true, source: true, notes: true, promoCode: true, discountAmount: true, voucherId: true, waterBottles: true, checkedInAt: true } });
+  const checkins = await prisma.arrivalCheckin.findMany({ where: { refId: { in: bookings.map((b) => b.id) } }, select: { refId: true, confirmedAt: true } });
+  const comingAt = new Map(checkins.map((c) => [c.refId, c.confirmedAt]));
   const pricing = await getHourlyPricing();
   const fallback = await getHourlyRate();
   const held = await memberHolds([date], Array.from({ length: 24 }, (_, h) => h));
@@ -45,7 +52,7 @@ courtsRouter.get("/slots", requirePermission("slots.view"), handler(async (req, 
     const slot = slots.find((s) => s.hour === hour);
     const block = blocks.find((x) => x.hour === hour);
     const price = pricing.find((p) => Number(p.id.slice(3)) === hour)?.price ?? fallback;
-    return { hour, price, state: block ? "blocked" : slot ? "booked" : "free", block: block ?? null, booking: slot && !block ? bookings.find((b) => b.id === slot.bookingId) ?? null : null, member: held.find((h) => h.hour === hour) ?? null };
+    return { hour, price, state: block ? "blocked" : slot ? "booked" : "free", block: block ?? null, booking: slot && !block ? withArrival(bookings.find((b) => b.id === slot.bookingId), comingAt) : null, member: held.find((h) => h.hour === hour) ?? null };
   });
   send(res, { date, hours });
 }));

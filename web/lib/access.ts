@@ -8,12 +8,12 @@ export const canDo = (permission: string) => !!currentAdmin()?.permissions?.incl
 
 // The permission group(s) of each page: the part before the dot, e.g. "bookings" for bookings.view, bookings.cancel and so on. A page not listed here is always shown.
 const pageGroups: Record<string, string[]> = {
-  overview: ["dashboard"], dashboard: ["dashboard"], slots: ["slots"], bookings: ["bookings"], arrivals: ["arrivals"],
+  overview: ["dashboard", "reports"], dashboard: ["dashboard"], slots: ["slots"], bookings: ["bookings"],
   sales: ["inventory"], payments: ["payments"], "ev-charging": ["payments"], "service-funds": ["servicefunds"],
   courts: ["courts"], "digital-id": ["digitalid"], customers: ["customers"], "goal-rush": ["goalrush"],
-  "gift-card": ["giftcards"], club: ["club"], vip: ["vip"], membership: ["membership"], loyalty: ["loyalty"],
-  promos: ["promos"], teams: ["teams"], disputes: ["teams"], tournaments: ["tournaments"], gamezone: ["gamezone"],
-  notifications: ["notifications"], complaints: ["complaints"], wheelchair: ["wheelchair"], insurance: ["insurance"], refer: ["refer"], academy: ["academy"], content: ["content"],
+  "gift-card": ["giftcards"], club: ["club"], vip: ["vip"], membership: ["membership", "club", "academy"], loyalty: ["loyalty"],
+  promos: ["promos", "vip"], "promo-codes": ["promos"], teams: ["teams"], disputes: ["teams"], tournaments: ["tournaments"], gamezone: ["gamezone"],
+  notifications: ["notifications"], complaints: ["complaints"], wheelchair: ["wheelchair", "insurance"], "wheelchair-requests": ["wheelchair"], insurance: ["insurance"], refer: ["refer"], academy: ["academy"], content: ["content", "notifications"],
   partners: ["content"], verify: ["verify"], "letter-head": ["letterhead"], inventory: ["inventory"], reports: ["reports"], staff: ["staff"],
   audit: ["audit"], settings: ["settings"], reminders: ["reminders"], "day-check": ["staff"], // Day Check is the owner's: only the owner holds a staff.* permission
 };

@@ -67,7 +67,7 @@ export default function OverviewPage() {
     <div className="w-full space-y-4 lg:space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Overview</h1>
+          <h1 className="text-2xl font-bold">Overview and Reports</h1>
           <p className="text-sm text-muted">{invalid ? "Choose the dates" : period}. Money is counted once, as in the Inventory report.</p>
         </div>
         {shown && (
