@@ -46,7 +46,7 @@ export default function SirenToggle() {
     try { const r = await sendTestPush(); setNote(r.devices > 0 ? "Sent. Close this tab to see how it looks." : "No device is registered yet. Turn on closed-portal alerts first."); } catch { setNote("Could not send the test."); }
   }
 
-  const btn = "grid h-9 place-items-center bg-[#1e2d5e] text-white transition hover:bg-[#2a3c74] md:h-11";
+  const btn = "grid h-9 place-items-center text-[#0c0b5d] transition hover:bg-[#0c0b5d]/5 md:h-11";
   return (
     <div ref={box} className="relative">
       <div className="flex overflow-hidden rounded-xl md:rounded-2xl">
@@ -56,12 +56,12 @@ export default function SirenToggle() {
           title={muted ? "Alert sound is off. Click to turn on" : blocked ? "Click anywhere on the page once to switch the alert sound on" : "Alert sound is on. Click to mute"}
           aria-label={muted ? "Unmute alert sound" : "Mute alert sound"}
           aria-pressed={muted}
-          className={`${btn} relative w-9 md:w-11 ${muted ? "text-white/60" : ""}`}
+          className={`${btn} relative w-9 md:w-11 ${muted ? "opacity-50" : ""}`}
         >
           <Icon size={18} className="md:h-[22px] md:w-[22px]" />
-          {!muted && blocked && <span aria-hidden className="absolute right-1 top-1 h-2.5 w-2.5 animate-pulse rounded-full bg-amber-400 ring-2 ring-[#1e2d5e]" />}
+          {!muted && blocked && <span aria-hidden className="absolute right-1 top-1 h-2.5 w-2.5 animate-pulse rounded-full bg-amber-400 ring-2 ring-white" />}
         </button>
-        <button type="button" onClick={() => setOpen((o) => !o)} aria-label="Sound and alert settings" aria-expanded={open} className={`${btn} w-5 border-l border-white/10 md:w-6`}>
+        <button type="button" onClick={() => setOpen((o) => !o)} aria-label="Sound and alert settings" aria-expanded={open} className={`${btn} w-5 border-l border-[#0c0b5d]/20 md:w-6`}>
           <ChevronDown size={14} />
         </button>
       </div>

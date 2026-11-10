@@ -215,7 +215,7 @@ export const modules: Module[] = [
     ],
   },
   {
-    slug: "teams", title: "Teams & Challenges", group: "Community", icon: "shield",
+    slug: "teams", title: "Teams & Challenges", group: "Customers", icon: "shield",
     summary: "Captain mode: teams (max 12), challenges, results and ratings.",
     clientFeatures: ["Create team, roster by phone", "Challenge with loser pays 70 / 60 / 100%", "Winning captain uploads score, other approves", "Team rating, ranking, form", "\"Did you win?\" prompt", "Disputed scores change no records until resolved"],
     adminTasks: ["Teams with captain, roster size, record and form; open a team for its players and challenges", "Challenges by status with both teams, court price, loser-pays rule, venue payment and score", "Results to review: approve (or correct) or void a disputed score", "Venue payments: who owes what, mark paid (prompts captains)"],
@@ -295,7 +295,7 @@ export const modules: Module[] = [
     ],
   },
   {
-    slug: "content", title: "Pop-Ups and Site Content", group: "Communication", icon: "image",
+    slug: "content", title: "Pop-Ups and Site Content", group: "Operations", icon: "image",
     summary: "Pop-up ads, gallery photos, Corporate Network logos and customer notices: header, footer, in-page and pop-up ads, looping and time-targeted.",
     clientFeatures: ["Gallery on Home (landscape and portrait)", "Header, footer and in-page ad banners that loop", "Pop-up ads with a delay and a frequency", "Ads that run only at set hours, dates or weekdays", "Bell notices that drive the Popular tile badges, and Web Push (needs VAPID keys)", "\"Corporate Network. We Trusted\" strip on Home, between the promo codes and the founder message, with logos that move across the screen and pause when touched"],
     adminTasks: ["Upload gallery photos, rename, reorder, hide or delete", "Add ads with a picture, link, place and seconds per ad", "Target an ad by hours (for example 6:00 to 7:00 AM for one hour), dates and weekdays", "Pause, edit or delete an ad", "See views and clicks", "Notifications tab: send promo / tournament / general notices to all customers, team captains or one customer, see how many it reaches before sending and how many opened it (promo opt-outs are skipped)", "Corporate Network tab: upload a logo with the organisation name, rename, replace the picture, hide or delete it, and choose the order", "Birthdays tab: see customers whose birthday is today, select some or all, and send a happy birthday wish with an optional promo code gift"],
@@ -324,7 +324,7 @@ export const modules: Module[] = [
     ],
   },
   {
-    slug: "letter-head", title: "Letter Head", group: "Communication", icon: "letter",
+    slug: "letter-head", title: "Letter Head", group: "Operations", icon: "letter",
     summary: "Write a letter on the Unique Futsal letter head and send it on WhatsApp as a PDF. Each letter gets a verification number.",
     clientFeatures: ["Anyone can check a letter's verification number at Verify Documents"],
     adminTasks: ["Write a custom letter (up to 150 words) with its subject, receiver and date", "Keep the registration number and website printed on the letter head", "Send the PDF on WhatsApp or download it", "Find any letter again by its reference number or verification number, and withdraw or restore it"],
@@ -346,7 +346,7 @@ export const modules: Module[] = [
     ],
   },
   {
-    slug: "staff", title: "Staff & Roles", group: "System", icon: "key",
+    slug: "staff", title: "Staff & Roles", group: "Admin", icon: "key",
     summary: "Who may use the portal and what they may do.",
     clientFeatures: [],
     adminTasks: ["Owner only: add admin accounts (everything except accounts) and staff accounts (only what you tick)", "Tick small permissions for each staff member, one per action", "Disable an account or reset a password"],
@@ -356,7 +356,7 @@ export const modules: Module[] = [
     ],
   },
   {
-    slug: "audit", title: "Audit Log", group: "System", icon: "list",
+    slug: "audit", title: "Audit Log", group: "Admin", icon: "list",
     summary: "Who changed what and when.",
     clientFeatures: [],
     adminTasks: ["Search a name, record code, phone or any word in the details", "Filter by staff, what changed, action and date (Today, Yesterday, custom)", "Open an entry to see what was saved", "Download the filtered log"],
@@ -366,7 +366,7 @@ export const modules: Module[] = [
     ],
   },
   {
-    slug: "settings", title: "Settings", group: "System", icon: "settings",
+    slug: "settings", title: "Settings", group: "Admin", icon: "settings",
     summary: "Venue settings and integrations.",
     clientFeatures: ["Footer, Help page and the Call / WhatsApp buttons show the venue details", "Venue Wi-Fi", "Advance deposit when booking"],
     adminTasks: ["Edit venue name, phone, WhatsApp, email, address, social links and map", "Venue Wi-Fi name and password", "Booking advance deposit", "See Fonepay (test or live), push and database status", "Change my password"],
@@ -377,6 +377,6 @@ export const modules: Module[] = [
   },
 ];
 
-export const groups = ["Operations", "Customers", "Community", "Gamezone", "Communication", "Business", "System"];
+export const groups = ["Operations", "Customers", "Community", "Gamezone", "Communication", "Business", "Admin"];
 
 export const findModule = (slug: string) => modules.find((m) => m.slug === slug);

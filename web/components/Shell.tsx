@@ -16,6 +16,11 @@ import { getToken } from "@/lib/api";
 import { withBase } from "@/lib/base";
 import { currentAdmin, logout, refreshAdmin, setAvatar, type Admin } from "@/lib/auth";
 
+// The icon on each section's dropdown button
+const GROUP_ICON: Record<string, React.ElementType> = {
+  Operations: LayoutGrid, Customers: icons.users, Community: icons.trophy, Gamezone: icons.gamepad, Communication: icons.megaphone, Business: icons.chart, Admin: icons.settings,
+};
+
 // Pages used all day, in this order (Overview is the landing page). Everything else sits behind the "More" button.
 const frequents: { href: string; label: string; icon: React.ElementType }[] = [
   { href: "/overview", label: "Overview and Reports", icon: BarChart3 },
@@ -40,7 +45,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const ready = signedIn === true;
   const admin: Admin | null = ready ? currentAdmin() : null;
   const [open, setOpen] = useState(false);
-  const [more, setMore] = useState(false); // both sections start closed; the sidebar shows only the two headings
+  const [openGroups, setOpenGroups] = useState<string[]>([]); // every section dropdown starts closed
   const [frequentsOpen, setFrequentsOpen] = useState(false);
   const [fresh, setFresh] = useState(false);
   const live = useLive(); // permissions re-read from the server for this page load
@@ -88,7 +93,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
   const link = (href: string, label: string, Icon: React.ElementType, n?: number) => (
-    <Link key={href} href={href} onClick={() => setOpen(false)} className={`flex items-center gap-3 rounded-xl px-3 py-2 text-sm ${isActive(href) ? "bg-brand/10 font-semibold text-brand" : "text-muted hover:bg-surface-2 hover:text-foreground"}`}>
+    <Link key={href} href={href} onClick={() => setOpen(false)} className={`flex items-center gap-3 rounded-xl px-3 py-2 text-sm ${isActive(href) ? "bg-[#0c0b5d]/10 font-semibold text-[#0c0b5d]" : "text-[#0c0b5d]/80 hover:bg-[#0c0b5d]/5 hover:text-[#0c0b5d]"}`}>
       {n !== undefined && <span aria-hidden className="w-5 shrink-0 text-right text-xs font-bold tabular-nums opacity-70">{n}.</span>}
       <Icon size={18} className="shrink-0" /> {label}
     </Link>
@@ -101,19 +106,19 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     </Link>
   );
 
-  const moreOpen = more;
+  const toggleGroup = (g: string) => setOpenGroups((o) => (o.includes(g) ? o.filter((x) => x !== g) : [...o, g]));
 
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[264px_minmax(0,1fr)]">
-        <header className="sticky top-0 z-30 flex h-auto min-h-16 min-w-0 items-center pb-2 pt-[max(calc(env(safe-area-inset-top)_-_0.625rem),0.5rem)] md:h-16 md:pb-0 md:pt-0 justify-between gap-3 bg-header pl-2 pr-4 text-white lg:col-span-2 lg:pl-3 lg:pr-8">
+        <header className="sticky top-0 z-30 flex h-auto min-h-16 min-w-0 items-center pb-2 pt-[max(calc(env(safe-area-inset-top)_-_0.625rem),0.5rem)] md:h-16 md:pb-0 md:pt-0 justify-between gap-3 bg-white/30 backdrop-blur-md pl-2 pr-4 text-[#0c0b5d] lg:col-span-2 lg:pl-3 lg:pr-8">
           {/* the logo and name reload the portal from its home page (a plain link, not a client-side one, so it is a real restart) */}
-          <a href={withBase("/")} aria-label="Unique Futsal, reload the portal" className="flex shrink-0 items-center gap-3 pr-2 text-white no-underline">
+          <a href={withBase("/")} aria-label="Unique Futsal, reload the portal" className="flex shrink-0 items-center gap-3 pr-2 text-[#0c0b5d] no-underline">
             {/* the player alone, turned white for the navy bar */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo-mark.png" alt="" aria-hidden className="h-9 w-auto brightness-0 invert" />
+            <img src="/logo-mark.png" alt="" aria-hidden className="h-9 w-auto brightness-0" />
             <span className="hidden text-sm font-bold tracking-wide sm:inline">UNIQUE FUTSAL</span>
           </a>
-          <span aria-hidden className="hidden h-8 w-px shrink-0 bg-white/30 sm:block" />
+          <span aria-hidden className="hidden h-8 w-px shrink-0 bg-[#0c0b5d]/30 sm:block" />
           {/* the frequent pages as icons, on every page, for quick switching (the name shows on hover or long press) */}
           <nav aria-label="Frequent pages" className="mx-2 flex min-w-0 flex-1 items-center justify-start gap-1.5 overflow-x-auto py-1 [mask-image:linear-gradient(to_right,transparent,#000_10px,#000_calc(100%-10px),transparent)] md:mx-3 md:justify-center md:gap-2.5 md:[mask-image:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {visible.map((f) => {
@@ -131,10 +136,10 @@ export default function Shell({ children }: { children: React.ReactNode }) {
                     const go = live.openLive(f.href);
                     if (go) { e.preventDefault(); router.push(go); }
                   }}
-                  className={`relative grid h-9 w-9 shrink-0 place-items-center rounded-xl md:h-11 md:w-11 md:rounded-2xl transition ${on ? "bg-[#f5822a] text-white shadow-lg ring-[#f5822a]" : "bg-[#1e2d5e] text-white/90 hover:bg-[#2a3c74] hover:text-white"}`}
+                  className={`relative grid h-9 w-9 shrink-0 place-items-center rounded-xl md:h-11 md:w-11 md:rounded-2xl transition ${on ? "bg-[#f5822a] text-white shadow-lg ring-[#f5822a]" : "text-[#0c0b5d] hover:bg-[#0c0b5d]/5"}`}
                 >
                   <f.icon size={18} className="md:h-[22px] md:w-[22px]" />
-                  {n > 0 && <span className="absolute -right-1.5 -top-1.5 grid min-w-[20px] place-items-center rounded-full bg-red-600 px-1 text-[11px] font-bold leading-5 text-white ring-2 ring-header">{n > 9 ? "9+" : n}</span>}
+                  {n > 0 && <span className="absolute -right-1.5 -top-1.5 grid min-w-[20px] place-items-center rounded-full bg-red-600 px-1 text-[11px] font-bold leading-5 text-white ring-2 ring-white">{n > 9 ? "9+" : n}</span>}
                 </Link>
               );
             })}
@@ -145,48 +150,41 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
       {open && <div className="fixed inset-0 z-40 bg-black/40 lg:hidden" onClick={() => setOpen(false)} />}
-      <aside className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-line bg-surface p-4 transition-transform lg:sticky lg:top-16 lg:h-[calc(100vh-4rem)] lg:row-start-2 lg:col-start-1 lg:w-auto lg:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}>
+      <aside className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-[#0c0b5d]/20 bg-transparent p-4 text-[#0c0b5d] transition-transform lg:sticky lg:top-16 lg:h-[calc(100vh-4rem)] lg:row-start-2 lg:col-start-1 lg:w-auto lg:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="mb-4 flex justify-end lg:hidden">
           <button onClick={() => setOpen(false)} aria-label="Close menu"><X size={20} /></button>
         </div>
-        <nav className="flex-1 space-y-5 overflow-y-auto">
+        <nav className="flex-1 divide-y divide-[#0c0b5d]/15 overflow-y-auto border-y border-[#0c0b5d]/15">
           {canSeePage("dashboard") && (
-            <Link href="/dashboard" onClick={() => setOpen(false)} className="flex items-center gap-3 rounded-2xl bg-[#87ceeb] px-4 py-3.5 text-base font-bold text-[#0c0b5d] shadow-sm transition hover:bg-[#6bb8d9]">
+            <Link href="/dashboard" onClick={() => setOpen(false)} className="flex items-center gap-3 px-2 py-3 text-base font-bold text-[#0c0b5d] transition hover:bg-[#0c0b5d]/5">
               <LayoutDashboard size={22} /> Dashboard
             </Link>
           )}
           <div>
-            <button onClick={() => setFrequentsOpen((v) => !v)} aria-expanded={frequentsOpen} className="mb-2 flex w-full items-center gap-3 rounded-2xl bg-[#87ceeb] px-4 py-3.5 text-base font-bold text-[#0c0b5d] shadow-sm transition hover:bg-[#6bb8d9]">
+            <button onClick={() => setFrequentsOpen((v) => !v)} aria-expanded={frequentsOpen} className="flex w-full items-center gap-3 px-2 py-3 text-base font-bold text-[#0c0b5d] transition hover:bg-[#0c0b5d]/5">
               <Star size={22} /> Frequents
               <ChevronDown size={16} className={`ml-auto transition-transform ${frequentsOpen ? "rotate-180" : ""}`} />
             </button>
-            {frequentsOpen && <div className="space-y-0.5">{visible.map((f, i) => link(f.href, f.label, f.icon, i + 1))}</div>}
+            {frequentsOpen && <div className="space-y-0.5 pb-2">{visible.map((f, i) => link(f.href, f.label, f.icon, i + 1))}</div>}
           </div>
-          <div>
-            <button onClick={() => setMore(!moreOpen)} aria-expanded={moreOpen} className="flex w-full items-center gap-3 rounded-2xl bg-[#87ceeb] px-4 py-3.5 text-base font-bold text-[#0c0b5d] shadow-sm transition hover:bg-[#6bb8d9]">
-              <LayoutGrid size={22} /> More
-              <ChevronDown size={16} className={`ml-auto transition-transform ${moreOpen ? "rotate-180" : ""}`} />
-            </button>
-            {moreOpen && (
-              <div className="mt-3 space-y-5">
-                {(() => {
-                  let n = visible.length;
-                  return groups.map((g) => {
-                  const items = modules.filter((m) => m.group === g && canSeePage(m.slug) && !frequents.some((f) => f.href === `/${m.slug}`));
-                  if (!items.length) return null;
-                  return (
-                    <div key={g}>
-                      <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wide text-muted">{g}</p>
-                      <div className="space-y-0.5">{items.map((m) => link(`/${m.slug}`, m.title, icons[m.icon], ++n))}</div>
-                    </div>
-                  );
-                  });
-                })()}
+          {/* one dropdown per section (Operations, Customers, Admin ...), styled like the Frequents one */}
+          {groups.map((g) => {
+            const items = modules.filter((m) => m.group === g && canSeePage(m.slug) && !frequents.some((f) => f.href === `/${m.slug}`));
+            if (!items.length) return null;
+            const Icon = GROUP_ICON[g] ?? LayoutGrid;
+            const isOpen = openGroups.includes(g);
+            return (
+              <div key={g}>
+                <button onClick={() => toggleGroup(g)} aria-expanded={isOpen} className="flex w-full items-center gap-3 px-2 py-3 text-base font-bold text-[#0c0b5d] transition hover:bg-[#0c0b5d]/5">
+                  <Icon size={22} /> {g}
+                  <ChevronDown size={16} className={`ml-auto transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                </button>
+                {isOpen && <div className="space-y-0.5 pb-2">{items.map((m, i) => link(`/${m.slug}`, m.title, icons[m.icon], i + 1))}</div>}
               </div>
-            )}
-          </div>
+            );
+          })}
         </nav>
-        <div className="mt-3 flex shrink-0 items-center gap-3 rounded-2xl bg-[#87ceeb] px-4 py-3 text-[#0c0b5d] shadow-sm">
+        <div className="flex shrink-0 items-center gap-3 px-2 py-3 text-[#0c0b5d]">
           <button type="button" onClick={() => picker.current?.click()} title="Change profile picture" aria-label="Change profile picture" className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-full bg-[#0c0b5d] ring-2 ring-white">
             {avatar ? (
               // eslint-disable-next-line @next/next/no-img-element

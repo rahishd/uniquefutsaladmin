@@ -104,7 +104,7 @@ export const SECTIONS: Section[] = [
     { key: "insurance.view", label: "View Insurance Claims, Photos & Emergency Contacts" },
     { key: "insurance.reply", label: "Approve, Reject & Reply" },
   ] },
-  { id: "inventory", label: "Inventory & Goods", permissions: [
+  { id: "inventory", label: "Goods, Stock & Sales", permissions: [
     { key: "inventory.view", label: "View Products, Stock & Sales" },
     { key: "inventory.products", label: "Add / Edit / Delete Products & Categories" },
     { key: "inventory.stock", label: "Restock / Adjust Stock" },
@@ -197,7 +197,10 @@ export const PRESETS: { id: string; label: string; hint: string; permissions: st
   { id: "accountant", label: "Accountant", hint: "Payments, reports and the audit log; view bookings and customers", permissions: ACCOUNTANT },
   { id: "gamezone", label: "Gamezone attendant", hint: "Gamezone sessions and rates, and who is arriving", permissions: ["dashboard.view", "slots.view", "arrivals.view", "gamezone.view", "gamezone.collect", "gamezone.manage", "gamezone.catalog"] },
   { id: "marketing", label: "Marketing & content", hint: "Ads, gallery, birthday wishes, notices with links, promo codes", permissions: ["dashboard.view", "content.view", "content.gallery", "content.partners", "content.ads", "content.birthdays", "notifications.send", "promos.view", "promos.create", "promos.edit", "customers.view"] },
-  { id: "documents", label: "Corporate & documents", hint: "Make and withdraw verification codes for schools, banks and colleges; look up bill codes", permissions: ["dashboard.view", "verify.view", "verify.manage", "customers.view", "payments.view", "bookings.view"] },
+  { id: "documents", label: "Corporate & documents", hint: "Make and withdraw verification codes for schools, banks and colleges, make letter heads, look up bill codes", permissions: ["dashboard.view", "verify.view", "verify.manage", "letterhead.make", "customers.view", "payments.view", "bookings.view"] },
+  { id: "membership", label: "Membership & Unique Club desk", hint: "Membership plans, Unique Club members, Digital ID scans and attendance, VIP codes", permissions: ["dashboard.view", "customers.view", "membership.view", "membership.create", "membership.edit", "club.view", "digitalid.scan", "digitalid.attendance", "vip.view", "vip.manage"] },
+  { id: "academy", label: "Children's Academy coach", hint: "Classes, enrolled children, attendance and terms", permissions: ["dashboard.view", "academy.view", "academy.sessions", "academy.enrollments", "academy.terms"] },
+  { id: "tournaments", label: "Tournament desk", hint: "Tie-sheets, live scores, host links, registrations and tournament bills", permissions: ["dashboard.view", "tournaments.view", "tournaments.edit", "tournaments.share", "tournaments.registrations", "tournaments.create", "tournaments.bill", "inventory.view", "payments.view"] },
   { id: "manager", label: "Manager", hint: "Everything on the list", permissions: ASSIGNABLE },
   { id: "viewer", label: "View only", hint: "Can look at every page but change nothing", permissions: VIEW_ONLY },
 ];

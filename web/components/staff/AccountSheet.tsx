@@ -60,6 +60,7 @@ export default function AccountSheet({ edit, onClose, onSaved }: { edit: Account
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [bad, setBad] = useState<{ field: "name" | "email" | "password"; text: string } | null>(null); // the same message, shown under the box it is about
   const [saved, setSaved] = useState<{ email: string; password: string } | null>(null);
 
   useEffect(() => {
@@ -82,11 +83,13 @@ export default function AccountSheet({ edit, onClose, onSaved }: { edit: Account
   async function submit(ev: React.FormEvent) {
     ev.preventDefault();
     setError("");
+    setBad(null);
     if (!guard("staff.manage")) return;
-    if (name.trim().length < 2) return setError("Enter the person's name.");
-    if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setError("Enter a valid login email. It is what they sign in with.");
-    if (!edit && password.length < 10) return setError("The password needs at least 10 characters. Press Generate to make one.");
-    if (edit && password && password.length < 10) return setError("A new password needs at least 10 characters.");
+    const fail = (field: "name" | "email" | "password", text: string) => { setBad({ field, text }); setError(text); };
+    if (name.trim().length < 2) return fail("name", "Enter the person's name.");
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) return fail("email", "Enter a valid login email. It is what they sign in with.");
+    if (!edit && password.length < 10) return fail("password", "The password needs at least 10 characters. Press Generate to make one.");
+    if (edit && password && password.length < 10) return fail("password", "A new password needs at least 10 characters.");
     const permissions = [...checked];
     setBusy(true);
     try {
@@ -144,17 +147,20 @@ export default function AccountSheet({ edit, onClose, onSaved }: { edit: Account
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="block text-sm font-medium">Name
-                  <input value={name} maxLength={60} onChange={(e) => setName(e.target.value)} className={`${field} mt-1`} />
+                  <input value={name} maxLength={60} onChange={(e) => { setName(e.target.value); if (bad?.field === "name") setBad(null); }} aria-invalid={bad?.field === "name"} className={`${field} mt-1 ${bad?.field === "name" ? "!border-red-500" : ""}`} />
+                  {bad?.field === "name" && <span role="alert" className="mt-1 block text-xs font-medium text-red-600">{bad.text}</span>}
                 </label>
                 <label className="block text-sm font-medium">Login email (they sign in with this)
-                  <input value={email} type="email" autoComplete="off" onChange={(e) => setEmail(e.target.value)} className={`${field} mt-1`} />
+                  <input value={email} type="email" autoComplete="off" onChange={(e) => { setEmail(e.target.value); if (bad?.field === "email") setBad(null); }} aria-invalid={bad?.field === "email"} className={`${field} mt-1 ${bad?.field === "email" ? "!border-red-500" : ""}`} />
+                  {bad?.field === "email" && <span role="alert" className="mt-1 block text-xs font-medium text-red-600">{bad.text}</span>}
                 </label>
               </div>
               <label className="block text-sm font-medium">{edit ? "New password (leave empty to keep theirs)" : "Password"}
                 <div className="mt-1 flex gap-2">
-                  <input value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" className={`${field} font-mono`} />
-                  <button type="button" onClick={() => setPassword(randomPassword())} className="flex shrink-0 items-center gap-1.5 rounded-xl bg-surface-2 px-3 text-sm font-semibold"><RefreshCw size={15} /> Generate</button>
+                  <input value={password} onChange={(e) => { setPassword(e.target.value); if (bad?.field === "password") setBad(null); }} aria-invalid={bad?.field === "password"} autoComplete="new-password" className={`${field} font-mono ${bad?.field === "password" ? "!border-red-500" : ""}`} />
+                  <button type="button" onClick={() => { setPassword(randomPassword()); setBad(null); }} className="flex shrink-0 items-center gap-1.5 rounded-xl bg-surface-2 px-3 text-sm font-semibold"><RefreshCw size={15} /> Generate</button>
                 </div>
+                {bad?.field === "password" && <span role="alert" className="mt-1 block text-xs font-medium text-red-600">{bad.text}</span>}
               </label>
 
               {type === "admin" ? (

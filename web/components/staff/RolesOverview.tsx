@@ -14,6 +14,23 @@ const RECENT: Row[] = [
   { feature: "Bill code on invoices", what: "Get a bill's verification code (counter, payments, Gamezone, verify team)", needs: ["verify.view", "inventory.sell", "payments.view", "payments.collect", "gamezone.collect"], any: true },
   { feature: "Notices with a link", what: "Send a notice that opens a page or website when tapped", needs: ["notifications.send"] },
   { feature: "Service funds: withdraw", what: "Take money out of the Charity Fund, turf fund or other service", needs: ["servicefunds.withdraw"] },
+  { feature: "Letter Head", what: "Make a letter on the letter head, send it as a PDF, set the Regd no. and website", needs: ["letterhead.make"] },
+  { feature: "Digital ID scan", what: "Scan or search a customer's Digital ID and see their details", needs: ["digitalid.scan"] },
+  { feature: "Membership attendance", what: "Mark a member's attendance after a Digital ID scan", needs: ["digitalid.attendance"] },
+  { feature: "Membership plans", what: "Add or edit membership plans and prices", needs: ["membership.create", "membership.edit"], any: true },
+  { feature: "VIP codes", what: "Give, change or remove a customer's VIP code and send it as a PDF", needs: ["vip.manage"] },
+  { feature: "Children's Academy: classes", what: "Add, edit or cancel classes and choose when guardians see them", needs: ["academy.sessions"] },
+  { feature: "Children's Academy: children", what: "Mark attendance or cancel an enrolment", needs: ["academy.enrollments"] },
+  { feature: "Children's Academy: terms", what: "Edit the Terms & Conditions guardians accept", needs: ["academy.terms"] },
+  { feature: "Refer & Earn", what: "Approve or reject referrals and adjust their points", needs: ["refer.review", "refer.adjust"], any: true },
+  { feature: "Tournament host link", what: "Create or revoke the match-day link for a host", needs: ["tournaments.share"] },
+  { feature: "Team registrations", what: "Approve or reject team registrations for a tournament", needs: ["tournaments.registrations"] },
+  { feature: "Tournament bill", what: "Add goods and charges, receive payments, send the bill as a PDF", needs: ["tournaments.bill"] },
+  { feature: "Sell goods and send the invoice", what: "Counter sales, and the invoice sent on WhatsApp as a PDF", needs: ["inventory.sell"] },
+  { feature: "Collect a payment", what: "Mark a booking or due as paid, cash or Fonepay", needs: ["payments.collect"] },
+  { feature: "Court prices and blocked hours", what: "Edit prices, block or unblock hours", needs: ["courts.price", "courts.block"], any: true },
+  { feature: "Gift cards", what: "Cancel a gift and refund the buyer", needs: ["giftcards.refund"] },
+  { feature: "Reports and PDFs", what: "View reports and send or download them as a PDF", needs: ["reports.view"] },
   { feature: "Staff accounts", what: "Add, edit, disable staff and choose what they may do", needs: ["staff.manage"] },
 ];
 
@@ -29,7 +46,7 @@ export default function RolesOverview({ catalog }: { catalog: Catalog }) {
     <section aria-label="Roles and what they can do" className="space-y-3">
       <div>
         <h2 className="text-lg font-bold">Roles and what they can do</h2>
-        <p className="text-sm text-muted">The quick starts when you add staff, and who can do the newest actions. You can still tick or untick anything for a person.</p>
+        <p className="text-sm text-muted">The quick starts when you add staff, and who can do each action. You can still tick or untick anything for a person.</p>
       </div>
 
       <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
