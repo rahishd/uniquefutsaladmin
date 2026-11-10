@@ -46,3 +46,13 @@ export const voidVoucher = (id: string) => api<null>(`/admin/loyalty/vouchers/${
 
 export const fmtDay = (k: string) => new Date(`${k}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 export const pts = (n: number) => `${n > 0 ? "+" : ""}${Math.round(n * 10) / 10}`;
+
+// Customized: when and how customers can claim free games (saved in Settings, enforced by the customer server)
+export type ClaimShift = "Morning" | "Day" | "Evening";
+export type ClaimRules = {
+  enabled: boolean; perDay: number; perWeek: number; from: string; to: string;
+  shifts: ClaimShift[]; days: number[]; // days: 0 = Sunday ... 6 = Saturday
+  overrides: Record<string, boolean>; // date -> on / off, wins over the weekday list
+};
+export const getClaimRules = () => api<ClaimRules>("/admin/loyalty/claim-rules");
+export const saveClaimRules = (b: ClaimRules) => api<ClaimRules>("/admin/loyalty/claim-rules", { method: "PUT", body: JSON.stringify(b) });

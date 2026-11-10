@@ -7,6 +7,7 @@ import { awardGoodsPoints, awardPoints, notify, pointsHref } from "../lib/custom
 import { addDaysKey, todayKey } from "../lib/dates";
 import { AppError, dateStr, handler, page, param, parse, send } from "../lib/http";
 import { requirePermission } from "../middleware/auth";
+import { getSetting, setSetting } from "./settings-store";
 
 export const loyaltyRouter = Router();
 const phone = z.string().regex(/^9\d{9}$/, "registered mobile number like 98XXXXXXXX");
@@ -196,4 +197,42 @@ loyaltyRouter.post("/vouchers/:id/void", requirePermission("loyalty.void"), hand
   await prisma.freeGameVoucher.update({ where: { id }, data: { status: "void" } });
   await audit(req, "void", "voucher", id, { userId: v.userId, period: v.period });
   send(res, null, "Voucher voided");
+}));
+
+// ---- Customized: when and how customers can claim free games ----
+// Saved in Settings under "loyaltyClaimRules" (JSON); the customer server enforces it on every claim (see its modules/loyalty/claimRules.ts).
+const CLAIM_KEY = "loyaltyClaimRules";
+const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "time like 09:30");
+const claimRules = z.object({
+  enabled: z.boolean(),
+  perDay: z.number().int().min(0, "0 or more").max(50, "50 at most"),
+  perWeek: z.number().int().min(0, "0 or more").max(200, "200 at most"),
+  from: hhmm, to: hhmm,
+  shifts: z.array(z.enum(["Morning", "Day", "Evening"])),
+  days: z.array(z.number().int().min(0).max(6)),
+  overrides: z.record(dateStr, z.boolean()),
+});
+type ClaimRules = z.infer<typeof claimRules>;
+const DEFAULT_CLAIM: ClaimRules = { enabled: true, perDay: 2, perWeek: 5, from: "00:00", to: "23:59", shifts: ["Morning", "Day", "Evening"], days: [0, 1, 2, 3, 4, 5, 6], overrides: {} };
+
+async function getClaimRules(): Promise<ClaimRules> {
+  const v = await getSetting(CLAIM_KEY);
+  if (!v) return DEFAULT_CLAIM;
+  try {
+    const p = claimRules.safeParse({ ...DEFAULT_CLAIM, ...(JSON.parse(v) as object) });
+    return p.success ? p.data : DEFAULT_CLAIM;
+  } catch { return DEFAULT_CLAIM; }
+}
+
+loyaltyRouter.get("/claim-rules", requirePermission("loyalty.view"), handler(async (_req, res) => send(res, await getClaimRules())));
+
+loyaltyRouter.put("/claim-rules", requirePermission("loyalty.adjust"), handler(async (req, res) => {
+  const b = parse(claimRules, req.body);
+  const today = todayKey();
+  // days already gone are dropped, so the list stays short
+  const overrides = Object.fromEntries(Object.entries(b.overrides).filter(([k]) => k >= today));
+  const saved: ClaimRules = { ...b, days: [...new Set(b.days)].sort(), overrides };
+  await setSetting(CLAIM_KEY, JSON.stringify(saved));
+  await audit(req, "update", "loyalty_claim_rules", null, saved);
+  send(res, saved, "Saved. Customers see the new claim rules right away.");
 }));

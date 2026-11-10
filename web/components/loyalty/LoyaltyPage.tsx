@@ -10,7 +10,8 @@ import {
 } from "@/lib/loyalty";
 
 import { askConfirm } from "@/lib/confirm";
-type Tab = "customers" | "activity" | "offers" | "vouchers" | "rules";
+import CustomizedTab from "./CustomizedTab";
+type Tab = "customers" | "activity" | "offers" | "vouchers" | "custom" | "rules";
 const input = "rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
 const msg = (e: unknown) => (e instanceof ApiError || e instanceof Error ? e.message : "Something went wrong");
 const nepalToday = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kathmandu" }).format(new Date());
@@ -186,10 +187,10 @@ function TopUpSheet({ onClose, onDone }: { onClose: () => void; onDone: () => vo
 }
 
 // ---------- tabs ----------
-function CustomersTab({ onChanged, tick }: { onChanged: () => void; tick: number }) {
+function CustomersTab({ onChanged, tick, initialSort = "balance" }: { onChanged: () => void; tick: number; initialSort?: "balance" | "expiring" | "name" }) {
   const [search, setSearch] = useState("");
   const [q, setQ] = useState("");
-  const [sort, setSort] = useState<"balance" | "expiring" | "name">("balance");
+  const [sort, setSort] = useState<"balance" | "expiring" | "name">(initialSort);
   const [pageNo, setPageNo] = useState(1);
   const [open, setOpen] = useState<Holder | null>(null);
   useEffect(() => { const t = setTimeout(() => { setQ(search.trim()); setPageNo(1); }, 300); return () => clearTimeout(t); }, [search]);
@@ -219,12 +220,12 @@ function CustomersTab({ onChanged, tick }: { onChanged: () => void; tick: number
   );
 }
 
-function ActivityTab({ tick }: { tick: number }) {
-  const [kind, setKind] = useState<"" | Kind>("");
+function ActivityTab({ tick, initialKind = "", initialFrom = "", initialTo = "" }: { tick: number; initialKind?: "" | Kind; initialFrom?: string; initialTo?: string }) {
+  const [kind, setKind] = useState<"" | Kind>(initialKind);
   const [search, setSearch] = useState("");
   const [q, setQ] = useState("");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+  const [from, setFrom] = useState(initialFrom);
+  const [to, setTo] = useState(initialTo);
   const [pageNo, setPageNo] = useState(1);
   useEffect(() => { const t = setTimeout(() => { setQ(search.trim()); setPageNo(1); }, 300); return () => clearTimeout(t); }, [search]);
   const bad = !!from && !!to && from > to;
@@ -331,7 +332,7 @@ function RulesTab() {
     ["Membership", "3 months = 30 points, 6 months = 70 points, one month = 0. Added once when the payment is verified, and again for each renewal."],
     ["Winning a challenge game", "5 points to the winning captain, once, when the result is approved."],
     ["Refer & Earn", "5 points each (the person who booked and the other team's captain) when staff approve a referral, and only when the other team has a registered account. If it is not approved, nobody gets points. The amounts can be changed on the Refer & Earn page."],
-    ["Free game", "Costs the shift price ÷ 10 in points (a Rs. 1,250 morning game = 125 points, about 10 games' worth). There is no 10-games rule: the customer can claim as soon as they hold that many points. They claim it in the app and use the voucher when booking."],
+    ["Free game", "Costs the shift price ÷ 10 in points (a Rs. 1,250 morning game = 125 points, about 10 games' worth). There is no 10-games rule: the customer can claim as soon as they hold that many points, within the limits, days, hours and shifts set on the Customized tab (2 a day and 5 a week unless changed). They claim it in the app and use the voucher when booking."],
     ["How long points last", "Game and challenge points: 3 months from the game. Goods: 1 year. Referral: 12 months. Membership: never. Spending uses the points that expire soonest first."],
     ["Adjustments", "Staff can add or take away up to 200 points with a reason. The customer is told. Adjusting is limited to people with that permission."],
   ];
@@ -351,12 +352,19 @@ export default function LoyaltyPage() {
   const [range, setRange] = useState<Range>("today");
   const [tick, setTick] = useState(0);
   const [topUp, setTopUp] = useState(false);
+  const [jump, setJump] = useState<{ n: number; sort?: "balance" | "expiring"; kind?: Kind; useRange?: boolean }>({ n: 0 });
   const today = nepalToday();
   const [from, to] = range === "today" ? [today, today] : range === "7" ? [shift(today, -6), today] : range === "30" ? [shift(today, -29), today] : [`${today.slice(0, 8)}01`, today];
   const { data: ov, error } = useLoad<LoyaltyOverview>(() => getOverview(from, to), [from, to, tick]);
   const changed = () => setTick((t) => t + 1);
-  const tabs: { id: Tab; label: string }[] = [{ id: "customers", label: "Customers" }, { id: "activity", label: "Activity" }, { id: "offers", label: "Offers" }, { id: "vouchers", label: "Free-game vouchers" }, { id: "rules", label: "How it works" }];
+  const tabs: { id: Tab; label: string }[] = [{ id: "customers", label: "Customers" }, { id: "activity", label: "Activity" }, { id: "offers", label: "Offers" }, { id: "vouchers", label: "Free-game vouchers" }, { id: "custom", label: "Customized" }, { id: "rules", label: "How it works" }];
   const given = ov?.period.byKind.filter((k) => k.points > 0) ?? [];
+  // a card opens the list behind its number
+  const open = (t: Tab, extra: { sort?: "balance" | "expiring"; kind?: Kind; useRange?: boolean } = {}) => {
+    setTab(t);
+    setJump((j) => ({ n: j.n + 1, ...extra }));
+    setTimeout(() => document.getElementById("loyalty-tabs")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  };
 
   return (
     <div className="w-full space-y-4 lg:space-y-5">
@@ -375,23 +383,24 @@ export default function LoyaltyPage() {
       {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600" role="alert">{error}</p>}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         {([
-          ["Points owed now", ov ? num(ov.now.owedPoints) : "—", ov ? `${ov.now.customersWithPoints} customers` : "", ""],
-          ["Given in the period", ov ? num(ov.period.earned) : "—", given.map((k) => `${kindOf(k.kind).label} ${num(k.points)}`).join(" · "), ""],
-          ["Spent in the period", ov ? num(ov.period.spent) : "—", ov ? `${ov.period.claims} free game${ov.period.claims === 1 ? "" : "s"} claimed` : "", ""],
-          ["Expiring in 30 days", ov ? num(ov.now.expiringSoon.points) : "—", ov ? `${ov.now.expiringSoon.customers} customers` : "", ov && ov.now.expiringSoon.points > 0 ? "ring-2 ring-amber-500/40" : ""],
-          ["Unused vouchers", ov ? String(ov.now.vouchers.unused) : "—", ov ? `${ov.now.vouchers.used} used · ${ov.now.vouchers.void} voided` : "", ""],
-        ] as const).map(([l, v, h, ring]) => (
-          <div key={l} className={`rounded-2xl bg-surface p-3 shadow-sm ${ring}`}><p className="text-xs text-muted">{l}</p><p className="text-xl font-bold">{v}</p>{h && <p className="truncate text-[11px] text-muted" title={h}>{h}</p>}</div>
+          ["Points owed now", ov ? num(ov.now.owedPoints) : "—", ov ? `${ov.now.customersWithPoints} customers` : "", "", () => open("customers", { sort: "balance" })],
+          ["Given in the period", ov ? num(ov.period.earned) : "—", given.map((k) => `${kindOf(k.kind).label} ${num(k.points)}`).join(" · "), "", () => open("activity", { useRange: true })],
+          ["Spent in the period", ov ? num(ov.period.spent) : "—", ov ? `${ov.period.claims} free game${ov.period.claims === 1 ? "" : "s"} claimed` : "", "", () => open("activity", { kind: "free_game", useRange: true })],
+          ["Expiring in 30 days", ov ? num(ov.now.expiringSoon.points) : "—", ov ? `${ov.now.expiringSoon.customers} customers` : "", ov && ov.now.expiringSoon.points > 0 ? "ring-2 ring-amber-500/40" : "", () => open("customers", { sort: "expiring" })],
+          ["Unused vouchers", ov ? String(ov.now.vouchers.unused) : "—", ov ? `${ov.now.vouchers.used} used · ${ov.now.vouchers.void} voided` : "", "", () => open("vouchers")],
+        ] as const).map(([l, v, h, ring, go]) => (
+          <button key={l} type="button" onClick={go} aria-label={`${l}: ${v}. Open the list`} className={`rounded-2xl bg-surface p-3 text-left shadow-sm transition hover:ring-2 hover:ring-brand/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand ${ring}`}><p className="text-xs text-muted">{l}</p><p className="text-xl font-bold">{v}</p>{h && <p className="truncate text-[11px] text-muted" title={h}>{h}</p>}</button>
         ))}
       </div>
 
-      <div className="flex gap-1 overflow-x-auto rounded-2xl bg-surface p-1 shadow-sm" role="tablist">
+      <div id="loyalty-tabs" className="flex scroll-mt-4 gap-1 overflow-x-auto rounded-2xl bg-surface p-1 shadow-sm" role="tablist">
         {tabs.map((x) => <button key={x.id} role="tab" aria-selected={tab === x.id} onClick={() => setTab(x.id)} className={`flex-1 whitespace-nowrap rounded-xl px-3 py-2.5 text-sm font-semibold ${tab === x.id ? "bg-brand text-white" : "text-muted hover:bg-surface-2"}`}>{x.label}</button>)}
       </div>
-      {tab === "customers" && <CustomersTab tick={tick} onChanged={changed} />}
-      {tab === "activity" && <ActivityTab tick={tick} />}
+      {tab === "customers" && <CustomersTab key={jump.n} initialSort={jump.sort} tick={tick} onChanged={changed} />}
+      {tab === "activity" && <ActivityTab key={jump.n} initialKind={jump.kind} initialFrom={jump.useRange ? from : ""} initialTo={jump.useRange ? to : ""} tick={tick} />}
       {tab === "offers" && <OffersTab tick={tick} onChanged={changed} />}
-      {tab === "vouchers" && <VouchersTab tick={tick} onChanged={changed} />}
+      {tab === "vouchers" && <VouchersTab key={jump.n} tick={tick} onChanged={changed} />}
+      {tab === "custom" && <CustomizedTab />}
       {tab === "rules" && <RulesTab />}
     </div>
   );
