@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { guard } from "@/lib/access";
 import { Badge } from "../bookings/Badge";
 import RegisterTournament from "./RegisterTournament";
+import ExportContactsButton from "./ExportContactsButton";
 import { prettyDate, rs } from "@/lib/bookings";
 import { TournamentItem, listTournaments } from "@/lib/tournaments";
 
@@ -34,7 +35,10 @@ export default function TournamentsPage() {
         <h1 className="flex items-center gap-2 text-2xl font-bold"><Trophy className="text-amber-500" /> Tournaments</h1>
         <p className="text-sm text-muted">Open a tournament to edit its tie-sheet, score goals live and share a private link with the match-day host. Customers see every change in the app.</p>
        </div>
-       <button onClick={() => guard("tournaments.create") && setRegistering(true)} className="flex shrink-0 items-center gap-1.5 rounded-full bg-brand px-4 py-2.5 text-sm font-semibold text-white"><Plus size={16} /> Register tournament</button>
+       <div className="flex flex-wrap items-center gap-2">
+        <ExportContactsButton label="Export contacts" title="Export every tournament's captains and hosts, and all customers, to Excel" />
+        <button onClick={() => guard("tournaments.create") && setRegistering(true)} className="flex shrink-0 items-center gap-1.5 rounded-full bg-brand px-4 py-2.5 text-sm font-semibold text-white"><Plus size={16} /> Register tournament</button>
+       </div>
       </div>
 
       {error && <p role="alert" className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600">{error}</p>}

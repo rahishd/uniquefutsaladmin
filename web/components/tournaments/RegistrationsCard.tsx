@@ -6,6 +6,7 @@ import { pdfFileName } from "@/lib/branded-pdf";
 import { linkPdf } from "@/lib/report-pdfs";
 import { Check, Copy, MessageCircle, ExternalLink, Phone, UserPlus, X } from "lucide-react";
 import { Badge } from "../bookings/Badge";
+import ExportContactsButton from "./ExportContactsButton";
 import { guard } from "@/lib/access";
 import { ApiError } from "@/lib/api";
 import { copyText } from "@/lib/vip";
@@ -59,6 +60,7 @@ export default function RegistrationsCard({ tournamentId, name, finished, entryF
           <p className="text-sm text-muted">Send this link to teams. They fill in the team name, captain and mobile number, with no sign-in needed. The whole team is registered, so no player list is asked for. {finished ? "This tournament has finished, so the link now says registration is closed." : "Each team arrives here as Waiting for you to confirm."}</p>
         </div>
         {data && <Badge tone="bg-surface-2 text-foreground">{taken}{data.maxTeams > 0 ? ` / ${data.maxTeams}` : ""} teams</Badge>}
+        <ExportContactsButton tournamentId={tournamentId} iconOnly title="Export this event's captains (name and phone) to Excel" />
       </div>
 
       <div className="space-y-2 rounded-xl border border-line p-3">

@@ -1,4 +1,5 @@
 import { randomBytes } from "crypto";
+import ExcelJS from "exceljs";
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db";
@@ -41,6 +42,59 @@ tournamentsRouter.get("/", requirePermission("tournaments.view"), handler(async 
     id: t.id, name: t.name, startDate: t.startDate, endDate: t.endDate, state: stateOf(t), prizePool: t.prizePool, minTeams: t.minTeams, maxTeams: t.maxTeams,
     registrations: t._count.registrations, entryFee: t.entryFee, isActive: t.isActive, hostedEvent: t.hostedEvent, hostName: t.hostName, ...(sheet.get(t.id) ?? { matches: 0, live: 0, finished: 0 }),
   })));
+}));
+
+// Contacts as an Excel file: every registered captain (team, name, phone, status) and the host, each row with the event name, dates and
+// playing hours. ?id= limits it to one tournament; with none it is every tournament. Staff who may also export customers get a second
+// sheet with all customers (name and phone). Personal data: needs the registrations permission, and every export is in the audit log.
+const hour12 = (h: number) => String(h % 24 % 12 || 12) + ":00 " + (h % 24 < 12 ? "AM" : "PM");
+tournamentsRouter.get("/contacts-export", requirePermission("tournaments.registrations"), handler(async (req, res) => {
+  const only = typeof req.query.id === "string" && req.query.id ? req.query.id : null;
+  const list = await prisma.tournament.findMany({
+    where: only ? { id: only } : {}, include: { days: { orderBy: { date: "asc" } }, registrations: { orderBy: { createdAt: "asc" } } }, orderBy: { startDate: "desc" },
+  });
+  if (only && list.length === 0) throw new AppError(404, "Tournament not found");
+  const STATUS: Record<string, string> = { approved: "Registered", pending: "New", rejected: "Declined" };
+
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "Unique Futsal";
+  const ws = wb.addWorksheet("Tournament contacts", { views: [{ state: "frozen", ySplit: 1 }] });
+  ws.columns = [
+    { header: "Event", key: "event", width: 30 }, { header: "Event dates", key: "dates", width: 26 }, { header: "Time", key: "time", width: 22 },
+    { header: "Role", key: "role", width: 10 }, { header: "Team", key: "team", width: 26 }, { header: "Name", key: "name", width: 26 },
+    { header: "Phone", key: "phone", width: 16 }, { header: "Status", key: "status", width: 12 },
+  ];
+  ws.getRow(1).font = { bold: true };
+  let rows = 0;
+  for (const t of list) {
+    const dates = t.startDate === t.endDate ? t.startDate : t.startDate + " to " + t.endDate;
+    const spans = [...new Set(t.days.map((d) => hour12(d.startHour) + " to " + hour12(d.endHour)))].join(", ");
+    const base = { event: t.name, dates, time: spans };
+    if (t.hostedEvent && t.hostPhone) { ws.addRow({ ...base, role: "Host", team: "", name: t.hostName ?? "", phone: t.hostPhone, status: "" }); rows++; }
+    for (const r of t.registrations) { ws.addRow({ ...base, role: "Captain", team: r.teamName, name: r.captainName, phone: r.contactPhone, status: STATUS[r.status] ?? r.status }); rows++; }
+  }
+  ws.getColumn("phone").numFmt = "@"; // text, so Excel never turns a number into 9.8E+09
+  ws.autoFilter = { from: "A1", to: "H1" };
+
+  let customers = 0;
+  if (!only && req.staff!.permissions.includes("customers.export")) {
+    const cs = wb.addWorksheet("All customers", { views: [{ state: "frozen", ySplit: 1 }] });
+    cs.columns = [{ header: "Name", key: "name", width: 30 }, { header: "Phone", key: "phone", width: 16 }];
+    cs.getRow(1).font = { bold: true };
+    const users = await prisma.user.findMany({ where: { role: "user" }, select: { name: true, phoneNumber: true }, orderBy: [{ name: "asc" }, { createdAt: "asc" }], take: 50_000 });
+    for (const u of users) cs.addRow({ name: u.name ?? "", phone: u.phoneNumber });
+    cs.getColumn("phone").numFmt = "@";
+    cs.autoFilter = { from: "A1", to: "B1" };
+    customers = users.length;
+  }
+  await audit(req, "export", "tournament_contacts", only, { tournaments: list.length, rows, customers });
+  const slug = only && list[0] ? list[0].name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) : "all-tournaments";
+  res.set({
+    "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "Content-Disposition": 'attachment; filename="unique-futsal-contacts-' + slug + "-" + todayKey() + '.xlsx"',
+    "Cache-Control": "no-store",
+  });
+  res.send(Buffer.from(await wb.xlsx.writeBuffer()));
 }));
 
 tournamentsRouter.get("/:id", requirePermission("tournaments.view"), handler(async (req, res) => {

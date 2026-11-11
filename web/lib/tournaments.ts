@@ -1,4 +1,5 @@
-import { API_BASE, api, ApiError } from "./api";
+import { showDenied } from "./access";
+import { API_BASE, api, ApiError, getToken } from "./api";
 import { BASE_PATH, withBase } from "./base";
 
 export type Side = "home" | "away";
@@ -91,3 +92,21 @@ export const registrationUrl = (id: string) => {
   const origin = env ? env : typeof window === "undefined" ? "" : BASE_PATH ? window.location.origin : "http://localhost:3000";
   return `${origin.replace(/\/+$/, "")}/tournaments/${encodeURIComponent(id)}/register`;
 };
+
+// Downloads the contacts of the registered captains (and the host) with the event name, dates and hours as an Excel file.
+// With a tournament id: that event only. Without: every tournament, plus all customers when you may export them.
+export async function downloadContactsExcel(tournamentId?: string) {
+  const token = getToken();
+  const res = await fetch(API_BASE + "/admin/tournaments/contacts-export" + (tournamentId ? "?id=" + encodeURIComponent(tournamentId) : ""), { headers: token ? { Authorization: "Bearer " + token } : {} });
+  if (res.status === 403) showDenied();
+  if (!res.ok) throw new ApiError(res.status, (await res.json().catch(() => null))?.message ?? "Could not export (" + res.status + ")");
+  const name = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ?? "unique-futsal-contacts.xlsx";
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}

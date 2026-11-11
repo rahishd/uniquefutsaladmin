@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { CheckCircle2, Lock, LockOpen, Minus, Phone, Plus, Search, Trash2, User, X } from "lucide-react";
 import { Badge } from "../bookings/Badge";
 import Switch from "../Switch";
+import ExportContactsButton from "./ExportContactsButton";
 import PaySplit, { INITIAL_PAY, PayState, paymentsFor } from "../PaySplit";
 import { ApiError } from "@/lib/api";
 import { guard } from "@/lib/access";
@@ -228,6 +229,7 @@ export default function BillingPanel({ id, canBill, onChanged, lead, actions }: 
         <div className="-mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2"><p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-base">
           <span className="flex items-center gap-1.5"><User size={16} className="text-brand" aria-hidden /><span className="text-muted">Host</span> <strong className="text-lg">{b.hostName}</strong></span>
           {b.hostPhone && <a href={`tel:${b.hostPhone}`} className="flex items-center gap-1.5 font-semibold text-brand"><Phone size={16} aria-hidden /> <span className="text-lg tabular-nums">{b.hostPhone}</span></a>}
+          {b.hostPhone && <ExportContactsButton tournamentId={b.id} iconOnly title="Export the host and the registered captains (name and phone) to Excel" />}
         </p>
         <Badge tone={closed ? "bg-slate-500/15 text-slate-600" : "bg-green-500/15 text-green-700"}>{closed ? "Final bill made" : "Bill open"}</Badge></div>
         <div className="space-y-1 rounded-xl border border-line p-3" aria-label="Additional services">
