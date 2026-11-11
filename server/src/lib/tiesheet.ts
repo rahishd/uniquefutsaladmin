@@ -47,7 +47,7 @@ const goalsFirst = Prisma.validator<Prisma.TournamentMatchDefaultArgs>()({ inclu
 
 type MatchRow = Prisma.TournamentMatchGetPayload<typeof goalsFirst>;
 const shape = (m: MatchRow) => ({
-  id: m.id, home: m.home, away: m.away, status: m.status, homeScore: m.homeScore, awayScore: m.awayScore, note: m.note, startsAt: m.startsAt, venue: m.venue,
+  id: m.id, home: m.home, away: m.away, status: m.status, homeScore: m.homeScore, awayScore: m.awayScore, note: m.note, startsAt: m.startsAt, venue: m.venue, liveUrl: m.liveUrl,
   goals: m.goals.map((g) => ({ id: g.id, side: g.side, minute: g.minute, scorer: g.scorer })),
 });
 

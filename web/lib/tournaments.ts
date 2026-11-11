@@ -6,7 +6,7 @@ export type MatchStatus = "upcoming" | "live" | "finished";
 export type Goal = { id: string; side: Side; minute: number | null; scorer: string | null };
 export type Match = {
   id: string; home: string | null; away: string | null; status: MatchStatus; homeScore: number | null; awayScore: number | null;
-  note: string | null; startsAt: string | null; venue: string | null; goals: Goal[];
+  note: string | null; startsAt: string | null; venue: string | null; liveUrl?: string | null; goals: Goal[];
 };
 export type Round = { id: string; name: string; matches: Match[] };
 

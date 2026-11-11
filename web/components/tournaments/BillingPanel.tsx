@@ -2,8 +2,9 @@
 
 import { CHARITY_PERCENT, charityText } from "@/lib/charity";
 import { useCallback, useEffect, useState } from "react";
-import { CheckCircle2, Lock, LockOpen, Minus, Plus, Search, Trash2, X } from "lucide-react";
+import { CheckCircle2, Lock, LockOpen, Minus, Phone, Plus, Search, Trash2, User, X } from "lucide-react";
 import { Badge } from "../bookings/Badge";
+import Switch from "../Switch";
 import PaySplit, { INITIAL_PAY, PayState, paymentsFor } from "../PaySplit";
 import { ApiError } from "@/lib/api";
 import { guard } from "@/lib/access";
@@ -12,7 +13,7 @@ import SendPdfButton from "../SendPdfButton";
 import { pdfFileName } from "@/lib/branded-pdf";
 import { tournamentBillPdf } from "@/lib/report-pdfs";
 import { issuePdfCode } from "@/lib/verify";
-import { Bill, addItems, addLine, fmtDay, getBill, makeFinalBill, range, receivePayment, removeLine, reopenBill, setRate } from "@/lib/hosted-tournaments";
+import { Bill, Preview, addItems, addWater, SERVICES, addHours, addLine, fmtDay, h12, getBill, makeFinalBill, previewHours, range, receivePayment, removeLine, reopenBill, setRate, setServices } from "@/lib/hosted-tournaments";
 import { Product, listProducts } from "@/lib/inventory";
 
 import { askConfirm } from "@/lib/confirm";
@@ -74,6 +75,59 @@ function ItemsSheet({ id, onClose, onDone }: { id: string; onClose: () => void; 
   );
 }
 
+// ---------- add court time: a new day, or more hours on a day already held ----------
+function HoursSheet({ b, onClose, onDone }: { b: Bill; onClose: () => void; onDone: (b: Bill) => void }) {
+  const last = b.days[b.days.length - 1];
+  const [date, setDate] = useState(last?.date ?? "");
+  const day = b.days.find((d) => d.date === date);
+  // on a day already held the suggested time carries on after it; on a new day it starts at the usual 9 AM
+  const [from, setFrom] = useState(String(last ? last.endHour : 9));
+  const [to, setTo] = useState(String(last ? Math.min(24, last.endHour + 1) : 12));
+  const [look, setLook] = useState<Preview | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const f = Number(from), t = Number(to);
+  const valid = !!date && t > f;
+  useEffect(() => {
+    if (!valid) return;
+    let live = true;
+    const h = setTimeout(() => { previewHours(b.id, { date, startHour: f, endHour: t }).then((p) => { if (live) { setLook(p); setError(""); } }).catch((e) => { if (live) { setLook(null); setError(msg(e)); } }); }, 250);
+    return () => { live = false; clearTimeout(h); };
+  }, [b.id, date, f, t, valid]);
+  async function save() {
+    if (!guard("tournaments.bill")) return;
+    setBusy(true); setError("");
+    try { onDone(await addHours(b.id, { date, startHour: f, endHour: t })); onClose(); } catch (e) { setError(msg(e)); setBusy(false); }
+  }
+  const hourOptions = (from0: number, to0: number) => Array.from({ length: to0 - from0 + 1 }, (_, i) => from0 + i).map((h) => <option key={h} value={h}>{h12(h)}</option>);
+  const shown = valid ? look : null;
+  return (
+    <Sheet title="Add court time" sub={`${b.name} · Rs. ${b.rate} an hour`} onClose={onClose}>
+      <label className="block text-sm font-medium">Day
+        <input type="date" className={`${input} mt-1 w-full`} value={date} min={new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kathmandu" })} onChange={(e) => { setDate(e.target.value); setLook(null); }} />
+      </label>
+      {day && <p className="rounded-xl bg-sky-500/10 px-3 py-2 text-xs font-medium text-sky-700">This day already holds {h12(day.startHour)} to {h12(day.endHour)}. The new time must start or end there.</p>}
+      <div className="grid grid-cols-2 gap-3">
+        <label className="block text-sm font-medium">From
+          <select className={`${input} mt-1 w-full`} value={from} onChange={(e) => { setFrom(e.target.value); if (Number(e.target.value) >= t) setTo(String(Math.min(24, Number(e.target.value) + 1))); setLook(null); }}>{hourOptions(0, 23)}</select>
+        </label>
+        <label className="block text-sm font-medium">To
+          <select className={`${input} mt-1 w-full`} value={to} onChange={(e) => { setTo(e.target.value); setLook(null); }}>{hourOptions(f + 1, 24)}</select>
+        </label>
+      </div>
+      {shown && shown.clashes.length === 0 && <p className="flex justify-between rounded-xl bg-green-500/10 px-3 py-2 text-sm font-semibold text-green-700"><span>{shown.hours} more hour{shown.hours === 1 ? "" : "s"}, free to hold</span><span>+ {rs(shown.court)}</span></p>}
+      {shown && shown.clashes.length > 0 && (
+        <ul className="space-y-1 rounded-xl bg-red-500/10 p-3 text-xs text-red-700">
+          <li className="text-sm font-semibold">{shown.clashes.length} hour{shown.clashes.length === 1 ? " is" : "s are"} not free:</li>
+          {shown.clashes.slice(0, 6).map((c) => <li key={`${c.date}-${c.hour}`}>{fmtDay(c.date)}, {h12(c.hour)}: {c.reason}</li>)}
+        </ul>
+      )}
+      {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600" role="alert">{error}</p>}
+      <button onClick={save} disabled={busy || !valid || !shown || shown.clashes.length > 0} className="w-full rounded-xl bg-brand py-3 font-semibold text-white disabled:opacity-50">{busy ? "Adding…" : shown && shown.clashes.length === 0 ? `Add ${shown.hours} hour${shown.hours === 1 ? "" : "s"} (${rs(shown.court)})` : "Add court time"}</button>
+    </Sheet>
+  );
+}
+
 // ---------- extra charge or discount ----------
 function LineSheet({ id, kind, onClose, onDone }: { id: string; kind: "extra" | "discount"; onClose: () => void; onDone: (b: Bill) => void }) {
   const [label, setLabel] = useState("");
@@ -124,11 +178,33 @@ function PaySheet({ b, onClose, onDone }: { b: Bill; onClose: () => void; onDone
   );
 }
 
+// ---------- one additional service: a switch and what it costs (mineral water: the price of one bottle) ----------
+function ServiceRow({ v, on, amount, disabled, onToggle, onAmount }: { v: (typeof SERVICES)[number]; on: boolean; amount: number; disabled: boolean; onToggle: () => void; onAmount: (n: number) => void }) {
+  const [text, setText] = useState(amount ? String(amount) : "");
+  const changed = Number(text || 0) !== amount;
+  return (
+    <li className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 py-2">
+      <span className="text-sm font-medium">{v.label}</span>
+      <span className="flex items-center gap-2">
+        {on && (
+          <label className="flex items-center gap-1.5 text-xs text-muted">{v.per === "bottle" ? "Rs. per bottle" : "Rs."}
+            <input inputMode="numeric" aria-label={`${v.label} amount`} value={text} disabled={disabled} placeholder="0" onChange={(e) => setText(e.target.value.replace(/D/g, "").slice(0, 7))} onKeyDown={(e) => { if (e.key === "Enter" && changed) onAmount(Number(text || 0)); }} className={`${input} !w-24 !px-2 !py-1.5 text-right`} />
+          </label>
+        )}
+        {on && changed && <button type="button" onClick={() => onAmount(Number(text || 0))} disabled={disabled} className="rounded-full bg-brand px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50">Save</button>}
+        <span className={`w-7 text-right text-xs font-bold ${on ? "text-emerald-600" : "text-muted"}`}>{on ? "On" : "Off"}</span>
+        <Switch on={on} onChange={onToggle} label={v.label} disabled={disabled} />
+      </span>
+    </li>
+  );
+}
+
 // ---------- the panel ----------
-export default function BillingPanel({ id, canBill, onChanged }: { id: string; canBill: boolean; onChanged?: () => void }) {
+// `lead` (the tournament's name and dates) and `actions` (buttons next to the heading) are shown in one card with the Billing heading.
+export default function BillingPanel({ id, canBill, onChanged, lead, actions }: { id: string; canBill: boolean; onChanged?: () => void; lead?: React.ReactNode; actions?: React.ReactNode }) {
   const [b, setB] = useState<Bill | null>(null);
   const [error, setError] = useState("");
-  const [sheet, setSheet] = useState<"items" | "extra" | "discount" | "pay" | null>(null);
+  const [sheet, setSheet] = useState<"items" | "extra" | "discount" | "pay" | "hours" | null>(null);
   const [rate, setRateText] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -146,9 +222,29 @@ export default function BillingPanel({ id, canBill, onChanged }: { id: string; c
 
   return (
     <section aria-label="Billing" className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div><h2 className="text-lg font-bold">Billing and payments</h2><p className="text-sm text-muted">Host: <strong className="text-foreground">{b.hostName}</strong>{b.hostPhone ? ` · ${b.hostPhone}` : ""}</p></div>
-        <Badge tone={closed ? "bg-slate-500/15 text-slate-600" : "bg-green-500/15 text-green-700"}>{closed ? "Final bill made" : "Bill open"}</Badge>
+      <div className="space-y-4 rounded-2xl bg-surface p-4 shadow-sm">
+        {lead}
+        {/* who to call: the host's name and number, big enough to read at a glance, right under the tournament's name */}
+        <div className="-mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2"><p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-base">
+          <span className="flex items-center gap-1.5"><User size={16} className="text-brand" aria-hidden /><span className="text-muted">Host</span> <strong className="text-lg">{b.hostName}</strong></span>
+          {b.hostPhone && <a href={`tel:${b.hostPhone}`} className="flex items-center gap-1.5 font-semibold text-brand"><Phone size={16} aria-hidden /> <span className="text-lg tabular-nums">{b.hostPhone}</span></a>}
+        </p>
+        <Badge tone={closed ? "bg-slate-500/15 text-slate-600" : "bg-green-500/15 text-green-700"}>{closed ? "Final bill made" : "Bill open"}</Badge></div>
+        <div className="space-y-1 rounded-xl border border-line p-3" aria-label="Additional services">
+          <p className="text-sm font-bold">Additional services</p>
+          <ul className="divide-y divide-line">
+            {SERVICES.map((v) => {
+              const on = b.services.includes(v.id);
+              return (
+                <ServiceRow key={`${v.id}:${b.serviceAmounts?.[v.id] ?? 0}`} v={v} on={on} amount={b.serviceAmounts?.[v.id] ?? 0} disabled={!edit || busy}
+                  onToggle={() => guard("tournaments.bill") && run(() => setServices(id, on ? b.services.filter((x) => x !== v.id) : [...b.services, v.id]))}
+                  onAmount={(n) => guard("tournaments.bill") && run(() => setServices(id, b.services, { [v.id]: n }))} />
+              );
+            })}
+          </ul>
+        </div>
+        {lead && <div className="border-t border-line" />}
+        {actions && <div className="flex flex-col gap-2 sm:flex-row">{actions}</div>}
       </div>
 
       <div className="grid grid-cols-3 gap-3">
@@ -160,7 +256,7 @@ export default function BillingPanel({ id, canBill, onChanged }: { id: string; c
 
       <div className="space-y-4 rounded-2xl bg-surface p-4 shadow-sm">
         <div>
-          <h3 className="mb-1 text-sm font-bold">Court hours</h3>
+          <div className="mb-1 flex items-center justify-between gap-2"><h3 className="text-sm font-bold">Court hours</h3>{edit && <button onClick={() => guard("tournaments.bill") && setSheet("hours")} className="flex items-center gap-1 rounded-full bg-brand px-3 py-1.5 text-xs font-semibold text-white"><Plus size={13} /> Add time</button>}</div>
           <ul className="divide-y divide-line text-sm">
             {b.days.map((d) => <li key={d.id} className="flex justify-between gap-3 py-2"><span>{fmtDay(d.date)}, {range(d)} <span className="text-xs text-muted">· {d.hours} h</span></span><strong>{rs(d.amount)}</strong></li>)}
           </ul>
@@ -182,6 +278,26 @@ export default function BillingPanel({ id, canBill, onChanged }: { id: string; c
             <ul className="divide-y divide-line text-sm">{goods.map((l) => <li key={l.id} className="flex items-center justify-between gap-3 py-2"><span>{l.quantity} x {l.label} <span className="text-xs text-muted">@ {rs(l.unitPrice)}</span></span><span className="flex items-center gap-2"><strong>{rs(l.amount)}</strong>{edit && <button onClick={() => run(() => removeLine(id, l.id))} aria-label={`Remove ${l.label}`} className="text-red-600"><Trash2 size={15} /></button>}</span></li>)}</ul>
           )}
         </div>
+
+        {b.serviceLines?.length > 0 && (
+          <div>
+            <h3 className="mb-1 text-sm font-bold">Additional services</h3>
+            <ul className="divide-y divide-line text-sm">
+              {b.serviceLines.map((l) => l.id === "mineral_water" ? (
+                <li key={l.id} className="flex items-center justify-between gap-3 py-2">
+                  <span className="min-w-0"><span className="block font-medium">Mineral water</span><span className="block text-xs text-muted">{l.quantity} bottle{l.quantity === 1 ? "" : "s"} x {rs(l.unitPrice)}{l.unitPrice === 0 && " · set the price per bottle above"}</span></span>
+                  <span className="flex shrink-0 items-center gap-2">
+                    {edit && <button type="button" onClick={() => guard("tournaments.bill") && l.quantity > 0 && run(() => addWater(id, -1))} disabled={busy || l.quantity === 0} aria-label="Take one bottle back" className="grid h-8 w-8 place-items-center rounded-full border border-line disabled:opacity-40"><Minus size={14} /></button>}
+                    {edit && <button type="button" onClick={() => guard("tournaments.bill") && run(() => addWater(id, 1))} disabled={busy} className="flex items-center gap-1 rounded-full bg-brand px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"><Plus size={13} /> 1 bottle</button>}
+                    <strong className="w-20 text-right">{rs(l.amount)}</strong>
+                  </span>
+                </li>
+              ) : (
+                <li key={l.id} className="flex items-center justify-between gap-3 py-2"><span>{l.label}{l.unitPrice === 0 && <span className="block text-xs text-muted">Set the amount above</span>}</span><strong>{rs(l.amount)}</strong></li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <div>
           <div className="mb-1 flex items-center justify-between"><h3 className="text-sm font-bold">Extra charges and discounts</h3>{edit && <span className="flex gap-1.5"><button onClick={() => setSheet("extra")} className="rounded-full border border-line px-3 py-1.5 text-xs font-semibold">+ Charge</button><button onClick={() => setSheet("discount")} className="rounded-full border border-line px-3 py-1.5 text-xs font-semibold">- Discount</button></span>}</div>
@@ -209,6 +325,7 @@ export default function BillingPanel({ id, canBill, onChanged }: { id: string; c
         <SendPdfButton label="Send to the host on WhatsApp (PDF)" build={async () => tournamentBillPdf(b, await issuePdfCode(`Tournament bill: ${b.name}`))} filename={pdfFileName("tournament-bill", b.name)} phone={b.hostPhone} message={`Unique Futsal tournament bill for ${b.name}: total ${rs(b.total)}. The bill is in the attached PDF.`} className="flex items-center gap-1.5 rounded-full bg-[#25D366] px-4 py-2.5 text-sm font-semibold text-white" />
       </div>
 
+      {sheet === "hours" && b && <HoursSheet b={b} onClose={() => setSheet(null)} onDone={apply} />}
       {sheet === "items" && <ItemsSheet id={id} onClose={() => setSheet(null)} onDone={apply} />}
       {(sheet === "extra" || sheet === "discount") && <LineSheet id={id} kind={sheet} onClose={() => setSheet(null)} onDone={apply} />}
       {sheet === "pay" && <PaySheet b={b} onClose={() => setSheet(null)} onDone={apply} />}

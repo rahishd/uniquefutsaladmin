@@ -14,7 +14,8 @@ const WHY: Record<PushState, string> = {
 };
 
 // Header controls: the speaker mutes or unmutes the alert sound instantly; the arrow opens volume and closed-portal alerts.
-export default function SirenToggle() {
+// `up`: used in the sidebar, where the settings panel opens upwards from the button instead of down from the top bar
+export default function SirenToggle({ up = false }: { up?: boolean }) {
   const muted = useSyncExternalStore(subscribeSirenMute, isSirenMuted, () => false);
   const volume = useSyncExternalStore(subscribeSirenMute, getSirenVolume, () => 1);
   const blocked = useSyncExternalStore(subscribeSirenMute, isSirenBlocked, () => false);
@@ -46,10 +47,10 @@ export default function SirenToggle() {
     try { const r = await sendTestPush(); setNote(r.devices > 0 ? "Sent. Close this tab to see how it looks." : "No device is registered yet. Turn on closed-portal alerts first."); } catch { setNote("Could not send the test."); }
   }
 
-  const btn = "grid h-9 place-items-center text-[#0c0b5d] transition hover:bg-[#0c0b5d]/5 md:h-11";
+  const btn = "grid h-9 place-items-center text-(--nav-ink) transition hover:bg-(--nav-ink)/5 md:h-11";
   return (
     <div ref={box} className="relative">
-      <div className="flex overflow-hidden rounded-xl md:rounded-2xl">
+      <div className="flex overflow-hidden rounded-xl bg-(--nav-tile) shadow-sm ring-1 ring-(--nav-ink)/15 md:rounded-2xl">
         <button
           type="button"
           onClick={() => { setSirenMuted(!muted); if (muted) startSiren(600); }} // unmuting plays a short beep so you know it works
@@ -59,15 +60,15 @@ export default function SirenToggle() {
           className={`${btn} relative w-9 md:w-11 ${muted ? "opacity-50" : ""}`}
         >
           <Icon size={18} className="md:h-[22px] md:w-[22px]" />
-          {!muted && blocked && <span aria-hidden className="absolute right-1 top-1 h-2.5 w-2.5 animate-pulse rounded-full bg-amber-400 ring-2 ring-white" />}
+          {!muted && blocked && <span aria-hidden className="absolute right-1 top-1 h-2.5 w-2.5 animate-pulse rounded-full bg-amber-400 ring-2 ring-(--nav-tile)" />}
         </button>
-        <button type="button" onClick={() => setOpen((o) => !o)} aria-label="Sound and alert settings" aria-expanded={open} className={`${btn} w-5 border-l border-[#0c0b5d]/20 md:w-6`}>
+        <button type="button" onClick={() => setOpen((o) => !o)} aria-label="Sound and alert settings" aria-expanded={open} className={`${btn} w-5 border-l border-(--nav-ink)/20 md:w-6`}>
           <ChevronDown size={14} />
         </button>
       </div>
 
       {open && (
-        <div role="dialog" aria-label="Sound and alert settings" className="absolute right-0 top-12 z-50 w-[min(20rem,calc(100vw-2rem))] space-y-4 rounded-2xl border border-line bg-surface p-4 text-foreground shadow-xl md:top-14">
+        <div role="dialog" aria-label="Sound and alert settings" className={`absolute z-50 w-[min(20rem,calc(100vw-2rem))] space-y-4 rounded-2xl border border-line bg-surface p-4 text-foreground shadow-xl ${up ? "bottom-12 left-0" : "right-0 top-12 md:top-14"}`}>
           <div>
             <div className="mb-2 flex items-center justify-between text-sm font-semibold">
               <span>Alert volume</span>

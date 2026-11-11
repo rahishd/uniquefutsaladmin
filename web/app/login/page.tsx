@@ -28,8 +28,8 @@ export default function LoginPage() {
     setBusy(true);
     setError("");
     try {
-      await login(email.trim(), password);
-      router.replace("/");
+      const who = await login(email.trim(), password);
+      router.replace(who.role === "organizer" ? "/organizer" : "/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not sign in");
     } finally {

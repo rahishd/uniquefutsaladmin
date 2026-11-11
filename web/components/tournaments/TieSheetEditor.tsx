@@ -38,7 +38,8 @@ const STATUS: Record<MatchStatus, { label: string; tone: string }> = {
   finished: { label: "Full time", tone: "bg-brand/15 text-brand" },
 };
 
-export default function TieSheetEditor({ initial, api, canEdit = true, pollMs = 10_000 }: { initial: Round[]; api: EditorApi; canEdit?: boolean; pollMs?: number }) {
+// showVenue: the Organizer app hides the court/venue box (one court, no need to repeat it on every match)
+export default function TieSheetEditor({ initial, api, canEdit = true, pollMs = 10_000, showVenue = true }: { initial: Round[]; api: EditorApi; canEdit?: boolean; pollMs?: number; showVenue?: boolean }) {
   const [server, setServer] = useState<Round[]>(initial);
   const [draft, setDraft] = useState<DraftRound[]>(() => fromServer(initial));
   const [busy, setBusy] = useState("");
@@ -130,13 +131,15 @@ export default function TieSheetEditor({ initial, api, canEdit = true, pollMs = 
           <input aria-label="Away team" placeholder="Away team" maxLength={40} value={m.away} disabled={!canEdit} onChange={(e) => setMatch(r.key, m.key, { away: e.target.value })} className={`${field} text-center font-semibold`} />
         </div>
 
-        <div className="grid gap-2 sm:grid-cols-3">
+        <div className={`grid gap-2 ${showVenue ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
           <label className="text-xs text-muted">Kick-off (Nepal time)
             <input type="datetime-local" value={m.startsAt} disabled={!canEdit} onChange={(e) => setMatch(r.key, m.key, { startsAt: e.target.value })} className={`${field} mt-1`} />
           </label>
-          <label className="text-xs text-muted">Venue
+          {showVenue && (
+            <label className="text-xs text-muted">Venue
             <input value={m.venue} maxLength={60} placeholder="Court 1" disabled={!canEdit} onChange={(e) => setMatch(r.key, m.key, { venue: e.target.value })} className={`${field} mt-1`} />
           </label>
+          )}
           <label className="text-xs text-muted">Note (shown to customers)
             <input value={m.note} maxLength={60} placeholder="e.g. Won on penalties" disabled={!canEdit} onChange={(e) => setMatch(r.key, m.key, { note: e.target.value })} className={`${field} mt-1`} />
           </label>

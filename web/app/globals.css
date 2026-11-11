@@ -9,10 +9,14 @@
   --muted: #6b7280;
   --brand: #0b1f4d;
   --header: #0b1f4d;
+  --nav-ink: #0c0b5d;
+  --nav-wash: rgba(255, 255, 255, 0.3);
+  --nav-tile: rgba(255, 255, 255, 0.6);
+  --nav-tile-hover: #ffffff;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --background: #0b0f14;
     --foreground: #e8ecf1;
     --surface: #131922;
@@ -21,8 +25,30 @@
     --muted: #94a3b8;
     --brand: #3b6fe0;
     --header: #0b1f4d;
+    --nav-ink: #e8ecf1;
+    --nav-wash: rgba(11, 15, 20, 0.55);
+    --nav-tile: rgba(255, 255, 255, 0.08);
+    --nav-tile-hover: rgba(255, 255, 255, 0.16);
+    color-scheme: dark;
+    img[data-nav-logo] { filter: brightness(0) invert(1); }
   }
 }
+:root[data-theme="dark"] {
+    --background: #0b0f14;
+    --foreground: #e8ecf1;
+    --surface: #131922;
+    --surface-2: #1b2330;
+    --line: #263041;
+    --muted: #94a3b8;
+    --brand: #3b6fe0;
+    --header: #0b1f4d;
+    --nav-ink: #e8ecf1;
+    --nav-wash: rgba(11, 15, 20, 0.55);
+    --nav-tile: rgba(255, 255, 255, 0.08);
+    --nav-tile-hover: rgba(255, 255, 255, 0.16);
+    color-scheme: dark;
+    img[data-nav-logo] { filter: brightness(0) invert(1); }
+  }
 
 @theme inline {
   --color-background: var(--background);
@@ -80,6 +106,19 @@ body {
 }
 
 @media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+  :is(button, a)[class~="border-line"] {
+    background-color: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.14);
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.35),
+      inset 0 1px 0 rgba(255, 255, 255, 0.25),
+      inset 1px 0 0 rgba(255, 255, 255, 0.1),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.04);
+  }
+}
+}
+:root[data-theme="dark"] {
   :is(button, a)[class~="border-line"] {
     background-color: rgba(255, 255, 255, 0.06);
     border-color: rgba(255, 255, 255, 0.14);
@@ -138,6 +177,22 @@ body {
 
 
 @media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+  .glass-card {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.12);
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.35),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.04),
+      inset 0 0 26px 13px rgba(255, 255, 255, 0.03);
+  }
+  .glass-card.glass-card-brand {
+    background: rgba(59, 111, 224, 0.2);
+  }
+}
+}
+:root[data-theme="dark"] {
   .glass-card {
     background: rgba(255, 255, 255, 0.06);
     border-color: rgba(255, 255, 255, 0.12);
@@ -183,6 +238,27 @@ body {
 }
 
 @media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+  :is(div, section, article, li, ul, form, dl, details, table)[class~="bg-surface"]:is([class~="shadow-sm"], [class~="rounded-2xl"], [class~="rounded-3xl"]):not([role="dialog"]):not([class~="fixed"]) {
+    background-color: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.12);
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.35),
+      inset 0 1px 0 rgba(255, 255, 255, 0.18),
+      inset 1px 0 0 rgba(255, 255, 255, 0.1),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.04);
+  }
+  :is(aside, nav)[class~="bg-surface"] {
+    background-color: rgba(19, 25, 34, 0.7);
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+  [class~="bg-surface-2"]:is(div, li, section, p):not([class*="hover:"]) {
+    background-color: rgba(255, 255, 255, 0.07);
+    box-shadow: none;
+  }
+}
+}
+:root[data-theme="dark"] {
   :is(div, section, article, li, ul, form, dl, details, table)[class~="bg-surface"]:is([class~="shadow-sm"], [class~="rounded-2xl"], [class~="rounded-3xl"]):not([role="dialog"]):not([class~="fixed"]) {
     background-color: rgba(255, 255, 255, 0.06);
     border-color: rgba(255, 255, 255, 0.12);
@@ -248,3 +324,11 @@ body {
     font-size: 16px;
   }
 }
+
+/* the lock screen's wrong-code shake (components/LockScreen.tsx) */
+@keyframes uf-shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-8px); }
+  40%, 80% { transform: translateX(8px); }
+}
+@media (prefers-reduced-motion: reduce) { [class*="uf-shake"] { animation: none !important; } }

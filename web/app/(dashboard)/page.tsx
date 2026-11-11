@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-// The landing page is Overview (the old tile dashboard lives at /dashboard, under More).
+// The landing page is the Dashboard (Overview and Reports is one click away in the top bar).
 export default function Page() {
-  redirect("/overview");
+  redirect("/dashboard");
 }

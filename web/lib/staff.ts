@@ -11,7 +11,8 @@ export type Account = {
   email: string;
   name: string;
   role: string; // owner | admin | staff | an older role
-  accountType: "admin" | "staff";
+  accountType: "admin" | "staff" | "organizer";
+  tournamentIds?: string[]; // organizers: the hosted tournaments they may open
   legacyRole: boolean;
   permissions: string[];
   effective: string[];
@@ -22,9 +23,9 @@ export type Account = {
 
 export const listStaff = () => api<Account[]>("/admin/staff");
 export const getCatalog = () => api<Catalog>("/admin/staff/catalog");
-export const createStaff = (b: { email: string; name: string; accountType: "admin" | "staff"; password: string; permissions: string[] }) =>
+export const createStaff = (b: { email: string; name: string; accountType: "admin" | "staff" | "organizer"; password: string; permissions: string[]; tournamentIds?: string[] }) =>
   api<Account>("/admin/staff", { method: "POST", body: JSON.stringify(b) });
-export const updateStaff = async (id: string, b: { name?: string; email?: string; accountType?: "admin" | "staff"; permissions?: string[]; isActive?: boolean; password?: string }) => {
+export const updateStaff = async (id: string, b: { name?: string; email?: string; accountType?: "admin" | "staff" | "organizer"; permissions?: string[]; tournamentIds?: string[]; isActive?: boolean; password?: string }) => {
   const r = await api<Account & { token?: string }>(`/admin/staff/${id}`, { method: "PATCH", body: JSON.stringify(b) });
   // editing your own login signs your other devices out; the server gives this one a new token
   if (r.token && currentAdmin()?.id === id) setToken(r.token);
@@ -41,4 +42,4 @@ export function randomPassword(): string {
   return Array.from(bytes, (n) => chars[n % chars.length]).join("");
 }
 
-export const ROLE_LABEL = (a: Account) => (a.role === "owner" ? "Owner" : a.accountType === "admin" ? "Admin" : "Staff");
+export const ROLE_LABEL = (a: Account) => (a.role === "owner" ? "Owner" : a.accountType === "admin" ? "Admin" : a.accountType === "organizer" ? "Tournament organizer" : "Staff");

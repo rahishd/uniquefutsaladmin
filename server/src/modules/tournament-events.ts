@@ -19,6 +19,17 @@ import { requirePermission } from "../middleware/auth";
 
 export const tournamentEventsRouter = Router();
 
+// The extra services a hosted event can include (switched on or off)
+export const SERVICE_IDS = ["health_insurance", "sky_roof_parafit", "mineral_water"] as const;
+const servicesSchema = z.array(z.enum(SERVICE_IDS)).max(SERVICE_IDS.length);
+const SERVICE_LABEL: Record<(typeof SERVICE_IDS)[number], string> = { health_insurance: "Health insurance", sky_roof_parafit: "Sky Roof Parafit", mineral_water: "Mineral water" };
+// What each service costs in whole rupees: health insurance and Sky Roof Parafit a fixed amount, mineral water the price of ONE bottle.
+const amountsSchema = z.record(z.string(), z.number().int("Whole rupees only").min(0, "The amount cannot be negative").max(1_000_000, "That amount is too large")).default({});
+const cleanAmounts = (raw: unknown, keep: readonly string[] = SERVICE_IDS): Record<string, number> => {
+  const out: Record<string, number> = {};
+  if (raw && typeof raw === "object") for (const [k, v] of Object.entries(raw as Record<string, unknown>)) if (keep.includes(k) && Number.isFinite(Number(v))) out[k] = Math.max(0, Math.round(Number(v)));
+  return out;
+};
 const phone = z.string().trim().regex(/^\+?\d[\d\s-]{6,16}$/, "Enter a phone number, digits only");
 const dayBody = z.object({ date: dateStr, startHour: z.number().int().min(0).max(23), endHour: z.number().int().min(1).max(24) })
   .refine((d) => d.endHour > d.startHour, { message: "The end time must be after the start time", path: ["endHour"] });
@@ -28,6 +39,8 @@ const createBody = z.object({
   hostPhone: phone,
   minRate: z.number().int("Whole rupees only").min(100, "At least Rs. 100 an hour").max(100_000),
   days: z.array(dayBody).min(1, "Choose at least one day").max(21, "At most 21 days"),
+  services: servicesSchema.default([]),
+  serviceAmounts: amountsSchema,
   dryRun: z.boolean().default(false),
 });
 
@@ -56,7 +69,7 @@ async function clashes(days: { date: string; startHour: number; endHour: number 
 const lineView = (l: { id: string; kind: string; label: string; quantity: number; unitPrice: number; amount: number; createdAt: Date }) => ({ id: l.id, kind: l.kind, label: l.label, quantity: l.quantity, unitPrice: l.unitPrice, amount: l.amount, createdAt: l.createdAt });
 
 // The whole bill of one hosted tournament
-async function bill(id: string) {
+export async function bill(id: string) {
   const t = await prisma.tournament.findUnique({ where: { id }, include: { days: { orderBy: { date: "asc" } }, billLines: { orderBy: { createdAt: "asc" } }, payments: { orderBy: { createdAt: "asc" } } } });
   if (!t || !t.hostedEvent) throw new AppError(404, "Hosted tournament not found");
   const rate = t.minRate ?? 0;
@@ -68,12 +81,21 @@ async function bill(id: string) {
   const goods = t.billLines.filter((l) => l.kind === "goods").reduce((n, l) => n + l.amount, 0);
   const extras = t.billLines.filter((l) => l.kind === "extra").reduce((n, l) => n + l.amount, 0);
   const discount = -t.billLines.filter((l) => l.kind === "discount").reduce((n, l) => n + l.amount, 0);
-  const total = court + goods + extras - discount - clubDiscount;
+  // the extra services that are switched on: a fixed amount each, and mineral water at the price of one bottle times the bottles taken
+  const amounts = cleanAmounts(t.serviceAmounts);
+  const serviceLines = SERVICE_IDS.filter((sid) => t.services.includes(sid)).map((sid) => {
+    const quantity = sid === "mineral_water" ? t.waterBottles : 1;
+    const unitPrice = amounts[sid] ?? 0;
+    return { id: sid, label: SERVICE_LABEL[sid], quantity, unitPrice, amount: quantity * unitPrice };
+  });
+  const servicesTotal = serviceLines.reduce((n, l) => n + l.amount, 0);
+  const total = court + goods + extras - discount - clubDiscount + servicesTotal;
   const cash = t.payments.reduce((n, p) => n + p.cash, 0);
   const fonepay = t.payments.reduce((n, p) => n + p.fonepay, 0);
   return {
-    id: t.id, name: t.name, status: t.status, hostName: t.hostName, hostPhone: t.hostPhone, rate, closedAt: t.billClosedAt,
+    id: t.id, name: t.name, status: t.status, services: t.services, hostName: t.hostName, hostPhone: t.hostPhone, rate, closedAt: t.billClosedAt,
     days: t.days.map((d) => ({ id: d.id, date: d.date, startHour: d.startHour, endHour: d.endHour, hours: hoursOf(d), amount: hoursOf(d) * rate })),
+    serviceAmounts: amounts, waterBottles: t.waterBottles, serviceLines, servicesTotal,
     hours, court, goods, extras, discount, club, clubDiscount, total, paid: cash + fonepay, paidCash: cash, paidFonepay: fonepay, due: total - cash - fonepay,
     lines: t.billLines.map(lineView),
     payments: t.payments.map((p) => ({ id: p.id, cash: p.cash, fonepay: p.fonepay, amount: p.cash + p.fonepay, note: p.note, createdAt: p.createdAt })),
@@ -125,7 +147,7 @@ tournamentEventsRouter.post("/", requirePermission("tournaments.create"), handle
   try {
     created = await prisma.$transaction(async (tx) => {
       const t = await tx.tournament.create({
-        data: { name: b.name, prizePool: 0, minTeams: 2, maxTeams: 16, startDate: days[0].date, endDate: days[days.length - 1].date, status: "active", isActive: true, totalAmount: hours * b.minRate, hostedEvent: true, hostName: b.hostName, hostPhone: b.hostPhone.replace(/\s|-/g, ""), minRate: b.minRate, createdBy: req.staff!.id },
+        data: { name: b.name, prizePool: 0, minTeams: 2, maxTeams: 16, startDate: days[0].date, endDate: days[days.length - 1].date, status: "active", isActive: true, totalAmount: hours * b.minRate, hostedEvent: true, services: [...new Set(b.services)], serviceAmounts: cleanAmounts(b.serviceAmounts, b.services), hostName: b.hostName, hostPhone: b.hostPhone.replace(/\s|-/g, ""), minRate: b.minRate, createdBy: req.staff!.id },
       });
       for (const d of days) {
         const ids: string[] = [];
@@ -148,6 +170,30 @@ tournamentEventsRouter.post("/", requirePermission("tournaments.create"), handle
 
 tournamentEventsRouter.get("/:id/billing", requirePermission("tournaments.view"), handler(async (req, res) => send(res, await bill(param(req, "id")))));
 
+// ---------- the extra services (health insurance, Sky Roof Parafit, mineral water): on or off, and what each costs ----------
+tournamentEventsRouter.patch("/:id/services", requirePermission("tournaments.bill"), handler(async (req, res) => {
+  const id = param(req, "id");
+  const body = parse(z.object({ services: servicesSchema, amounts: amountsSchema.optional() }), req.body);
+  const t = await editable(id);
+  const next = [...new Set(body.services)];
+  const amounts = { ...cleanAmounts(t.serviceAmounts), ...cleanAmounts(body.amounts ?? {}) };
+  await prisma.tournament.update({ where: { id }, data: { services: next, serviceAmounts: amounts } });
+  await audit(req, "services", "tournament", id, { from: t.services, to: next, amounts });
+  send(res, await refresh(id), "Services saved");
+}));
+
+// ---------- mineral water: one more bottle taken (+1), or one taken back (-1) ----------
+tournamentEventsRouter.post("/:id/water", requirePermission("tournaments.bill"), handler(async (req, res) => {
+  const id = param(req, "id");
+  const { delta } = parse(z.object({ delta: z.number().int().min(-50).max(50).refine((n) => n !== 0, "Choose how many bottles") }), req.body);
+  const t = await editable(id);
+  if (!t.services.includes("mineral_water")) throw new AppError(409, "Switch on Mineral water first.");
+  if (delta > 0) await prisma.tournament.update({ where: { id }, data: { waterBottles: { increment: delta } } });
+  else if ((await prisma.tournament.updateMany({ where: { id, waterBottles: { gte: -delta } }, data: { waterBottles: { decrement: -delta } } })).count === 0) throw new AppError(409, "There are not that many bottles to take back.");
+  await audit(req, "water", "tournament", id, { delta });
+  send(res, await refresh(id), delta > 0 ? "Bottle added" : "Bottle taken back");
+}));
+
 // ---------- the agreed hourly rate ----------
 tournamentEventsRouter.patch("/:id/rate", requirePermission("tournaments.bill"), handler(async (req, res) => {
   const id = param(req, "id");
@@ -156,6 +202,57 @@ tournamentEventsRouter.patch("/:id/rate", requirePermission("tournaments.bill"),
   await prisma.tournament.update({ where: { id }, data: { minRate } });
   await audit(req, "rate", "tournament", id, { from: t.minRate, to: minRate });
   send(res, await refresh(id), "Rate saved");
+}));
+
+// ---------- more court time: a new day, or more hours on a day that is already held ----------
+// The new hours are held the same way as at registration (a staff block each), so nobody can book them. On a day that is already held the new
+// time must touch the hours that are already there, so the day stays one time range. dryRun only checks and prices it.
+const hoursBody = z.object({ date: dateStr, startHour: z.number().int().min(0).max(23), endHour: z.number().int().min(1).max(24), dryRun: z.boolean().default(false) })
+  .refine((d) => d.endHour > d.startHour, { message: "The end time must be after the start time", path: ["endHour"] });
+tournamentEventsRouter.post("/:id/hours", requirePermission("tournaments.bill"), handler(async (req, res) => {
+  const id = param(req, "id");
+  const b = parse(hoursBody, req.body);
+  const t = await editable(id);
+  const today = todayKey();
+  if (b.date < today) throw new AppError(400, `${fmtDay(b.date)} is in the past`);
+  if (b.date > addDaysKey(today, 180)) throw new AppError(400, "Pick days within the next 6 months");
+  if (b.date === today && b.endHour <= currentHour()) throw new AppError(400, `Today's time ${h12(b.startHour)} to ${h12(b.endHour)} has already finished`);
+
+  const day = await prisma.tournamentDay.findFirst({ where: { tournamentId: id, date: b.date } });
+  const wanted: { date: string; startHour: number; endHour: number }[] = [];
+  if (!day) wanted.push({ date: b.date, startHour: b.startHour, endHour: b.endHour });
+  else {
+    if (b.startHour > day.endHour || b.endHour < day.startHour) throw new AppError(400, `${fmtDay(b.date)} already holds ${h12(day.startHour)} to ${h12(day.endHour)}. The new time must start or end there, so the day stays one time range.`);
+    if (b.startHour < day.startHour) wanted.push({ date: b.date, startHour: b.startHour, endHour: day.startHour });
+    if (b.endHour > day.endHour) wanted.push({ date: b.date, startHour: day.endHour, endHour: b.endHour });
+    if (!wanted.length) throw new AppError(400, "Those hours are already part of this tournament");
+  }
+  const hours = wanted.reduce((n, d) => n + hoursOf(d), 0);
+  const clash = (await Promise.all(wanted.map((w) => clashes([w])))).flat();
+  const preview = { hours, court: hours * (t.minRate ?? 0), clashes: clash };
+  if (b.dryRun) return send(res, preview);
+  if (clash.length) throw new AppError(409, `${clash.length} of these hours are not free, for example ${fmtDay(clash[0].date)} ${h12(clash[0].hour)}: ${clash[0].reason}`);
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const ids: string[] = [];
+      for (const w of wanted) {
+        for (let h = w.startHour; h < w.endHour; h++) {
+          const blk = await tx.slotBlock.create({ data: { date: w.date, hour: h, reason: `Tournament: ${t.name}`, createdBy: req.staff!.id } });
+          await tx.bookingSlot.create({ data: { date: w.date, hour: h, bookingId: `block:${blk.id}` } });
+          ids.push(blk.id);
+        }
+      }
+      if (day) await tx.tournamentDay.update({ where: { id: day.id }, data: { startHour: Math.min(day.startHour, b.startHour), endHour: Math.max(day.endHour, b.endHour), blockIds: [...day.blockIds, ...ids] } });
+      else await tx.tournamentDay.create({ data: { tournamentId: id, date: b.date, startHour: b.startHour, endHour: b.endHour, blockIds: ids } });
+      if (b.date < t.startDate || b.date > t.endDate) await tx.tournament.update({ where: { id }, data: { startDate: b.date < t.startDate ? b.date : t.startDate, endDate: b.date > t.endDate ? b.date : t.endDate } });
+    });
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") throw new AppError(409, "One of those hours was just taken. Check again.");
+    throw e;
+  }
+  await audit(req, "add-hours", "tournament", id, { date: b.date, hours, from: b.startHour, to: b.endHour });
+  send(res, await refresh(id), "Court time added", 201);
 }));
 
 // ---------- goods taken from the shop while the tournament runs ----------

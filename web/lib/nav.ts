@@ -30,8 +30,8 @@ export const modules: Module[] = [
     ],
   },
   {
-    slug: "bookings", title: "Bookings", group: "Operations", icon: "calendar",
-    summary: "Court bookings made in the app (online, pay at venue, free-game voucher, guest).",
+    slug: "bookings", title: "Bookings & Payments", group: "Operations", icon: "calendar",
+    summary: "Payments (Fonepay QR orders, pay-at-venue, refunds) is the second switch on this page. Court bookings made in the app (online, pay at venue, free-game voucher, guest).",
     clientFeatures: ["Slots up to 10 days ahead", "Quote, promo and voucher at checkout", "Guest vs registered rules", "10 minute QR hold", "Free cancellation until start", "Quick Rebook", "Short booking code (UF-XXXXXX)"],
     adminTasks: ["Day view and list with filters (date, status, code, phone)", "Walk-in booking", "Cancel, complete (awards points), no-show", "Upload invoice", "Record player goals and assists"],
     endpoints: [
@@ -43,6 +43,11 @@ export const modules: Module[] = [
       e("POST", "/admin/bookings/:id/no-show", "mark no-show"),
       e("POST", "/admin/bookings/:id/mark-paid", "venue payment"),
       e("PUT", "/admin/bookings/:id/player-stats", "goals / assists"),
+      e("GET", "/admin/payments", "orders, filters"),
+      e("GET", "/admin/payments/reconciliation", "mismatches"),
+      e("GET", "/admin/payments/refunds", "refunds due / paid"),
+      e("POST", "/admin/payments/:orderCode/mark-paid", "mark paid"),
+      e("POST", "/admin/payments/:orderCode/refund", "record refund"),
     ],
   },
   {
@@ -79,19 +84,6 @@ export const modules: Module[] = [
     ],
   },
   {
-    slug: "payments", title: "Payments", group: "Operations", icon: "wallet",
-    summary: "Fonepay QR orders, pay-at-venue and refunds.",
-    clientFeatures: ["QR with remarks, valid 10 minutes", "Status polling (paid is never trusted from the browser)", "Pay at venue (registered only)", "Free cancel creates a refund due"],
-    adminTasks: ["Mark venue payments paid", "Refund queue (REFUND_DUE events)", "Reconciliation list", "Failed or expired orders and gateway callbacks"],
-    endpoints: [
-      e("GET", "/admin/payments", "orders, filters"),
-      e("GET", "/admin/payments/reconciliation", "mismatches"),
-      e("GET", "/admin/payments/refunds", "refunds due / paid"),
-      e("POST", "/admin/payments/:orderCode/mark-paid", "mark paid"),
-      e("POST", "/admin/payments/:orderCode/refund", "record refund"),
-    ],
-  },
-  {
     slug: "ev-charging", title: "EV Charging", group: "Operations", icon: "battery",
     summary: "Paid AC EV charging at the venue: charging ports with QR codes, who is charging now, bills and payments.",
     clientFeatures: ["Quick Access > EV Charging", "Scan the QR at a charging port to start charging", "Live charging time and bill, stop when done", "Charging and payment history", "Pay at the venue"],
@@ -103,7 +95,7 @@ export const modules: Module[] = [
     ],
   },
   {
-    slug: "courts", title: "Courts & Pricing", group: "Operations", icon: "grid",
+    slug: "courts", title: "Courts & Pricing", group: "Admin", icon: "grid",
     summary: "Hourly prices per shift and blocked slots.",
     clientFeatures: ["Morning / Day / Evening prices", "Free hours listed per date", "One pool of hours (court count undecided)"],
     adminTasks: ["Edit price per shift and hour", "Block slots for maintenance or events", "View slot occupancy"],
@@ -162,6 +154,18 @@ export const modules: Module[] = [
     ],
   },
   {
+    slug: "refer", title: "Refer & Earn", group: "Customers", icon: "handshake",
+    summary: "A customer books a game for another team: you check it and both get loyalty points.",
+    clientFeatures: ["Popular > Refer & Earn", "Pick the booking made for the other team, the captain's number and team name", "Both people are told when you decide", "Withdraw while waiting"],
+    adminTasks: ["See referrals waiting, approved and rejected", "Approve (change the points first if needed) or reject with a reason", "Adjust the points of an approved referral", "Set the points for each side and pause the feature", "Call either person"],
+    endpoints: [
+      e("GET", "/admin/refer", "list, status filter, search"), e("GET", "/admin/refer/counts", "counts per status"), e("GET", "/admin/refer/overview", "totals and rules"),
+      e("PATCH", "/admin/refer/:id", "change points while waiting"), e("POST", "/admin/refer/:id/approve", "gives both customers their points"),
+      e("POST", "/admin/refer/:id/reject", "reason, customer told"), e("POST", "/admin/refer/:id/adjust", "change points after approval"),
+      e("GET", "/admin/refer/settings", "points and on/off"), e("PUT", "/admin/refer/settings", "save points, pause"),
+    ],
+  },
+  {
     slug: "membership", title: "Membership, UC & Children's Academy", group: "Customers", icon: "badge",
     summary: "The Children's Academy (football classes for ages 10 to 14: class times, enrolled children, terms) is the third switch on this page. Monthly / 3 / 6 month plans by shift (Basic, Premium), and Unique Club (Rs. 1,500 for 30 days, 10% off) on its own switch at the top.",
     clientFeatures: ["Membership ID (MEM-10291), status Active / Expiring soon / Expired / Suspended", "Offers with discounted prices per shift", "A fixed hour on chosen weekdays, held for the member", "4 PM to 8 PM never offered", "Points for 3 and 6 month plans", "Notices: activated, expiring, expired, renewed", "Unique Club page in Quick Access: pay Rs. 1,500 with the Fonepay QR, active at once for 30 days, 10% off court bookings and Gamezone from day one, no promo or VIP code with the club discount"],
@@ -215,7 +219,7 @@ export const modules: Module[] = [
     ],
   },
   {
-    slug: "teams", title: "Teams & Challenges", group: "Customers", icon: "shield",
+    slug: "teams", title: "Teams & Challenges", group: "Customers", icon: "swords",
     summary: "Captain mode: teams (max 12), challenges, results and ratings.",
     clientFeatures: ["Create team, roster by phone", "Challenge with loser pays 70 / 60 / 100%", "Winning captain uploads score, other approves", "Team rating, ranking, form", "\"Did you win?\" prompt", "Disputed scores change no records until resolved"],
     adminTasks: ["Teams with captain, roster size, record and form; open a team for its players and challenges", "Challenges by status with both teams, court price, loser-pays rule, venue payment and score", "Results to review: approve (or correct) or void a disputed score", "Venue payments: who owes what, mark paid (prompts captains)"],
@@ -235,7 +239,7 @@ export const modules: Module[] = [
       e("GET", "/admin/tournaments/:id/registrations", "teams that signed up from the registration link"), e("PATCH", "/admin/tournaments/:id/registrations/:rid", "confirm or reject a team"),
       e("POST", "/admin/tournaments", "register a hosted tournament: host, rate, days and hours (dryRun checks the hours); holds the court"), e("GET", "/admin/tournaments/hosted", "hosted events with total, received and due"),
       e("GET", "/admin/tournaments/:id/billing", "the bill: court hours, goods, charges, discounts, payments"), e("POST", "/admin/tournaments/:id/items", "take goods from the shop onto the bill"),
-      e("POST", "/admin/tournaments/:id/lines", "extra charge or discount"), e("POST", "/admin/tournaments/:id/payments", "receive cash and/or Fonepay"), e("POST", "/admin/tournaments/:id/final-bill", "make the final bill (reopen-bill undoes it)"),
+      e("POST", "/admin/tournaments/:id/hours", "add court time: a new day or more hours on a held day (dryRun checks and prices it)"), e("POST", "/admin/tournaments/:id/lines", "extra charge or discount"), e("POST", "/admin/tournaments/:id/payments", "receive cash and/or Fonepay"), e("POST", "/admin/tournaments/:id/final-bill", "make the final bill (reopen-bill undoes it)"),
       e("GET", "/admin/tournaments", "list with counts"), e("GET", "/admin/tournaments/:id", "tie-sheet with goals, host link"),
       e("PUT", "/admin/tournaments/:id/tiesheet", "save rounds, teams, times, venues (live scores kept)"),
       e("POST", "/admin/tournaments/matches/:id/goal", "add a goal"), e("DELETE", "/admin/tournaments/goals/:id", "take a goal back"),
@@ -280,18 +284,6 @@ export const modules: Module[] = [
       e("GET", "/admin/insurance/:id", "one claim"), e("PATCH", "/admin/insurance/:id", "status and reply, notifies the filer and the patient"),
       e("GET", "/admin/wheelchair", "list, status filter, search"), e("GET", "/admin/wheelchair/counts", "counts per status"),
       e("GET", "/admin/wheelchair/:id", "one request"), e("PATCH", "/admin/wheelchair/:id", "status and reply, notifies the customer"),
-    ],
-  },
-  {
-    slug: "refer", title: "Refer & Earn", group: "Customers", icon: "handshake",
-    summary: "A customer books a game for another team: you check it and both get loyalty points.",
-    clientFeatures: ["Popular > Refer & Earn", "Pick the booking made for the other team, the captain's number and team name", "Both people are told when you decide", "Withdraw while waiting"],
-    adminTasks: ["See referrals waiting, approved and rejected", "Approve (change the points first if needed) or reject with a reason", "Adjust the points of an approved referral", "Set the points for each side and pause the feature", "Call either person"],
-    endpoints: [
-      e("GET", "/admin/refer", "list, status filter, search"), e("GET", "/admin/refer/counts", "counts per status"), e("GET", "/admin/refer/overview", "totals and rules"),
-      e("PATCH", "/admin/refer/:id", "change points while waiting"), e("POST", "/admin/refer/:id/approve", "gives both customers their points"),
-      e("POST", "/admin/refer/:id/reject", "reason, customer told"), e("POST", "/admin/refer/:id/adjust", "change points after approval"),
-      e("GET", "/admin/refer/settings", "points and on/off"), e("PUT", "/admin/refer/settings", "save points, pause"),
     ],
   },
   {

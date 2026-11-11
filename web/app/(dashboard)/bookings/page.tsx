@@ -1,5 +1,5 @@
-import BookingsPage from "@/components/bookings/BookingsPage";
+import BookingsHub from "@/components/bookings/BookingsHub";
 
 export default function Page() {
-  return <BookingsPage />;
+  return <BookingsHub />;
 }

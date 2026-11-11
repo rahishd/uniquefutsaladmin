@@ -8,7 +8,7 @@ export const canDo = (permission: string) => !!currentAdmin()?.permissions?.incl
 
 // The permission group(s) of each page: the part before the dot, e.g. "bookings" for bookings.view, bookings.cancel and so on. A page not listed here is always shown.
 const pageGroups: Record<string, string[]> = {
-  overview: ["dashboard", "reports"], dashboard: ["dashboard"], slots: ["slots"], bookings: ["bookings"],
+  overview: ["dashboard", "reports"], dashboard: ["dashboard"], slots: ["slots"], bookings: ["bookings", "payments"],
   sales: ["inventory"], payments: ["payments"], "ev-charging": ["payments"], "service-funds": ["servicefunds"],
   courts: ["courts"], "digital-id": ["digitalid"], customers: ["customers"], "goal-rush": ["goalrush"],
   "gift-card": ["giftcards"], club: ["club"], vip: ["vip"], membership: ["membership", "club", "academy"], loyalty: ["loyalty"],

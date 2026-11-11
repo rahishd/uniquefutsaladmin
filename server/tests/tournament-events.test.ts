@@ -5,6 +5,7 @@ import { addDaysKey, api, customer, paidQr, prisma, reset, staff, todayKey } fro
 const today = todayKey();
 const d1 = addDaysKey(today, 1);
 const d2 = addDaysKey(today, 2);
+const d3 = () => addDaysKey(today, 4);
 before(reset);
 beforeEach(reset);
 after(() => prisma.$disconnect());
@@ -57,6 +58,90 @@ describe("Hosted tournaments", () => {
     await prisma.membershipSubscription.create({ data: { planId: plan.id, userId: "9842000002", startDate: new Date(`${today}T00:00:00Z`), endDate: new Date(`${addDaysKey(today, 30)}T00:00:00Z`), status: "active", paymentStatus: "verified", timeSlot: "12:00-13:00", chosenDays: [], chosenDuration: "1_month" } });
     const m = await api.post("/tournaments", mgr.auth, event({ days: [{ date: d2, startHour: 11, endHour: 14 }], dryRun: true }));
     assert.match(m.body.data.clashes[0].reason, /held for member/);
+  });
+
+  it("keeps the additional services (health insurance, Sky Roof Parafit, mineral water) switched on or off", async () => {
+    const mgr = await staff("admin");
+    const plain = await api.post("/tournaments", mgr.auth, event());
+    assert.deepEqual(plain.body.data.services, [], "none by default");
+    const made = await api.post("/tournaments", mgr.auth, event({ name: "Services Cup", services: ["health_insurance", "mineral_water", "mineral_water"], days: [{ date: d3(), startHour: 9, endHour: 11 }] }));
+    assert.equal(made.status, 201);
+    assert.deepEqual(made.body.data.services, ["health_insurance", "mineral_water"], "saved once each");
+    const id = made.body.data.id;
+    const on = await api.patch(`/tournaments/${id}/services`, mgr.auth, { services: ["sky_roof_parafit"] });
+    assert.deepEqual([on.status, on.body.data.services], [200, ["sky_roof_parafit"]]);
+    assert.equal((await api.patch(`/tournaments/${id}/services`, mgr.auth, { services: ["jacuzzi"] })).status, 400, "only the known services");
+    assert.equal((await api.get(`/tournaments/${id}/billing`, mgr.auth)).body.data.services[0], "sky_roof_parafit");
+    const desk = await staff("frontdesk");
+    assert.equal((await api.patch(`/tournaments/${id}/services`, desk.auth, { services: [] })).status, 403);
+  });
+
+  it("charges each switched-on service its amount, and counts mineral water bottles one by one", async () => {
+    const mgr = await staff("admin");
+    const made = await api.post("/tournaments", mgr.auth, event({ name: "Water Cup", services: ["health_insurance", "sky_roof_parafit", "mineral_water"], serviceAmounts: { health_insurance: 500, sky_roof_parafit: 2000, mineral_water: 25 }, days: [{ date: d3(), startHour: 9, endHour: 11 }] }));
+    assert.equal(made.status, 201);
+    const id = made.body.data.id;
+    assert.deepEqual([made.body.data.servicesTotal, made.body.data.total], [2500, 4000 + 2500], "no bottles yet: the two fixed services are charged");
+    const plus = await api.post(`/tournaments/${id}/water`, mgr.auth, { delta: 1 });
+    assert.deepEqual([plus.status, plus.body.data.waterBottles, plus.body.data.servicesTotal, plus.body.data.total], [200, 1, 2525, 6525]);
+    await api.post(`/tournaments/${id}/water`, mgr.auth, { delta: 3 });
+    const line = (await api.get(`/tournaments/${id}/billing`, mgr.auth)).body.data.serviceLines.find((l: { id: string }) => l.id === "mineral_water");
+    assert.deepEqual([line.quantity, line.unitPrice, line.amount], [4, 25, 100]);
+    assert.equal((await api.post(`/tournaments/${id}/water`, mgr.auth, { delta: -5 })).status, 409, "cannot take back more than were taken");
+    assert.equal((await api.post(`/tournaments/${id}/water`, mgr.auth, { delta: -1 })).body.data.waterBottles, 3);
+    // a new amount for one service leaves the others as they were
+    const re = await api.patch(`/tournaments/${id}/services`, mgr.auth, { services: ["health_insurance", "sky_roof_parafit", "mineral_water"], amounts: { mineral_water: 30 } });
+    assert.deepEqual([re.body.data.serviceAmounts.mineral_water, re.body.data.serviceAmounts.health_insurance, re.body.data.servicesTotal], [30, 500, 2500 + 90]);
+    // water switched off: it is not charged, and bottles cannot be added
+    const off = await api.patch(`/tournaments/${id}/services`, mgr.auth, { services: ["health_insurance"] });
+    assert.equal(off.body.data.servicesTotal, 500);
+    assert.equal((await api.post(`/tournaments/${id}/water`, mgr.auth, { delta: 1 })).status, 409);
+    // a final bill locks the services and the bottles
+    await api.patch(`/tournaments/${id}/services`, mgr.auth, { services: ["health_insurance", "mineral_water"] });
+    assert.equal((await api.post(`/tournaments/${id}/final-bill`, mgr.auth, {})).status, 200);
+    assert.equal((await api.post(`/tournaments/${id}/water`, mgr.auth, { delta: 1 })).status, 409);
+    assert.equal((await api.patch(`/tournaments/${id}/services`, mgr.auth, { services: [] })).status, 409);
+    const desk = await staff("frontdesk");
+    assert.equal((await api.post(`/tournaments/${id}/water`, desk.auth, { delta: 1 })).status, 403);
+  });
+
+  it("adds more court time to a day or a new day, holds it, prices it, and refuses a gap, a clash or a closed bill", async () => {
+    const mgr = await staff("admin");
+    const id = (await api.post("/tournaments", mgr.auth, event())).body.data.id; // d1 5-8 (3 h), d2 10-15 (5 h), Rs. 2000 an hour
+    const d3 = addDaysKey(today, 3);
+    // more hours on a day that is already held: they must touch it
+    const look = await api.post(`/tournaments/${id}/hours`, mgr.auth, { date: d1, startHour: 8, endHour: 10, dryRun: true });
+    assert.deepEqual([look.status, look.body.data.hours, look.body.data.court, look.body.data.clashes.length], [200, 2, 4000, 0]);
+    assert.equal(await prisma.slotBlock.count({ where: { reason: "Tournament: Tuna Cup" } }), 8, "a dry run holds nothing");
+    const more = await api.post(`/tournaments/${id}/hours`, mgr.auth, { date: d1, startHour: 8, endHour: 10 });
+    assert.equal(more.status, 201);
+    assert.deepEqual([more.body.data.hours, more.body.data.court], [10, 20000]);
+    assert.deepEqual(more.body.data.days.map((d: { date: string; startHour: number; endHour: number }) => [d.date, d.startHour, d.endHour]), [[d1, 5, 10], [d2, 10, 15]]);
+    assert.equal(await prisma.bookingSlot.count({ where: { date: d1, bookingId: { startsWith: "block:" } } }), 5);
+    // both sides of the day at once
+    const both = await api.post(`/tournaments/${id}/hours`, mgr.auth, { date: d2, startHour: 9, endHour: 16 });
+    assert.deepEqual([both.status, both.body.data.hours], [201, 12]);
+    assert.deepEqual(both.body.data.days.map((d: { startHour: number; endHour: number }) => [d.startHour, d.endHour]), [[5, 10], [9, 16]]);
+    // a gap, hours already held and a past day are refused
+    assert.equal((await api.post(`/tournaments/${id}/hours`, mgr.auth, { date: d1, startHour: 12, endHour: 14 })).status, 400, "must touch the held time");
+    assert.equal((await api.post(`/tournaments/${id}/hours`, mgr.auth, { date: d1, startHour: 9, endHour: 11 })).status, 201, "partly new is fine");
+    assert.equal((await api.post(`/tournaments/${id}/hours`, mgr.auth, { date: d1, startHour: 6, endHour: 8 })).status, 400, "already held");
+    assert.equal((await api.post(`/tournaments/${id}/hours`, mgr.auth, { date: addDaysKey(today, -1), startHour: 8, endHour: 9 })).status, 400);
+    // a new day, which also widens the tournament's dates; a booking in the way is refused
+    await customer("9842000003", "Sita");
+    const b = await prisma.booking.create({ data: { userId: "9842000003", customerName: "Sita", date: d3, startTime: "09:00", endTime: "10:00", duration: 1, basePrice: 1500, subtotal: 1500, totalPrice: 1500, paymentMethod: "venue", status: "confirmed", code: "UF-HRS001" } as never });
+    await prisma.bookingSlot.create({ data: { date: d3, hour: 9, bookingId: b.id } });
+    const clash = await api.post(`/tournaments/${id}/hours`, mgr.auth, { date: d3, startHour: 8, endHour: 11 });
+    assert.equal(clash.status, 409);
+    const fresh = await api.post(`/tournaments/${id}/hours`, mgr.auth, { date: d3, startHour: 10, endHour: 12 });
+    assert.equal(fresh.status, 201);
+    assert.equal(fresh.body.data.days.length, 3);
+    assert.equal((await prisma.tournament.findUniqueOrThrow({ where: { id } })).endDate, d3);
+    // a closed bill cannot change; the permission is the bill permission
+    assert.equal((await api.post(`/tournaments/${id}/final-bill`, mgr.auth, {})).status, 200);
+    assert.equal((await api.post(`/tournaments/${id}/hours`, mgr.auth, { date: d3, startHour: 12, endHour: 13 })).status, 409);
+    const desk = await staff("frontdesk");
+    assert.equal((await api.post(`/tournaments/${id}/hours`, desk.auth, { date: d3, startHour: 12, endHour: 13 })).status, 403);
   });
 
   it("adds goods from the shop during the event, extra charges and a discount, and the bill adds up", async () => {

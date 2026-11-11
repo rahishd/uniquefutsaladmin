@@ -15,8 +15,8 @@ type Item = { id: string; type: string; title: string; text: string; href: strin
 // What needs attention right now, worked out from the live dashboard numbers. Items disappear when they are dealt with.
 const ITEMS: { key: keyof Counts; href: string; icon: React.ElementType; text: (n: number) => string }[] = [
   { key: "arrivalsToday", href: "/slots", icon: CalendarCheck, text: (n) => `${n} ${n === 1 ? "customer is" : "customers are"} on the way today` },
-  { key: "refundsDue", href: "/payments", icon: RotateCcw, text: (n) => `${n} ${n === 1 ? "refund" : "refunds"} to pay back` },
-  { key: "pendingPayments", href: "/payments", icon: CreditCard, text: (n) => `${n} ${n === 1 ? "payment" : "payments"} waiting for the customer` },
+  { key: "refundsDue", href: "/bookings?tab=payments", icon: RotateCcw, text: (n) => `${n} ${n === 1 ? "refund" : "refunds"} to pay back` },
+  { key: "pendingPayments", href: "/bookings?tab=payments", icon: CreditCard, text: (n) => `${n} ${n === 1 ? "payment" : "payments"} waiting for the customer` },
   { key: "disputes", href: "/disputes", icon: Scale, text: (n) => `${n} disputed match ${n === 1 ? "result needs" : "results need"} a decision` },
 ];
 

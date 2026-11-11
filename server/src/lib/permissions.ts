@@ -221,4 +221,5 @@ export function effectivePermissions(s: { role: string; permissions?: string[] |
   return [...new Set(list)].filter((p): p is Permission => (PERMISSIONS as readonly string[]).includes(p));
 }
 
-export const ACCOUNT_TYPES = ["admin", "staff"] as const;
+// "organizer": a Tournament Organizer, who can only open the Organizer app for the hosted tournaments given to them (no portal pages)
+export const ACCOUNT_TYPES = ["admin", "staff", "organizer"] as const;

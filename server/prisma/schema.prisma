@@ -252,6 +252,11 @@ model Tournament {
   minRate       Int?
   billClosedAt  DateTime?
   createdBy     String?
+  services      String[]       @default([])
+  prizes        Json           @default("[]")
+  rules         String?
+  serviceAmounts Json          @default("{}")
+  waterBottles  Int            @default(0)
   days          TournamentDay[]
   registrations Registration[]
   billLines     TournamentBillLine[]
@@ -690,6 +695,7 @@ model TournamentMatch {
   note      String?
   startsAt  DateTime?
   venue     String?
+  liveUrl   String? // Facebook Live link the organizer pasted
   round     TournamentRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
   goals     MatchGoal[]
   follows   MatchFollow[]
@@ -733,6 +739,17 @@ model TournamentHostLink {
   createdBy    String?
   lastUsedAt   DateTime?
   createdAt    DateTime  @default(now())
+}
+
+// Which hosted tournaments a Tournament Organizer account (StaffUser.role "organizer") may open in the Organizer app.
+model TournamentOrganizer {
+  id           String   @id @default(cuid())
+  staffId      String
+  tournamentId String
+  createdAt    DateTime @default(now())
+
+  @@unique([staffId, tournamentId])
+  @@index([tournamentId])
 }
 
 // One row per booked hour. The unique (date, hour) is the final guard against two bookings taking the same hour.

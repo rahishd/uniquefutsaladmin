@@ -5,12 +5,21 @@ import { CHARITY_PERCENT, charityText } from "./charity";
 
 export type HostDay = { date: string; startHour: number; endHour: number };
 export type Clash = { date: string; hour: number; reason: string };
-export type HostInput = { name: string; hostName: string; hostPhone: string; minRate: number; days: HostDay[] };
+// The extra services an event can include, switched on or off
+// `per` says what the amount means: a fixed amount for the whole event, or the price of one bottle
+export const SERVICES = [
+  { id: "health_insurance", label: "Health insurance", per: "event" },
+  { id: "sky_roof_parafit", label: "Sky Roof Parafit", per: "event" },
+  { id: "mineral_water", label: "Mineral water", per: "bottle" },
+] as const;
+export const serviceLabel = (id: string) => SERVICES.find((x) => x.id === id)?.label ?? id;
+export type HostInput = { name: string; hostName: string; hostPhone: string; minRate: number; days: HostDay[]; services?: string[]; serviceAmounts?: Record<string, number> };
 export type Preview = { hours: number; court: number; clashes: Clash[] };
 
 export type BillLine = { id: string; kind: "goods" | "extra" | "discount"; label: string; quantity: number; unitPrice: number; amount: number; createdAt: string };
+export type ServiceLine = { id: string; label: string; quantity: number; unitPrice: number; amount: number };
 export type Bill = {
-  id: string; name: string; status: string; hostName: string | null; hostPhone: string | null; rate: number; closedAt: string | null;
+  id: string; name: string; status: string; services: string[]; serviceAmounts: Record<string, number>; waterBottles: number; serviceLines: ServiceLine[]; servicesTotal: number; hostName: string | null; hostPhone: string | null; rate: number; closedAt: string | null;
   days: { id: string; date: string; startHour: number; endHour: number; hours: number; amount: number }[];
   hours: number; court: number; goods: number; extras: number; discount: number; club?: boolean; clubDiscount?: number; total: number; paid: number; paidCash: number; paidFonepay: number; due: number;
   lines: BillLine[]; payments: { id: string; cash: number; fonepay: number; amount: number; note: string | null; createdAt: string }[];
@@ -25,6 +34,10 @@ export const addLine = (id: string, b: { kind: "extra" | "discount"; label: stri
 export const removeLine = (id: string, lineId: string) => api<Bill>(`/admin/tournaments/${id}/lines/${lineId}`, { method: "DELETE" });
 export const setRate = (id: string, minRate: number) => api<Bill>(`/admin/tournaments/${id}/rate`, { method: "PATCH", body: JSON.stringify({ minRate }) });
 export const receivePayment = (id: string, b: { amount: number; payments?: { method: "cash" | "fonepay"; amount: number }[]; single?: "cash" | "fonepay"; fonepayQrId?: string; note?: string }) => post(id, "payments", b);
+export const previewHours = (id: string, b: { date: string; startHour: number; endHour: number }) => api<Preview>(`/admin/tournaments/${id}/hours`, { method: "POST", body: JSON.stringify({ ...b, dryRun: true }) });
+export const addHours = (id: string, b: { date: string; startHour: number; endHour: number }) => post(id, "hours", b);
+export const setServices = (id: string, services: string[], amounts?: Record<string, number>) => api<Bill>(`/admin/tournaments/${id}/services`, { method: "PATCH", body: JSON.stringify({ services, ...(amounts ? { amounts } : {}) }) });
+export const addWater = (id: string, delta: number) => post(id, "water", { delta });
 export const makeFinalBill = (id: string) => post(id, "final-bill");
 export const reopenBill = (id: string) => post(id, "reopen-bill");
 export const cancelHosted = (id: string) => api<null>(`/admin/tournaments/${id}/cancel`, { method: "POST", body: "{}" });
@@ -39,6 +52,7 @@ export function billText(b: Bill): string {
   if ((b.clubDiscount ?? 0) > 0) out.push(`Unique Club member discount (10%): -${rs(b.clubDiscount!)}`);
   const goods = b.lines.filter((l) => l.kind === "goods");
   if (goods.length) out.push("", "*Goods*", ...goods.map((l) => `${l.quantity} x ${l.label}: ${rs(l.amount)}`));
+  if (b.serviceLines?.length) out.push("", "*Additional services*", ...b.serviceLines.map((l) => (l.id === "mineral_water" ? `${l.label}: ${l.quantity} x ${rs(l.unitPrice)} = ${rs(l.amount)}` : `${l.label}: ${rs(l.amount)}`)));
   const extra = b.lines.filter((l) => l.kind !== "goods");
   if (extra.length) out.push("", "*Other*", ...extra.map((l) => `${l.label}: ${l.amount < 0 ? "-" : ""}${rs(Math.abs(l.amount))}`));
   if (b.total > 0) out.push("", `${CHARITY_PERCENT}% Charity Fund: ${charityText(b.total)} (from our profit, not added to your bill)`);
@@ -72,6 +86,7 @@ export async function downloadBillPdf(b: Bill) {
   if ((b.clubDiscount ?? 0) > 0) row("Unique Club member discount (10%)", `-${money(b.clubDiscount!)}`);
   const goods = b.lines.filter((l) => l.kind === "goods");
   if (goods.length) { heading("Goods taken"); goods.forEach((l) => row(`${l.quantity} x ${l.label}  (${money(l.unitPrice)} each)`, money(l.amount))); row("Goods total", money(b.goods), true); }
+  if (b.serviceLines?.length) { heading("Additional services"); b.serviceLines.forEach((l) => row(l.id === "mineral_water" ? `${l.label}  (${l.quantity} x ${money(l.unitPrice)})` : l.label, money(l.amount))); }
   const other = b.lines.filter((l) => l.kind !== "goods");
   if (other.length) { heading("Extra charges and discounts"); other.forEach((l) => row(l.label, `${l.amount < 0 ? "-" : ""}${money(Math.abs(l.amount))}`)); }
   heading("Total");

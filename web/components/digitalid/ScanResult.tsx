@@ -23,7 +23,7 @@ const say = (s: string) => STATUS[s] ?? s.replace(/_/g, " ");
 const dayDiff = (date: string) => Math.round((new Date(`${date}T00:00:00Z`).getTime() - new Date(`${todayKey()}T00:00:00Z`).getTime()) / 86_400_000);
 const agoText = (date: string) => { const d = dayDiff(date); return d === 0 ? "today" : d < 0 ? `played ${-d} day${d === -1 ? "" : "s"} ago` : `in ${d} day${d === 1 ? "" : "s"}`; };
 // opens Payments on exactly this record: its tab, unpaid only, all dates, found by its code, and highlighted
-const payHref = (kind: string, code: string, phone: string) => `/payments?kind=${kind}&status=unpaid&period=all&q=${encodeURIComponent(phone)}&hl=pay-${encodeURIComponent(code)}`;
+const payHref = (kind: string, code: string, phone: string) => `/bookings?tab=payments&kind=${kind}&status=unpaid&period=all&q=${encodeURIComponent(phone)}&hl=pay-${encodeURIComponent(code)}`;
 
 function GoodsRow({ g }: { g: GoodsEntry }) {
   return (

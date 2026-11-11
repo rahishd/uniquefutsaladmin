@@ -47,6 +47,8 @@ import { serviceFundsRouter } from "./modules/service-funds";
 import { giftsRouter } from "./modules/gifts";
 import { remindersRouter } from "./modules/reminders";
 import { dayCheckRouter } from "./modules/day-check";
+import { lockRouter } from "./modules/lock";
+import { organizerRouter } from "./modules/organizer";
 
 export const app = express();
 app.set("trust proxy", 1);
@@ -114,6 +116,8 @@ admin.use("/service-funds", serviceFundsRouter);
 admin.use("/gifts", giftsRouter);
 admin.use("/reminders", remindersRouter);
 admin.use("/day-check", dayCheckRouter);
+admin.use("/lock", lockRouter);
+admin.use("/organizer", organizerRouter);
 admin.use("/", overviewRouter);
 app.use("/api/admin", admin);
 

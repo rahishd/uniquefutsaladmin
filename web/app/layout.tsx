@@ -24,7 +24,7 @@ export const metadata: Metadata = {
 
 // An app, not a web page: fixed size, no zoom (pinch zoom on iPhone is also stopped in components/NoZoom.tsx)
 export const viewport: Viewport = {
-  themeColor: "#0c0b5d",
+  themeColor: "#0b1f4d",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -36,8 +36,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
+      <head>
+        {/* the light or dark choice saved on this device (components/ThemeToggle.tsx), applied before the first paint so there is no flash */}
+        <script dangerouslySetInnerHTML={{ __html: "try{var t=localStorage.getItem('uf-admin-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}" }} />
+      </head>
       <body className="min-h-full flex flex-col">
         {children}
         <ConfirmHost />

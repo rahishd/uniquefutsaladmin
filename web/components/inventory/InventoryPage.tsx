@@ -25,7 +25,7 @@ export default function InventoryPage({ initialTab = "products" }: { initialTab?
   return (
     <div className="w-full space-y-4">
       <div>
-        <h1 className="text-2xl font-bold">Inventory &amp; Goods</h1>
+        <h1 className="text-2xl font-bold">Products &amp; Sales</h1>
         <p className="text-sm text-muted">Products sold at the venue: stock, restocking, counter sales and loyalty points for registered customers.</p>
       </div>
       {ov && (

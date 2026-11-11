@@ -1,10 +1,6 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { useParams } from "next/navigation";
-import HostPage from "@/components/tournaments/HostPage";
-
-// The private match-day link. Public: no staff sign-in, the secret in the address is the key.
+// The old match-day link. Tournament managers now sign in to the Tournament Organizer app with the Unique Futsal ID the venue made for them.
 export default function Page() {
-  const { token } = useParams<{ token: string }>();
-  return <HostPage token={token} />;
+  redirect("/organizer");
 }

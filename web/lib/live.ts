@@ -10,15 +10,15 @@ export type LiveItem = { id: string; type: string; title: string; text: string; 
 // which header button an activity type belongs to (a new booking lights up both Slots and Bookings)
 const PAGES: Record<string, string[]> = {
   booking: ["/slots", "/bookings"],
-  payment: ["/payments"],
+  payment: ["/bookings"],
   customer: ["/customers"],
   arrival: ["/slots"],
   gamezone: ["/gamezone"],
   membership: ["/membership"],
-  order: ["/payments"],
+  order: ["/bookings"],
   complaint: ["/complaints"],
   referral: ["/refer"],
-  academy: ["/academy"],
+  academy: ["/membership"],
   challenge: ["/teams"],
   result: ["/teams", "/disputes"],
   wheelchair: ["/wheelchair"],

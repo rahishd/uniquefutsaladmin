@@ -10,6 +10,14 @@ export async function login(email: string, password: string) {
   return data.admin;
 }
 
+// The Tournament Organizer app: the ID is an email or a mobile number (the host's customer login also works, see the server).
+export async function loginOrganizer(id: string, password: string) {
+  const data = await api<{ token: string; admin: Admin }>("/admin/auth/organizer-login", { method: "POST", body: JSON.stringify({ id, password }) });
+  setToken(data.token);
+  try { localStorage.setItem(ADMIN_KEY, JSON.stringify(data.admin)); } catch {}
+  return data.admin;
+}
+
 // Re-reads the signed-in staff member (role and permissions) so a permission change takes effect without signing in again.
 export async function refreshAdmin(): Promise<Admin | null> {
   const me = await api<Admin>("/admin/auth/me");

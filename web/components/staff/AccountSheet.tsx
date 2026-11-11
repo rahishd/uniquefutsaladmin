@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, Copy, RefreshCw, ShieldCheck, UserRound, X } from "lucide-react";
+import { Check, Copy, RefreshCw, ShieldCheck, Trophy, UserRound, X } from "lucide-react";
 import { guard } from "@/lib/access";
 import { withBase } from "@/lib/base";
 import { ApiError } from "@/lib/api";
 import { Account, Catalog, createStaff, getCatalog, randomPassword, updateStaff } from "@/lib/staff";
+import { TournamentItem, listTournaments } from "@/lib/tournaments";
 import { copyText } from "@/lib/vip";
 import SendPdfButton from "../SendPdfButton";
 import { pdfFileName } from "@/lib/branded-pdf";
@@ -53,7 +54,10 @@ function SignInDetails({ email, password }: { email: string; password?: string }
 // Add an account, or choose what one staff member may do: one small tick for every action, grouped like the pages.
 export default function AccountSheet({ edit, onClose, onSaved }: { edit: Account | null; onClose: () => void; onSaved: () => void }) {
   const [catalog, setCatalog] = useState<Catalog | null>(null);
-  const [type, setType] = useState<"admin" | "staff">(edit?.accountType ?? "staff");
+  const [type, setType] = useState<"admin" | "staff" | "organizer">(edit?.accountType ?? "staff");
+  // Tournament organizer: the hosted tournaments this person may open in the Organizer app
+  const [hosted, setHosted] = useState<TournamentItem[] | null>(null);
+  const [picked, setPicked] = useState<Set<string>>(new Set(edit?.tournamentIds ?? []));
   const [name, setName] = useState(edit?.name ?? "");
   const [email, setEmail] = useState(edit?.email ?? "");
   const [password, setPassword] = useState("");
@@ -76,6 +80,13 @@ export default function AccountSheet({ edit, onClose, onSaved }: { edit: Account
     return () => { live = false; };
   }, [edit]);
 
+  useEffect(() => {
+    if (type !== "organizer" || hosted) return;
+    let live = true;
+    listTournaments().then((l) => { if (live) setHosted(l.filter((t) => t.hostedEvent)); }).catch(() => { if (live) setHosted([]); });
+    return () => { live = false; };
+  }, [type, hosted]);
+
   const toggle = (key: string) => setChecked((s) => { const n = new Set(s); if (n.has(key)) n.delete(key); else n.add(key); return n; });
   const setSection = (keys: string[], on: boolean) => setChecked((s) => { const n = new Set(s); keys.forEach((k) => (on ? n.add(k) : n.delete(k))); return n; });
   const preset = (permissions: string[]) => setChecked(new Set(permissions));
@@ -87,20 +98,23 @@ export default function AccountSheet({ edit, onClose, onSaved }: { edit: Account
     if (!guard("staff.manage")) return;
     const fail = (field: "name" | "email" | "password", text: string) => { setBad({ field, text }); setError(text); };
     if (name.trim().length < 2) return fail("name", "Enter the person's name.");
-    if (!/^\S+@\S+\.\S+$/.test(email.trim())) return fail("email", "Enter a valid login email. It is what they sign in with.");
+    const phoneId = type === "organizer" && !edit && /^\+?[\d\s-]{10,17}$/.test(email.trim());
+    if (!phoneId && !/^\S+@\S+\.\S+$/.test(email.trim())) return fail("email", type === "organizer" ? "Enter an email or a 10 digit mobile number. It is their Unique Futsal ID." : "Enter a valid login email. It is what they sign in with.");
     if (!edit && password.length < 10) return fail("password", "The password needs at least 10 characters. Press Generate to make one.");
     if (edit && password && password.length < 10) return fail("password", "A new password needs at least 10 characters.");
+    if (type === "organizer" && picked.size === 0) return setError("Choose at least one tournament for the organizer to manage.");
     const permissions = [...checked];
+    const tournamentIds = type === "organizer" ? [...picked] : undefined;
     setBusy(true);
     try {
       if (edit) {
         const emailChanged = email.trim().toLowerCase() !== edit.email;
-        await updateStaff(edit.id, { name: name.trim(), ...(emailChanged ? { email: email.trim() } : {}), accountType: type, ...(type === "staff" ? { permissions } : {}), ...(password ? { password } : {}) });
+        await updateStaff(edit.id, { name: name.trim(), ...(emailChanged ? { email: email.trim() } : {}), accountType: type, ...(type === "staff" ? { permissions } : {}), ...(tournamentIds ? { tournamentIds } : {}), ...(password ? { password } : {}) });
         onSaved();
         if (password || emailChanged) setSaved({ email: email.trim().toLowerCase(), password });
         else onClose();
       } else {
-        await createStaff({ email: email.trim(), name: name.trim(), accountType: type, password, permissions: type === "staff" ? permissions : [] });
+        await createStaff({ email: email.trim(), name: name.trim(), accountType: type, password, permissions: type === "staff" ? permissions : [], ...(tournamentIds ? { tournamentIds } : {}) });
         onSaved();
         setSaved({ email: email.trim().toLowerCase(), password });
       }
@@ -134,9 +148,9 @@ export default function AccountSheet({ edit, onClose, onSaved }: { edit: Account
 
               <fieldset>
                 <legend className="mb-1.5 text-sm font-medium">Account type</legend>
-                <div className="grid grid-cols-2 gap-2">
-                  {([["admin", "Admin", "Everything except managing accounts", ShieldCheck], ["staff", "Staff", "Only what you tick below", UserRound]] as const).map(([id, label, hint, Icon]) => (
-                    <button type="button" key={id} aria-pressed={type === id} disabled={edit?.role === "owner" && id === "staff"} onClick={() => setType(id)}
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {([["admin", "Admin", "Everything except managing accounts", ShieldCheck], ["staff", "Staff", "Only what you tick below", UserRound], ["organizer", "Tournament organizer", "Runs one hosted tournament in the Organizer app", Trophy]] as const).map(([id, label, hint, Icon]) => (
+                    <button type="button" key={id} aria-pressed={type === id} disabled={edit?.role === "owner" && id !== "admin"} onClick={() => setType(id)}
                       className={`rounded-xl border p-3 text-left disabled:opacity-50 ${type === id ? "border-brand bg-brand/10" : "border-line"}`}>
                       <span className="flex items-center gap-2 font-semibold"><Icon size={16} /> {label}</span>
                       <span className="mt-0.5 block text-xs text-muted">{hint}</span>
@@ -150,8 +164,8 @@ export default function AccountSheet({ edit, onClose, onSaved }: { edit: Account
                   <input value={name} maxLength={60} onChange={(e) => { setName(e.target.value); if (bad?.field === "name") setBad(null); }} aria-invalid={bad?.field === "name"} className={`${field} mt-1 ${bad?.field === "name" ? "!border-red-500" : ""}`} />
                   {bad?.field === "name" && <span role="alert" className="mt-1 block text-xs font-medium text-red-600">{bad.text}</span>}
                 </label>
-                <label className="block text-sm font-medium">Login email (they sign in with this)
-                  <input value={email} type="email" autoComplete="off" onChange={(e) => { setEmail(e.target.value); if (bad?.field === "email") setBad(null); }} aria-invalid={bad?.field === "email"} className={`${field} mt-1 ${bad?.field === "email" ? "!border-red-500" : ""}`} />
+                <label className="block text-sm font-medium">{type === "organizer" ? "Unique Futsal ID (email or mobile number)" : "Login email (they sign in with this)"}
+                  <input value={email} type={type === "organizer" ? "text" : "email"} autoComplete="off" onChange={(e) => { setEmail(e.target.value); if (bad?.field === "email") setBad(null); }} aria-invalid={bad?.field === "email"} className={`${field} mt-1 ${bad?.field === "email" ? "!border-red-500" : ""}`} />
                   {bad?.field === "email" && <span role="alert" className="mt-1 block text-xs font-medium text-red-600">{bad.text}</span>}
                 </label>
               </div>
@@ -163,7 +177,28 @@ export default function AccountSheet({ edit, onClose, onSaved }: { edit: Account
                 {bad?.field === "password" && <span role="alert" className="mt-1 block text-xs font-medium text-red-600">{bad.text}</span>}
               </label>
 
-              {type === "admin" ? (
+              {type === "organizer" ? (
+                <div className="space-y-3">
+                  <p className="rounded-xl bg-brand/10 p-3 text-sm text-brand">A tournament organizer does not see the admin portal. They sign in at <b>{typeof window === "undefined" ? "" : `${window.location.origin}${withBase("/organizer")}`}</b> with the email below as their Unique Futsal ID and the password, and manage only the tournaments you tick: the tie-sheet, teams and their bill.</p>
+                  <fieldset>
+                    <legend className="mb-1.5 text-sm font-medium">Tournaments they manage</legend>
+                    {!hosted ? <p className="text-sm text-muted">Loading the hosted tournaments…</p>
+                      : hosted.length === 0 ? <p className="rounded-xl bg-amber-500/10 p-3 text-xs text-amber-700">No hosted tournament yet. Register one first on the Tournaments page, then come back.</p>
+                      : (
+                        <ul className="space-y-1.5">
+                          {hosted.map((t) => (
+                            <li key={t.id}>
+                              <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-line p-3 text-sm">
+                                <input type="checkbox" checked={picked.has(t.id)} onChange={(e) => setPicked((p) => { const n = new Set(p); if (e.target.checked) n.add(t.id); else n.delete(t.id); return n; })} className="h-5 w-5" />
+                                <span className="min-w-0"><span className="block truncate font-semibold">{t.name}</span><span className="block text-xs text-muted">{t.startDate === t.endDate ? t.startDate : `${t.startDate} to ${t.endDate}`}{t.hostName ? ` · ${t.hostName}` : ""}</span></span>
+                              </label>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                  </fieldset>
+                </div>
+              ) : type === "admin" ? (
                 <p className="rounded-xl bg-brand/10 p-3 text-sm text-brand">Admins can use every page and do every action. Only the Owner can add accounts or change what staff may do.</p>
               ) : !catalog ? (
                 <p className="py-4 text-center text-sm text-muted">{error || "Loading the options…"}</p>

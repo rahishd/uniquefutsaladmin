@@ -4,7 +4,7 @@ import type { PdfBlock, PdfRow, PdfSpec } from "@/lib/branded-pdf";
 import { CHARITY_PERCENT, charityText } from "@/lib/charity";
 import type { Report } from "@/lib/inventory";
 import { change, periodLabel, shortDay, type Summary } from "@/lib/reports";
-import { fmtDay as hostDay, range as hostRange, type Bill } from "@/lib/hosted-tournaments";
+import { fmtDay as hostDay, range as hostRange, serviceLabel, type Bill } from "@/lib/hosted-tournaments";
 import { conditions, type PromoInput } from "@/lib/promos";
 
 const hour12 = (h: number) => `${h % 12 || 12}:00 ${h < 12 ? "AM" : "PM"}`;
@@ -66,8 +66,10 @@ export function tournamentBillPdf(b: Bill, code?: string | null): PdfSpec {
   const goods = b.lines.filter((l) => l.kind === "goods");
   const other = b.lines.filter((l) => l.kind !== "goods");
   const blocks: PdfBlock[] = [
+    ...(b.services?.length ? [{ rows: [{ label: "Services included", value: b.services.map(serviceLabel).join(", ") }] }] : []),
     ...((b.clubDiscount ?? 0) > 0 ? [{ rows: [{ label: "Unique Club member discount (10%)", value: `-${rs(b.clubDiscount!)}` }] }] : []),
     ...(goods.length ? [{ heading: "Goods taken", table: { head: ["Item", "Qty", "Amount"], rows: goods.map((l) => [l.label, String(l.quantity), rs(l.amount)]) } }] : []),
+    ...(b.serviceLines?.length ? [{ heading: "Additional services", table: { head: ["Service", "Qty", "Amount"], rows: b.serviceLines.map((l) => [l.label, l.id === "mineral_water" ? `${l.quantity} x ${rs(l.unitPrice)}` : "1", rs(l.amount)]) } }] : []),
     ...(other.length ? [{ heading: "Extra charges and discounts", rows: other.map((l) => ({ label: l.label, value: `${l.amount < 0 ? "-" : ""}${rs(Math.abs(l.amount))}` })) }] : []),
     ...(b.payments.length ? [{ heading: "Payments received", table: { head: ["Date", "Paid by", "Amount"], widths: [66, 22], rows: b.payments.map((p) => [new Date(p.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" }), [p.cash ? `Cash ${rs(p.cash)}` : "", p.fonepay ? `Fonepay ${rs(p.fonepay)}` : ""].filter(Boolean).join(" + "), rs(p.amount)]) } }] : []),
   ];

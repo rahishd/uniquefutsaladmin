@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { BarChart3, Bell, CalendarDays, ChevronDown, LayoutGrid, LayoutDashboard, LogOut, Plus, ShoppingCart, Star, X } from "lucide-react";
+import { BarChart3, Bell, CalendarDays, ChevronDown, LayoutGrid, LayoutDashboard, LogOut, Plus, RefreshCw, ShoppingCart, Star, X } from "lucide-react";
 import { icons } from "./icons";
 import { groups, modules } from "@/lib/nav";
 import { canSeePage } from "@/lib/access";
@@ -12,6 +12,9 @@ import DeniedDialog from "./DeniedDialog";
 import ReminderPopup from "./reminders/ReminderPopup";
 import NotificationBell from "./NotificationBell";
 import SirenToggle from "./SirenToggle";
+import ThemeToggle from "./ThemeToggle";
+import LockButton from "./LockButton";
+import LockScreen from "./LockScreen";
 import { getToken } from "@/lib/api";
 import { withBase } from "@/lib/base";
 import { currentAdmin, logout, refreshAdmin, setAvatar, type Admin } from "@/lib/auth";
@@ -25,13 +28,13 @@ const GROUP_ICON: Record<string, React.ElementType> = {
 const frequents: { href: string; label: string; icon: React.ElementType }[] = [
   { href: "/overview", label: "Overview and Reports", icon: BarChart3 },
   { href: "/slots", label: "Slots", icon: icons.clock },
-  { href: "/bookings", label: "Bookings", icon: icons.calendar },
-  { href: "/sales", label: "Sales", icon: ShoppingCart },
-  { href: "/payments", label: "Payments", icon: icons.wallet },
+  { href: "/bookings", label: "Bookings & Payments", icon: icons.calendar },
+  { href: "/sales", label: "Products & Sales", icon: ShoppingCart },
   { href: "/gamezone", label: "Gamezone", icon: icons.gamepad },
   { href: "/customers", label: "Customers", icon: icons.users },
   { href: "/membership", label: "Membership, UC & Children's Academy", icon: icons.badge },
   { href: "/tournaments", label: "Tournaments", icon: icons.trophy },
+  { href: "/teams", label: "Teams & Challenges", icon: icons.swords },
   { href: "/ev-charging", label: "EV Charging", icon: icons.battery },
   { href: "/verify", label: "Verify Documents", icon: icons.shield },
   { href: "/digital-id", label: "Digital ID", icon: icons.scan },
@@ -48,6 +51,15 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const [openGroups, setOpenGroups] = useState<string[]>([]); // every section dropdown starts closed
   const [frequentsOpen, setFrequentsOpen] = useState(false);
   const [fresh, setFresh] = useState(false);
+  // "Refresh": the page in front of you loads its numbers again, right here (no browser reload, you stay signed in and on the same page)
+  const [pageKey, setPageKey] = useState(0);
+  const [spinning, setSpinning] = useState(false);
+  const refreshPage = () => {
+    setSpinning(true);
+    router.refresh();
+    setPageKey((k) => k + 1);
+    setTimeout(() => setSpinning(false), 700);
+  };
   const live = useLive(); // permissions re-read from the server for this page load
   const [photo, setPhoto] = useState<string | null | undefined>(undefined); // set once the person changes their picture here
   const [photoErr, setPhotoErr] = useState("");
@@ -78,22 +90,20 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!ready) return;
     let live = true;
-    refreshAdmin().catch(() => {}).finally(() => { if (live) setFresh(true); });
+    refreshAdmin().then((a) => { if (live && a?.role === "organizer") router.replace("/organizer"); }).catch(() => {}).finally(() => { if (live) setFresh(true); });
     return () => { live = false; };
   }, [ready]);
 
   if (!ready || !fresh) return <div className="grid min-h-screen place-items-center text-sm text-muted">Loading…</div>;
 
   const visible = frequents.filter((f) => canSeePage(f.href.slice(1)));
-  const hour = Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kathmandu", hour: "2-digit", hourCycle: "h23" }).format(new Date()));
-  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
   const who = admin?.role === "owner" ? "Owner" : admin?.role === "admin" ? "Admin" : "Staff";
   const avatar = photo === undefined ? admin?.avatar ?? null : photo;
   const initials = (admin?.name ?? who).split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || who[0];
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
   const link = (href: string, label: string, Icon: React.ElementType, n?: number) => (
-    <Link key={href} href={href} onClick={() => setOpen(false)} className={`flex items-center gap-3 rounded-xl px-3 py-2 text-sm ${isActive(href) ? "bg-[#0c0b5d]/10 font-semibold text-[#0c0b5d]" : "text-[#0c0b5d]/80 hover:bg-[#0c0b5d]/5 hover:text-[#0c0b5d]"}`}>
+    <Link key={href} href={href} onClick={() => setOpen(false)} className={`flex items-center gap-3 rounded-xl px-3 py-2 text-sm ${isActive(href) ? "bg-(--nav-ink)/10 font-semibold text-(--nav-ink)" : "text-(--nav-ink)/80 hover:bg-(--nav-ink)/5 hover:text-(--nav-ink)"}`}>
       {n !== undefined && <span aria-hidden className="w-5 shrink-0 text-right text-xs font-bold tabular-nums opacity-70">{n}.</span>}
       <Icon size={18} className="shrink-0" /> {label}
     </Link>
@@ -110,15 +120,15 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[264px_minmax(0,1fr)]">
-        <header className="sticky top-0 z-30 flex h-auto min-h-16 min-w-0 items-center pb-2 pt-[max(calc(env(safe-area-inset-top)_-_0.625rem),0.5rem)] md:h-16 md:pb-0 md:pt-0 justify-between gap-3 bg-white/30 backdrop-blur-md pl-2 pr-4 text-[#0c0b5d] lg:col-span-2 lg:pl-3 lg:pr-8">
+        <header className="sticky top-0 z-30 flex h-auto min-h-16 min-w-0 items-center pb-2 pt-[max(calc(env(safe-area-inset-top)_-_0.625rem),0.5rem)] md:h-16 md:pb-0 md:pt-0 justify-between gap-3 bg-(--nav-wash) backdrop-blur-md pl-2 pr-4 text-(--nav-ink) lg:col-span-2 lg:pl-3 lg:pr-8">
           {/* the logo and name reload the portal from its home page (a plain link, not a client-side one, so it is a real restart) */}
-          <a href={withBase("/")} aria-label="Unique Futsal, reload the portal" className="flex shrink-0 items-center gap-3 pr-2 text-[#0c0b5d] no-underline">
+          <a href={withBase("/")} aria-label="Unique Futsal, reload the portal" className="flex shrink-0 items-center gap-3 pr-2 text-(--nav-ink) no-underline">
             {/* the player alone, turned white for the navy bar */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo-mark.png" alt="" aria-hidden className="h-9 w-auto brightness-0" />
+            <img src="/logo-mark.png" alt="" aria-hidden data-nav-logo className="h-9 w-auto brightness-0" />
             <span className="hidden text-sm font-bold tracking-wide sm:inline">UNIQUE FUTSAL</span>
           </a>
-          <span aria-hidden className="hidden h-8 w-px shrink-0 bg-[#0c0b5d]/30 sm:block" />
+          <span aria-hidden className="hidden h-8 w-px shrink-0 bg-(--nav-ink)/30 sm:block" />
           {/* the frequent pages as icons, on every page, for quick switching (the name shows on hover or long press) */}
           <nav aria-label="Frequent pages" className="mx-2 flex min-w-0 flex-1 items-center justify-start gap-1.5 overflow-x-auto py-1 [mask-image:linear-gradient(to_right,transparent,#000_10px,#000_calc(100%-10px),transparent)] md:mx-3 md:justify-center md:gap-2.5 md:[mask-image:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {visible.map((f) => {
@@ -136,7 +146,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
                     const go = live.openLive(f.href);
                     if (go) { e.preventDefault(); router.push(go); }
                   }}
-                  className={`relative grid h-9 w-9 shrink-0 place-items-center rounded-xl md:h-11 md:w-11 md:rounded-2xl transition ${on ? "bg-[#f5822a] text-white shadow-lg ring-[#f5822a]" : "text-[#0c0b5d] hover:bg-[#0c0b5d]/5"}`}
+                  className={`relative grid h-9 w-9 shrink-0 place-items-center rounded-xl md:h-11 md:w-11 md:rounded-2xl transition ${on ? "bg-[#f5822a] text-white shadow-lg ring-[#f5822a]" : "text-(--nav-ink) hover:bg-(--nav-ink)/5"}`}
                 >
                   <f.icon size={18} className="md:h-[22px] md:w-[22px]" />
                   {n > 0 && <span className="absolute -right-1.5 -top-1.5 grid min-w-[20px] place-items-center rounded-full bg-red-600 px-1 text-[11px] font-bold leading-5 text-white ring-2 ring-white">{n > 9 ? "9+" : n}</span>}
@@ -145,23 +155,38 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             })}
           </nav>
           <div className="flex shrink-0 items-center gap-3 pl-4">
-            <SirenToggle />
+            <div className="relative shrink-0">
+              <button type="button" onClick={() => picker.current?.click()} title={`${who}: change profile picture`} aria-label={`${who}: change profile picture`} className="grid h-9 w-9 place-items-center overflow-hidden rounded-full bg-[#0c0b5d] ring-2 ring-white md:h-11 md:w-11">
+                {avatar ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={avatar} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <span className="text-sm font-bold text-white">{initials}</span>
+                )}
+              </button>
+              <input ref={picker} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" aria-label="Choose profile picture" onChange={(e) => { void choosePhoto(e.target.files?.[0]); e.target.value = ""; }} />
+              {photoErr && <p role="alert" className="absolute right-0 top-full z-40 mt-2 w-56 rounded-xl bg-surface p-2.5 text-xs font-medium text-red-600 shadow-lg">{photoErr}</p>}
+            </div>
+            <button type="button" onClick={refreshPage} title="Refresh this page" aria-label="Refresh this page" className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-emerald-600 text-white shadow-md transition hover:bg-emerald-700 md:h-11 md:w-11 md:rounded-2xl">
+              <RefreshCw size={18} className={`md:h-[22px] md:w-[22px] ${spinning ? "animate-spin" : ""}`} />
+            </button>
             <NotificationBell />
           </div>
         </header>
+      {ready && <LockScreen onSignOut={() => { logout(); router.replace("/login"); }} />}
       {open && <div className="fixed inset-0 z-40 bg-black/40 lg:hidden" onClick={() => setOpen(false)} />}
-      <aside className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-[#0c0b5d]/20 bg-transparent p-4 text-[#0c0b5d] transition-transform lg:sticky lg:top-16 lg:h-[calc(100vh-4rem)] lg:row-start-2 lg:col-start-1 lg:w-auto lg:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}>
+      <aside className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-(--nav-ink)/20 bg-transparent p-4 text-(--nav-ink) transition-transform lg:sticky lg:top-16 lg:h-[calc(100vh-4rem)] lg:row-start-2 lg:col-start-1 lg:w-auto lg:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="mb-4 flex justify-end lg:hidden">
           <button onClick={() => setOpen(false)} aria-label="Close menu"><X size={20} /></button>
         </div>
-        <nav className="flex-1 divide-y divide-[#0c0b5d]/15 overflow-y-auto border-y border-[#0c0b5d]/15">
+        <nav className="flex-1 divide-y divide-(--nav-ink)/15 overflow-y-auto border-y border-(--nav-ink)/15">
           {canSeePage("dashboard") && (
-            <Link href="/dashboard" onClick={() => setOpen(false)} className="flex items-center gap-3 px-2 py-3 text-base font-bold text-[#0c0b5d] transition hover:bg-[#0c0b5d]/5">
+            <Link href="/dashboard" onClick={() => setOpen(false)} className="flex items-center gap-3 px-2 py-3 text-base font-bold text-(--nav-ink) transition hover:bg-(--nav-ink)/5">
               <LayoutDashboard size={22} /> Dashboard
             </Link>
           )}
           <div>
-            <button onClick={() => setFrequentsOpen((v) => !v)} aria-expanded={frequentsOpen} className="flex w-full items-center gap-3 px-2 py-3 text-base font-bold text-[#0c0b5d] transition hover:bg-[#0c0b5d]/5">
+            <button onClick={() => setFrequentsOpen((v) => !v)} aria-expanded={frequentsOpen} className="flex w-full items-center gap-3 px-2 py-3 text-base font-bold text-(--nav-ink) transition hover:bg-(--nav-ink)/5">
               <Star size={22} /> Frequents
               <ChevronDown size={16} className={`ml-auto transition-transform ${frequentsOpen ? "rotate-180" : ""}`} />
             </button>
@@ -175,7 +200,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             const isOpen = openGroups.includes(g);
             return (
               <div key={g}>
-                <button onClick={() => toggleGroup(g)} aria-expanded={isOpen} className="flex w-full items-center gap-3 px-2 py-3 text-base font-bold text-[#0c0b5d] transition hover:bg-[#0c0b5d]/5">
+                <button onClick={() => toggleGroup(g)} aria-expanded={isOpen} className="flex w-full items-center gap-3 px-2 py-3 text-base font-bold text-(--nav-ink) transition hover:bg-(--nav-ink)/5">
                   <Icon size={22} /> {g}
                   <ChevronDown size={16} className={`ml-auto transition-transform ${isOpen ? "rotate-180" : ""}`} />
                 </button>
@@ -184,20 +209,11 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             );
           })}
         </nav>
-        <div className="flex shrink-0 items-center gap-3 px-2 py-3 text-[#0c0b5d]">
-          <button type="button" onClick={() => picker.current?.click()} title="Change profile picture" aria-label="Change profile picture" className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-full bg-[#0c0b5d] ring-2 ring-white">
-            {avatar ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={avatar} alt="" className="h-full w-full object-cover" />
-            ) : (
-              <span className="text-lg font-bold text-white">{initials}</span>
-            )}
-          </button>
-          <input ref={picker} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" aria-label="Choose profile picture" onChange={(e) => { void choosePhoto(e.target.files?.[0]); e.target.value = ""; }} />
-          <div className="min-w-0 text-left">
-            <p className="text-xs text-[#0c0b5d]/80">{greeting}</p>
-            <p className="truncate text-base font-bold">{who}</p>
-            {photoErr && <p role="alert" className="mt-1 text-xs font-medium text-red-700">{photoErr}</p>}
+        <div className="shrink-0 px-2 py-3 text-(--nav-ink)">
+          <div className="flex items-center justify-between gap-2">
+          <LockButton />
+          <SirenToggle up />
+          <ThemeToggle />
           </div>
         </div>
         <button onClick={() => { logout(); router.replace("/login"); }} className="mt-3 flex w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-red-600 px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700">
@@ -206,14 +222,14 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-col lg:col-start-2 lg:row-start-2">
-        <main className="mx-auto w-full max-w-[1400px] p-4 pb-28 lg:p-8 lg:pb-10">{children}</main>
+        <main key={pageKey} className="mx-auto w-full max-w-[1400px] p-4 pb-28 lg:p-8 lg:pb-10">{children}</main>
         <DeniedDialog />
         <ReminderPopup />
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 z-30 flex items-end bg-[#0c0b5d] px-2 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] pt-1 shadow-xl lg:hidden">
         {canSeePage("dashboard") && nav("/dashboard", "Dashboard", LayoutDashboard)}
-        {canSeePage("payments") && nav("/payments", "Payments", icons.wallet)}
+        {canSeePage("bookings") && nav("/bookings", "Bookings", icons.wallet)}
         <div className="flex flex-1 justify-center">
           {canSeePage("slots") && (
             <Link href="/slots" aria-label="Slots: book a customer" className="-mt-7 grid h-16 w-16 place-items-center rounded-full bg-white text-[#0c0b5d] shadow-lg ring-4 ring-[#0c0b5d]">

@@ -17,7 +17,7 @@ export const getToken = () => {
 
 export const setToken = (t: string | null) => {
   try {
-    if (t) localStorage.setItem(TOKEN_KEY, t);
+    if (t) { localStorage.setItem(TOKEN_KEY, t); localStorage.removeItem("uf-portal-locked"); }
     else localStorage.removeItem(TOKEN_KEY);
   } catch {}
 };

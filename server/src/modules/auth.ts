@@ -60,6 +60,42 @@ authRouter.post("/login", loginLimiter, handler(async (req, res) => {
   send(res, { token: signStaffToken({ ...req.staff, sessionVersion: s.sessionVersion }), admin: view(s) }, "Signed in");
 }));
 
+// Tournament Organizer sign-in. The Unique Futsal ID is an email OR a mobile number. Two ways in:
+//  1. an organizer account the venue made (ID = email or mobile number) with its own password;
+//  2. the host's own customer login: the mobile number and password they use in the customer app, when a hosted tournament is registered
+//     with that number as the host's contact. The first time, the organizer account is made for them and given every tournament hosted
+//     under that number (later tournaments are added at their next sign-in).
+// Only organizer accounts come in here; portal staff use /login.
+const last10 = (v: string) => v.replace(/\D/g, "").slice(-10);
+authRouter.post("/organizer-login", loginLimiter, handler(async (req, res) => {
+  const { id, password } = parse(z.object({ id: z.string().trim().min(3).max(120), password: z.string().min(1) }), req.body);
+  const isPhone = /^\+?[\d\s-]{10,17}$/.test(id);
+  const key = isPhone ? last10(id) : id.toLowerCase();
+  const fail = () => new AppError(401, "That ID or password is not right. Ask the venue if you are not sure.");
+
+  let s = await prisma.staffUser.findUnique({ where: { email: key } });
+  if (s && s.role !== "organizer") throw fail(); // portal staff do not come in here
+  let ok = await bcrypt.compare(password, s?.passwordHash ?? DUMMY_HASH);
+
+  if (!ok && isPhone) {
+    // the host's customer login
+    const customer = await prisma.user.findUnique({ where: { phoneNumber: key } });
+    const okCustomer = await bcrypt.compare(password, customer?.password ?? DUMMY_HASH);
+    if (customer && customer.isActive && okCustomer) {
+      const hosted = (await prisma.tournament.findMany({ where: { hostedEvent: true, status: { not: "cancelled" } }, select: { id: true, hostPhone: true, hostName: true } })).filter((t) => t.hostPhone && last10(t.hostPhone) === key);
+      if (hosted.length === 0) throw new AppError(403, "No tournament is registered for this number yet. Ask the venue to register it with your contact number.");
+      if (!s) s = await prisma.staffUser.create({ data: { email: key, name: customer.name?.trim() || hosted[0].hostName || key, role: "organizer", permissions: [], passwordHash: customer.password } });
+      await prisma.tournamentOrganizer.createMany({ data: hosted.map((t) => ({ staffId: s!.id, tournamentId: t.id })), skipDuplicates: true });
+      ok = true;
+    }
+  }
+  if (!s || !ok || !s.isActive) throw fail();
+  await prisma.staffUser.update({ where: { id: s.id }, data: { lastLoginAt: new Date() } });
+  req.staff = { id: s.id, email: s.email, name: s.name, role: s.role, permissions: effectivePermissions(s) };
+  await audit(req, "login", "staff", s.id);
+  send(res, { token: signStaffToken({ ...req.staff, sessionVersion: s.sessionVersion }), admin: view(s) }, "Signed in");
+}));
+
 authRouter.get("/me", requireStaff, handler(async (req, res) => {
   const s = await prisma.staffUser.findUniqueOrThrow({ where: { id: req.staff!.id }, select: { avatar: true } });
   send(res, view({ ...req.staff!, permissions: req.staff!.permissions, avatar: s.avatar }));
