@@ -69,7 +69,11 @@ async function partnerCall<T>(token: string, path: string, init: RequestInit = {
 export const partnerView = (token: string) => partnerCall<PartnerDash>(token, "");
 export const partnerVerify = (token: string, code: string) => partnerCall<Redemption>(token, "/verify", { method: "POST", ...json({ code }) });
 export const partnerMarkUsed = (token: string, rid: string) => partnerCall<PartnerDash>(token, `/redemptions/${rid}/used`, { method: "POST", ...json({}) });
-export const partnerBanner = (token: string, image: string) => partnerCall<PartnerDash>(token, "/banner", { method: "POST", ...json({ image }) });
+export type PartnerOfferInput = { title: string; discountText: string; maxPerCustomer?: number | null };
+export const partnerAddOffer = (token: string, b: PartnerOfferInput) => partnerCall<PartnerDash>(token, "/offers", { method: "POST", ...json(b) });
+export const partnerEditOffer = (token: string, oid: string, b: Partial<PartnerOfferInput> & { active?: boolean }) => partnerCall<PartnerDash>(token, `/offers/${oid}`, { method: "PATCH", ...json(b) });
+export const partnerDeleteOffer = (token: string, oid: string) => partnerCall<PartnerDash>(token, `/offers/${oid}`, { method: "DELETE" });
+export const partnerBanner =(token: string, image: string) => partnerCall<PartnerDash>(token, "/banner", { method: "POST", ...json({ image }) });
 
 export const fmtDay = (k: string) => new Date(`${k}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 export const when = (iso: string) => new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: "Asia/Kathmandu" });

@@ -3,7 +3,7 @@
 /* eslint-disable @next/next/no-img-element -- pictures come from the venue's own server, so next/image is not used */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, Copy, ExternalLink, ImagePlus, Link2, Loader2, Plus, Store, Trash2, X } from "lucide-react";
+import { ArrowLeft, BadgePercent, Building2, Check, ChevronRight, Copy, ExternalLink, ImagePlus, Images, Link2, Loader2, Plus, Store, Trash2, X } from "lucide-react";
 import { Badge } from "../bookings/Badge";
 import Switch from "../Switch";
 import { ApiError } from "@/lib/api";
@@ -210,7 +210,8 @@ function OfferRow({ pid, o, onPartner }: { pid: string; o: Offer; onPartner: (p:
   async function save() { const p = offerProblem(d); if (p) return setErr(p); if (guard("marketplace.manage")) await run(() => editOffer(pid, o.id, toOffer(d))); }
   async function remove() { if (guard("marketplace.manage") && (await askConfirm(`Delete the offer "${o.title}"?`))) await run(() => deleteOffer(pid, o.id)); }
   return (
-    <li className={`space-y-2 rounded-2xl border border-line p-3 ${o.active ? "" : "opacity-70"}`}>
+    <li className={`space-y-2 rounded-2xl border p-3 ${o.pointsCost <= 0 ? "border-amber-400 bg-amber-500/5" : `border-line ${o.active ? "" : "opacity-70"}`}`}>
+      {o.pointsCost <= 0 && <p className="text-xs font-semibold text-amber-700">Added by the partner. Set the loyalty points and Save to put it live.</p>}
       <OfferFields d={d} set={(p) => { setD((x) => ({ ...x, ...p })); setErr(""); }} />
       <div className="flex flex-wrap items-center gap-3">
         <label className="flex items-center gap-2 text-xs font-semibold"><Switch on={o.active} label={`Offer ${o.title} on or off`} disabled={busy} onChange={() => guard("marketplace.manage") && run(() => editOffer(pid, o.id, { active: !o.active }))} /> {o.active ? "On" : "Off"}</label>
@@ -231,8 +232,16 @@ function ManageSheet({ partner, categories, onClose, onChange, onDeleted }: { pa
   const [err, setErr] = useState("");
   const [ok, setOk] = useState("");
   const [copied, setCopied] = useState(false);
+  const [view, setView] = useState<"details" | "banners" | "banner" | "add" | "link">("details"); // the sub-page that is open
   const pick = useRef<HTMLInputElement>(null);
   const url = dashboardUrl(p.link.token);
+  const tabs = [
+    { id: "details", label: "Company Details", hint: p.category, Icon: Building2 },
+    { id: "banners", label: "Banners", hint: p.bannerUrl ? "1 banner" : "None yet", Icon: Images },
+    { id: "add", label: "Add new", hint: `${p.offers.length} discount${p.offers.length === 1 ? "" : "s"}`, Icon: BadgePercent },
+    { id: "link", label: "Dashboard Link", hint: p.link.active ? "On" : "Off", Icon: Link2 },
+  ] as const;
+  const on = (id: string) => view === id || (id === "banners" && view === "banner");
   const dirty = f.name !== p.name || f.category !== p.category || f.contactName !== (p.contactName ?? "") || f.contactPhone !== (p.contactPhone ?? "") || f.about !== (p.about ?? "") || f.agreementStart !== p.agreementStart || f.agreementEnd !== p.agreementEnd;
 
   const loadCards = useCallback(() => { listRedemptions(p.id).then(setCards).catch(() => setCards([])); }, [p.id]);
@@ -262,11 +271,28 @@ function ManageSheet({ partner, categories, onClose, onChange, onDeleted }: { pa
   }
 
   return (
-    <Sheet title={p.name} sub={<span className="flex flex-wrap items-center gap-2"><Badge tone={STATUS[p.status].tone}>{STATUS[p.status].label}</Badge><span>{p.category} · agreement {fmtDay(p.agreementStart)} to {fmtDay(p.agreementEnd)}</span></span>} onClose={onClose}>
+    <Sheet title={p.name} sub={<span className="flex flex-wrap items-center gap-2"><Badge tone={STATUS[p.status].tone}>{STATUS[p.status].label}</Badge><span>{p.category} · agreement {fmtDay(p.agreementStart)} to {fmtDay(p.agreementEnd)}</span>{p.link.active && (
+    <span className="flex w-full max-w-full items-center gap-1.5 rounded-full border border-line bg-surface-2 py-1 pl-3 pr-1 text-xs">
+      <Link2 size={13} className="shrink-0 text-muted" /><span className="min-w-0 flex-1 truncate font-mono" title={url}>{url}</span>
+      <button type="button" onClick={async (e) => { e.stopPropagation(); await copyText(url); setCopied(true); setTimeout(() => setCopied(false), 1500); }} aria-label="Copy the partner link" className="flex shrink-0 items-center gap-1 rounded-full bg-brand px-2.5 py-1 font-semibold text-white">{copied ? <Check size={12} /> : <Copy size={12} />} {copied ? "Copied" : "Copy"}</button>
+      <a href={url} target="_blank" rel="noopener noreferrer" aria-label="Open the partner link" className="grid shrink-0 place-items-center rounded-full p-1.5 hover:bg-surface"><ExternalLink size={13} /></a>
+    </span>
+  )}</span>} onClose={onClose}>
       {err && <p role="alert" className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600">{err}</p>}
       {ok && <p role="status" className="rounded-xl bg-emerald-500/10 p-3 text-sm text-emerald-700">{ok}</p>}
 
-      <section className="space-y-3">
+      <nav aria-label="Partner sections" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {tabs.map(({ id, label, hint, Icon }) => (
+          <button key={id} type="button" aria-current={on(id) ? "page" : undefined} onClick={() => { setView(id); setErr(""); setOk(""); }}
+            className={`flex flex-col items-start gap-1 rounded-2xl border p-3 text-left transition ${on(id) ? "border-brand bg-brand text-white shadow-md" : "border-line bg-surface hover:shadow-sm"}`}>
+            <Icon size={18} className={on(id) ? "text-white" : "text-brand"} />
+            <span className="text-sm font-bold leading-tight">{label}</span>
+            <span className={`text-[11px] ${on(id) ? "text-white/80" : "text-muted"}`}>{hint}</span>
+          </button>
+        ))}
+      </nav>
+
+      <section className={view === "details" ? "space-y-3" : "hidden"}>
         <div className="flex items-center justify-between"><h3 className="text-sm font-bold">Business and agreement</h3>
           <label className="flex items-center gap-2 text-xs font-semibold"><Switch on={p.active} label="Partner on or off" disabled={!!busy} onChange={() => run("active", () => editPartner(p.id, { active: !p.active }), p.active ? "Paused. Customers no longer see it." : "Switched on.")} /> {p.active ? "On" : "Paused"}</label></div>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -281,7 +307,28 @@ function ManageSheet({ partner, categories, onClose, onChange, onDeleted }: { pa
         {dirty && <button type="button" disabled={busy === "details"} onClick={saveDetails} className="flex items-center gap-2 rounded-full bg-brand px-5 py-2.5 text-sm font-semibold text-white">{busy === "details" && <Loader2 size={15} className="animate-spin" />} Save changes</button>}
       </section>
 
-      <section className="space-y-2">
+      <section className={view === "banners" ? "space-y-3" : "hidden"}>
+        <h3 className="text-sm font-bold">Banners</h3>
+        {p.bannerUrl ? (
+          <button type="button" onClick={() => setView("banner")} className="flex w-full items-center gap-3 rounded-2xl border border-line bg-surface p-2 text-left transition hover:shadow-md">
+            <img src={picUrl(p.bannerUrl)} alt={`${p.name} banner`} className="aspect-[16/7] w-32 shrink-0 rounded-xl object-cover sm:w-44" />
+            <span className="min-w-0 flex-1 space-y-1">
+              <span className="block truncate text-sm font-bold">{p.name} banner</span>
+              <Badge tone={BANNER_STATUS[p.banner.status].tone}>{BANNER_STATUS[p.banner.status].label}</Badge>
+              <span className="block text-xs text-muted">{p.banner.seconds} seconds · priority {p.banner.priority}</span>
+            </span>
+            <ChevronRight size={18} className="shrink-0 text-muted" />
+          </button>
+        ) : (
+          <div className="grid place-items-center gap-2 rounded-2xl bg-surface-2 p-8 text-center text-sm text-muted">
+            <ImagePlus size={26} /><p>No banner yet. Upload one here, or the partner can upload it from its dashboard.</p>
+            <button type="button" disabled={busy === "banner"} onClick={() => pick.current?.click()} className="flex items-center gap-1.5 rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white">{busy === "banner" ? <Loader2 size={14} className="animate-spin" /> : <Plus size={15} />} Upload a banner</button>
+          </div>
+        )}
+      </section>
+
+      <section className={view === "banner" ? "space-y-2" : "hidden"}>
+        <button type="button" onClick={() => setView("banners")} className="flex items-center gap-1 text-xs font-semibold text-brand"><ArrowLeft size={14} /> All banners</button>
         <h3 className="text-sm font-bold">Banner</h3>
         <div className="grid aspect-[16/7] w-full place-items-center overflow-hidden rounded-xl bg-surface-2 text-sm text-muted">
           {p.bannerUrl ? <img src={picUrl(p.bannerUrl)} alt={`${p.name} banner`} className="h-full w-full object-cover" /> : "No banner yet. The partner can upload one from its dashboard."}
@@ -294,7 +341,7 @@ function ManageSheet({ partner, categories, onClose, onChange, onDeleted }: { pa
         <BannerSchedule key={JSON.stringify(p.banner)} p={p} onChange={onChange} />
       </section>
 
-      <section className="space-y-3">
+      <section className={view === "add" ? "space-y-3" : "hidden"}>
         <h3 className="text-sm font-bold">Discounts for loyalty points</h3>
         {p.offers.length === 0 && <p className="rounded-xl bg-amber-500/10 p-3 text-xs text-amber-800">No discount yet. Customers see this partner only once it has at least one offer that is on.</p>}
         <ul className="space-y-3">{p.offers.map((o) => <OfferRow key={`${o.id}-${o.code}-${o.pointsCost}-${o.active}`} pid={p.id} o={o} onPartner={onChange} />)}</ul>
@@ -306,7 +353,7 @@ function ManageSheet({ partner, categories, onClose, onChange, onDeleted }: { pa
         ) : <button type="button" onClick={() => setAdd(blankOffer())} className="flex items-center gap-1.5 text-sm font-semibold text-brand"><Plus size={15} /> Add a discount</button>}
       </section>
 
-      <section className="space-y-2">
+      <section className={view === "link" ? "space-y-2" : "hidden"}>
         <h3 className="flex items-center gap-2 text-sm font-bold"><Link2 size={15} /> Partner dashboard link</h3>
         <p className="text-xs text-muted">Send this to {p.contactName || "the partner"}. They open it without signing in to see the customers who used a discount, check a card code, mark it used and change their banner.{p.link.lastSeenAt ? ` Last opened ${when(p.link.lastSeenAt)}.` : " Not opened yet."}</p>
         {p.link.active ? (
@@ -322,7 +369,7 @@ function ManageSheet({ partner, categories, onClose, onChange, onDeleted }: { pa
         </div>
       </section>
 
-      <section className="space-y-2">
+      <section className={view === "link" ? "space-y-2 border-t border-line pt-4" : "hidden"}>
         <h3 className="text-sm font-bold">Customers who used a discount <span className="font-normal text-muted">({p.stats.active} waiting, {p.stats.used} used)</span></h3>
         {!cards ? <p className="text-sm text-muted">Loading…</p> : cards.length === 0 ? <p className="rounded-xl bg-surface-2 p-3 text-center text-sm text-muted">No customer has used a discount yet.</p> : (
           <ul className="divide-y divide-line">
@@ -337,7 +384,7 @@ function ManageSheet({ partner, categories, onClose, onChange, onDeleted }: { pa
         )}
       </section>
 
-      <button type="button" onClick={remove} className="flex items-center gap-1.5 text-xs font-semibold text-red-600"><Trash2 size={13} /> Delete this partner</button>
+      <button type="button" onClick={remove} className={`items-center gap-1.5 text-xs font-semibold text-red-600 ${view === "details" ? "flex" : "hidden"}`}><Trash2 size={13} /> Delete this partner</button>
     </Sheet>
   );
 }

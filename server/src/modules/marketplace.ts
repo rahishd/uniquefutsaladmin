@@ -170,6 +170,8 @@ marketplaceRouter.patch("/:id/offers/:oid", requirePermission("marketplace.manag
   if (!o) throw new AppError(404, "Offer not found");
   const b = parse(offerBody.partial(), req.body);
   if (b.code && b.code !== o.code && (await prisma.marketplaceOffer.findUnique({ where: { partnerId_code: { partnerId: p.id, code: b.code } } }))) throw new AppError(409, "This partner already has an offer with that code");
+  // a discount the partner wrote starts with no points; once staff set the points it goes live
+  if (b.pointsCost !== undefined && num(o.pointsCost) === 0 && b.active === undefined) b.active = true;
   await prisma.marketplaceOffer.update({ where: { id: o.id }, data: { ...(b.title !== undefined ? { title: b.title } : {}), ...(b.code !== undefined ? { code: b.code } : {}), ...(b.discountText !== undefined ? { discountText: b.discountText } : {}), ...(b.pointsCost !== undefined ? { pointsCost: b.pointsCost } : {}), ...(b.maxPerCustomer !== undefined ? { maxPerCustomer: b.maxPerCustomer } : {}), ...(b.active !== undefined ? { active: b.active } : {}) } });
   await audit(req, "offer-edit", "marketplace_partner", p.id, { code: b.code ?? o.code, pointsCost: b.pointsCost ?? num(o.pointsCost), active: b.active ?? o.active });
   send(res, await view(p), "Offer saved");
@@ -266,6 +268,45 @@ partnerDashboardRouter.post("/:token/redemptions/:rid/used", handler(async (req,
   const done = await prisma.marketplaceRedemption.updateMany({ where: { id: param(req, "rid"), partnerId: p.id, status: "active" }, data: { status: "used", usedAt: new Date() } });
   if (done.count !== 1) throw new AppError(409, "This card is already used or was cancelled.");
   send(res, await dash(p), "Marked as used");
+}));
+
+// the partner writes its own discounts (what the customer gets, on which items); only staff set the loyalty points each one costs.
+// A new discount waits (off, 0 points) until staff set its points, then it goes live.
+const partnerOffer = z.object({
+  title: z.string().trim().min(2, "Name the item or offer, for example Momo set").max(60),
+  discountText: z.string().trim().min(2, "Say what the customer gets, for example 10% off").max(80),
+  maxPerCustomer: z.number().int().min(1).max(100).nullish().transform((v) => v ?? null),
+});
+const newCode = () => `D${randomBytes(4).toString("hex").slice(0, 5).toUpperCase()}`;
+partnerDashboardRouter.post("/:token/offers", handler(async (req, res) => {
+  const p = await partnerOr404(req);
+  const b = parse(partnerOffer, req.body);
+  if ((await prisma.marketplaceOffer.count({ where: { partnerId: p.id } })) >= 30) throw new AppError(409, "You have 30 discounts already. Remove one first.");
+  await prisma.marketplaceOffer.create({ data: { partnerId: p.id, title: b.title, code: newCode(), discountText: b.discountText, pointsCost: 0, maxPerCustomer: b.maxPerCustomer, active: false } });
+  await audit(req, "offer-add", "marketplace_partner", p.id, { by: "partner", title: b.title });
+  send(res, await dash(p), "Added. Unique Futsal will set its loyalty points, then customers can use it.", 201);
+}));
+partnerDashboardRouter.patch("/:token/offers/:oid", handler(async (req, res) => {
+  const p = await partnerOr404(req);
+  const o = await prisma.marketplaceOffer.findFirst({ where: { id: param(req, "oid"), partnerId: p.id } });
+  if (!o) throw new AppError(404, "Discount not found");
+  const b = parse(partnerOffer.partial().extend({ active: z.boolean().optional() }), req.body);
+  if (b.active && num(o.pointsCost) <= 0) throw new AppError(409, "Unique Futsal has not set the loyalty points for this discount yet.");
+  await prisma.marketplaceOffer.update({ where: { id: o.id }, data: { ...(b.title !== undefined ? { title: b.title } : {}), ...(b.discountText !== undefined ? { discountText: b.discountText } : {}), ...(b.maxPerCustomer !== undefined ? { maxPerCustomer: b.maxPerCustomer } : {}), ...(b.active !== undefined ? { active: b.active } : {}) } });
+  await audit(req, "offer-edit", "marketplace_partner", p.id, { by: "partner", code: o.code });
+  send(res, await dash(p), "Saved");
+}));
+partnerDashboardRouter.delete("/:token/offers/:oid", handler(async (req, res) => {
+  const p = await partnerOr404(req);
+  const o = await prisma.marketplaceOffer.findFirst({ where: { id: param(req, "oid"), partnerId: p.id } });
+  if (!o) throw new AppError(404, "Discount not found");
+  if ((await prisma.marketplaceRedemption.count({ where: { offerId: o.id } })) > 0) {
+    await prisma.marketplaceOffer.update({ where: { id: o.id }, data: { active: false } });
+    return send(res, await dash(p), "Customers have used this discount, so it was switched off instead of removed");
+  }
+  await prisma.marketplaceOffer.delete({ where: { id: o.id } });
+  await audit(req, "offer-delete", "marketplace_partner", p.id, { by: "partner", code: o.code });
+  send(res, await dash(p), "Removed");
 }));
 
 // the partner changes its own banner (shown in the customer app); staff can replace or remove it any time
