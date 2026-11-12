@@ -33,6 +33,7 @@ export default function Sell({ tick, onChanged }: { tick: number; onChanged: () 
   const [error, setError] = useState("");
   const [done, setDone] = useState<BillResult | CreditResult | { simple: true; amount: number; items: string } | null>(null);
   const [local, setLocal] = useState(0);
+  const [mode, setMode] = useState<"pay" | "due">("pay"); // pay the bill now, or put the goods on the account (due now) and bill after the game
 
   useEffect(() => {
     let live = true;
@@ -71,14 +72,15 @@ export default function Sell({ tick, onChanged }: { tick: number; onChanged: () 
   const dueTotal = chosenDues.reduce((s, d) => s + d.amount, 0);
   const total = goodsTotal + gameTotal + dueTotal;
   const ready = paymentsFor(total, pay);
-  const canCredit = !!known && lines.length > 0 && chosenGames.length === 0 && chosenDues.length === 0; // goods only can go on the account
+  const canCredit = !!known && lines.length > 0; // new goods can go on the account; games and old dues stay unpaid until the final bill
+  const dueNow = mode === "due" && canCredit; // "Due now": only the new goods are put on the account
   const goodsPts = known ? Math.floor((goodsTotal + dueTotal) / 100) : 0;
   const gamePts = Math.round(chosenGames.filter((g) => !g.upcoming).reduce((s, g) => s + g.pointsIfCompleted, 0) * 10) / 10;
   const waiting = chosenGames.filter((g) => g.upcoming).length;
   const shown = (products ?? []).filter((p) => !search.trim() || p.name.toLowerCase().includes(search.trim().toLowerCase()));
   const setQty = (p: Product, qty: number) => setCart((c) => ({ ...c, [p.id]: Math.max(0, Math.min(Number.isFinite(qty) ? qty : 0, p.stock)) }));
 
-  function reset() { setCart({}); setPhone(""); setName(""); setSlot(""); setBill(null); setPay(INITIAL_PAY); setLocal((n) => n + 1); onChanged(); }
+  function reset() { setMode("pay"); setCart({}); setPhone(""); setName(""); setSlot(""); setBill(null); setPay(INITIAL_PAY); setLocal((n) => n + 1); onChanged(); }
 
   async function complete(onAccount = false) {
     if (!guard("inventory.sell")) return;
@@ -250,14 +252,35 @@ export default function Sell({ tick, onChanged }: { tick: number; onChanged: () 
           )}
         </div>
 
-        <PaySplit total={total} value={pay} onChange={(v) => { setPay(v); setError(""); }} customerPhone={known ? phone : undefined} />
-        {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600" role="alert">{error}</p>}
-        <button onClick={() => complete(false)} disabled={busy || total === 0 || !!ready.problem || (!!phone && (!phoneOk || !known))} className="w-full rounded-full bg-brand py-3 text-sm font-semibold text-white disabled:opacity-50">
-          {busy ? "Saving…" : known ? `Complete bill ${total ? rs(total) : ""}` : `Complete sale ${total ? rs(total) : ""}`}
-        </button>
-        {canCredit && (
-          <button onClick={() => complete(true)} disabled={busy} className="w-full rounded-full border border-line py-2.5 text-sm font-semibold disabled:opacity-50">Put on account, pay later ({rs(goodsTotal)})</button>
+        {known && (
+          <div role="radiogroup" aria-label="When to pay" className="grid grid-cols-2 gap-1 rounded-2xl bg-surface-2 p-1 text-sm font-semibold">
+            {([["pay", "Complete payment"], ["due", "Due now"]] as const).map(([id, label]) => (
+              <button key={id} type="button" role="radio" aria-checked={mode === id} onClick={() => { setMode(id); setError(""); }} className={`rounded-xl px-3 py-2 transition ${mode === id ? "bg-brand text-white shadow" : "text-muted"}`}>{label}</button>
+            ))}
+          </div>
         )}
+        {dueNow ? (
+          <div className="space-y-2 rounded-xl bg-amber-500/10 p-3 text-xs text-amber-800">
+            <p>Due now: only the new goods go on {known?.name ?? "the customer"}&apos;s account and the stock is taken. Nothing is paid yet. Make the final bill after the match.</p>
+            <div className="space-y-0.5 border-t border-amber-500/30 pt-2 text-sm">
+              {gameTotal > 0 && <div className="flex justify-between"><span>Games (unpaid)</span><span>{rs(gameTotal)}</span></div>}
+              {dueTotal > 0 && <div className="flex justify-between"><span>Earlier goods on credit</span><span>{rs(dueTotal)}</span></div>}
+              <div className="flex justify-between"><span>These goods (added now)</span><span>{rs(goodsTotal)}</span></div>
+              <div className="flex justify-between pt-1 text-base font-bold text-amber-900"><span>Total due</span><span>{rs(total)}</span></div>
+            </div>
+          </div>
+        ) : (
+          <PaySplit total={total} value={pay} onChange={(v) => { setPay(v); setError(""); }} customerPhone={known ? phone : undefined} />
+        )}
+        {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600" role="alert">{error}</p>}
+        {dueNow ? (
+          <button onClick={() => complete(true)} disabled={busy} className="w-full rounded-full bg-brand py-3 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Saving…" : `Add to account · Total due ${rs(total)}`}</button>
+        ) : (
+          <button onClick={() => complete(false)} disabled={busy || total === 0 || !!ready.problem || (!!phone && (!phoneOk || !known))} className="w-full rounded-full bg-brand py-3 text-sm font-semibold text-white disabled:opacity-50">
+            {busy ? "Saving…" : known ? `Complete bill ${total ? rs(total) : ""}` : `Complete sale ${total ? rs(total) : ""}`}
+          </button>
+        )}
+        {known && mode === "due" && !canCredit && <p className="text-xs text-muted">Tap the goods to put on the account, then press Due now.</p>}
       </aside>
     </div>
   );
