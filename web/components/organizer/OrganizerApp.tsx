@@ -95,6 +95,7 @@ export default function OrganizerApp() {
   const [dashView, setDashView] = useState<DashView>(""); // the Dashboard page that is open (the Back button returns to the four icons)
   const [teams, setTeams] = useState<OrgTeam[] | null>(null);
   const [maxTeams, setMaxTeams] = useState(0);
+  const [regClosed, setRegClosed] = useState(false);
   const [error, setError] = useState("");
 
   const open = useCallback(async () => {
@@ -116,7 +117,7 @@ export default function OrganizerApp() {
   // the registered teams of the chosen tournament (the tie-sheet suggests them, the Teams page lists them)
   const reloadTeams = useCallback(() => {
     if (!tid) return;
-    orgTeams(tid).then((r) => { setTeams(r.items); setMaxTeams(r.maxTeams); }).catch(() => setTeams([]));
+    orgTeams(tid).then((r) => { setTeams(r.items); setMaxTeams(r.maxTeams); setRegClosed(r.registrationClosed); }).catch(() => setTeams([]));
   }, [tid]);
   useEffect(() => {
     const t = setTimeout(() => { setTeams(null); reloadTeams(); }, 0);
@@ -188,7 +189,7 @@ export default function OrganizerApp() {
         {tab === "dashboard" && <DashboardTab me={me} t={t} teams={teams} maxTeams={maxTeams} onMaxTeams={(n) => { setMaxTeams(n); setMe((m) => (m ? { ...m, tournaments: m.tournaments.map((x) => (x.id === tid ? { ...x, maxTeams: n } : x)) } : m)); }} onMe={setMe} onSignOut={() => { setMe(null); setPhase("signin"); }} view={dashView} setView={setDashView} />}
         {t && tab === "live" && <LiveTab key={t.id} tournament={t} />}
         {t && tab === "tiesheet" && <TieSheetTab key={t.id} tournament={t} teams={teams ?? []} />}
-        {t && tab === "teams" && <TeamsTab tid={t.id} teams={teams} max={maxTeams} onChanged={reloadTeams} />}
+        {t && tab === "teams" && <TeamsTab tid={t.id} teams={teams} max={maxTeams} closed={regClosed} onClosed={setRegClosed} onChanged={reloadTeams} />}
         {!t && <p className="py-16 text-center text-sm text-muted">Nothing to show yet.</p>}
         <footer className="mt-auto pt-10 text-center text-[11px] leading-relaxed text-muted"><p className="font-semibold">Unique Futsal Product &copy; 2027</p><p>Designed &amp; Developed By: Rahish Dumre</p></footer>
       </main>

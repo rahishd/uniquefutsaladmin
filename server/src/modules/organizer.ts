@@ -85,6 +85,15 @@ organizerRouter.put("/tournaments/:id/rules", handler(async (req, res) => {
   send(res, { rules }, "Rules saved");
 }));
 
+// ---- close (or open again) team registration: while closed, customers cannot register a team in the app ----
+organizerRouter.put("/tournaments/:id/registration", handler(async (req, res) => {
+  const t = await mine(req);
+  const { closed } = parse(z.object({ closed: z.boolean() }), req.body);
+  await prisma.tournament.update({ where: { id: t.id }, data: { registrationClosed: closed } });
+  await audit(req, closed ? "registration-close" : "registration-open", "tournament", t.id, {});
+  send(res, { registrationClosed: closed }, closed ? "Registration closed" : "Registration open again");
+}));
+
 // ---- the most teams the tournament takes: the organizer decides (never below the teams already approved or waiting) ----
 organizerRouter.put("/tournaments/:id/max-teams", handler(async (req, res) => {
   const t = await mine(req);
@@ -96,11 +105,11 @@ organizerRouter.put("/tournaments/:id/max-teams", handler(async (req, res) => {
   send(res, { maxTeams }, "Team limit saved");
 }));
 
-// ---- live link: the Facebook Live address of a match (only Facebook links are accepted) ----
-const FACEBOOK_HOSTS = ["facebook.com", "fb.watch", "fb.com", "fb.gg"];
+// ---- live link: the Facebook, TikTok or Instagram address of the live video of a match (other sites are refused) ----
+const LIVE_HOSTS = ["facebook.com", "fb.watch", "fb.com", "fb.gg", "tiktok.com", "instagram.com", "instagr.am"];
 const liveLink = z.string().trim().max(500).url("Paste the full link, starting with https://").refine((v) => {
-  try { const u = new URL(v); return u.protocol === "https:" && FACEBOOK_HOSTS.some((h) => u.hostname === h || u.hostname.endsWith("." + h)); } catch { return false; }
-}, "This is not a Facebook link. Paste the link of your Facebook live video.");
+  try { const u = new URL(v); return u.protocol === "https:" && LIVE_HOSTS.some((h) => u.hostname === h || u.hostname.endsWith("." + h)); } catch { return false; }
+}, "This is not a Facebook, TikTok or Instagram link. Paste the link of your live video.");
 organizerRouter.put("/tournaments/:id/matches/:mid/live-link", handler(async (req, res) => {
   const t = await mine(req);
   const { url } = parse(z.object({ url: liveLink.nullable() }), req.body);
@@ -143,7 +152,7 @@ organizerRouter.get("/tournaments/:id/teams", handler(async (req, res) => {
   const t = await mine(req);
   const rows = await prisma.registration.findMany({ where: { tournamentId: t.id }, orderBy: { createdAt: "asc" } });
   send(res, {
-    maxTeams: t.maxTeams,
+    maxTeams: t.maxTeams, registrationClosed: t.registrationClosed,
     items: rows.map((r) => ({ id: r.id, teamName: r.teamName, captainName: r.captainName, phone: r.contactPhone, status: r.status, players: playersOf(r.players) })),
   });
 }));

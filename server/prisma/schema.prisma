@@ -235,6 +235,7 @@ model Tournament {
   prizePool     Float
   minTeams      Int
   maxTeams      Int
+  registrationClosed Boolean @default(false) // the organizer closed team registration by hand
   startDate     String
   endDate       String
   isActive      Boolean        @default(true)

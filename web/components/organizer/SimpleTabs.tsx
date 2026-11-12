@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Camera, Check, CheckCircle2, ChevronDown, Loader2, LogOut, Pencil, Phone, Plus, Trash2, Users, X } from "lucide-react";
+import { Camera, Check, CheckCircle2, ChevronDown, Loader2, Lock, LockOpen, LogOut, Pencil, Phone, Plus, Trash2, Users, X } from "lucide-react";
 import { ApiError, setToken } from "@/lib/api";
 import { logout, setAvatar } from "@/lib/auth";
 import { rs } from "@/lib/bookings";
 import { Bill, fmtDay, range } from "@/lib/hosted-tournaments";
 import { askConfirm } from "@/lib/confirm";
-import { OrgMe, OrgTeam, TeamInput, orgAddTeam, orgBilling, orgChangePassword, orgDeleteTeam, orgEditTeam } from "@/lib/organizer";
+import { OrgMe, OrgTeam, TeamInput, orgAddTeam, orgBilling, orgChangePassword, orgDeleteTeam, orgEditTeam, orgSetRegistrationClosed } from "@/lib/organizer";
 
 const msg = (e: unknown) => (e instanceof ApiError || e instanceof Error ? e.message : "Something went wrong");
 const field = "w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
@@ -59,7 +59,7 @@ function TeamSheet({ tid, team, onClose, onSaved }: { tid: string; team: OrgTeam
   );
 }
 
-export function TeamsTab({ tid, teams, max, onChanged }: { tid: string; teams: OrgTeam[] | null; max: number; onChanged: () => void }) {
+export function TeamsTab({ tid, teams, max, closed, onClosed, onChanged }: { tid: string; teams: OrgTeam[] | null; max: number; closed: boolean; onClosed: (v: boolean) => void; onChanged: () => void }) {
   const [filter, setFilter] = useState<TeamFilter>("registered");
   const [open, setOpen] = useState<string | null>(null);
   const [form, setForm] = useState<OrgTeam | "new" | null>(null);
@@ -76,6 +76,11 @@ export function TeamsTab({ tid, teams, max, onChanged }: { tid: string; teams: O
     setBusy(key); setErr("");
     try { await job(); onChanged(); } catch (e) { setErr(msg(e)); } finally { setBusy(""); }
   }
+  async function toggleRegistration() {
+    if (!closed && !(await askConfirm("Close registration? Customers will no longer be able to register a team in the app. You can open it again any time."))) return;
+    setBusy("reg"); setErr("");
+    try { const r = await orgSetRegistrationClosed(tid, !closed); onClosed(r.registrationClosed); } catch (e) { setErr(msg(e)); } finally { setBusy(""); }
+  }
   const remove = async (t: OrgTeam) => { if (await askConfirm("Remove " + t.teamName + " from the tournament? This cannot be undone.")) void act("del" + t.id, () => orgDeleteTeam(tid, t.id)); };
 
   const chip = (id: TeamFilter, label: string, n: number, alert = false) => (
@@ -89,6 +94,16 @@ export function TeamsTab({ tid, teams, max, onChanged }: { tid: string; teams: O
       <div className="flex items-center justify-between gap-3 rounded-2xl bg-surface p-4 shadow-sm">
         <div className="min-w-0"><h2 className="text-lg font-bold">Teams</h2><p className="text-xs text-muted">{approved.length} of {max} places taken.</p></div>
         <button type="button" onClick={() => setForm("new")} disabled={full} title={full ? "The tournament is full" : "Add a team"} className="flex shrink-0 items-center gap-1.5 rounded-full bg-brand px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"><Plus size={16} /> Add team</button>
+      </div>
+
+      <div className={"flex items-center justify-between gap-3 rounded-2xl p-3 shadow-sm " + (closed ? "bg-red-500/10" : "bg-surface")}>
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className={"grid h-9 w-9 shrink-0 place-items-center rounded-xl " + (closed ? "bg-red-500/15 text-red-600" : "bg-emerald-500/15 text-emerald-600")}>{closed ? <Lock size={17} /> : <LockOpen size={17} />}</span>
+          <span className="min-w-0"><span className="block text-sm font-bold">{closed ? "Registration is closed" : "Registration is open"}</span><span className="block text-xs text-muted">{closed ? "Customers cannot register a team in the app." : "Customers can register a team in the app."}</span></span>
+        </div>
+        <button type="button" onClick={toggleRegistration} disabled={busy === "reg"} className={"flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-60 " + (closed ? "bg-emerald-600 text-white" : "border border-red-500/40 text-red-600")}>
+          {busy === "reg" && <Loader2 size={14} className="animate-spin" />}{closed ? "Open registration" : "Close registration"}
+        </button>
       </div>
 
       <div className="flex gap-1 rounded-2xl bg-surface p-1 shadow-sm" role="tablist" aria-label="Teams">

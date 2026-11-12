@@ -16,7 +16,8 @@ const json = (body: unknown) => ({ body: JSON.stringify(body) });
 const base = (tid: string) => `/admin/organizer/tournaments/${encodeURIComponent(tid)}`;
 
 export const orgMe = () => api<OrgMe>("/admin/organizer/me");
-export const orgTeams = (tid: string) => api<{ maxTeams: number; items: OrgTeam[] }>(`${base(tid)}/teams`);
+export const orgTeams = (tid: string) => api<{ maxTeams: number; registrationClosed: boolean; items: OrgTeam[] }>(`${base(tid)}/teams`);
+export const orgSetRegistrationClosed = (tid: string, closed: boolean) => api<{ registrationClosed: boolean }>(`${base(tid)}/registration`, { method: "PUT", ...json({ closed }) });
 export type TeamInput = { teamName: string; captainName: string; phone: string; players: string[] };
 export const orgAddTeam = (tid: string, b: TeamInput) => api<OrgTeam>(`${base(tid)}/teams`, { method: "POST", ...json(b) });
 export const orgEditTeam = (tid: string, id: string, b: Partial<TeamInput> & { status?: OrgTeam["status"] }) => api<OrgTeam>(`${base(tid)}/teams/${encodeURIComponent(id)}`, { method: "PATCH", ...json(b) });

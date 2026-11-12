@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { BarChart3, Bell, CalendarDays, ChevronDown, LayoutGrid, LayoutDashboard, Camera, LogOut, Plus, RefreshCw, ShoppingCart, Star, X } from "lucide-react";
+import { BarChart3, Bell, BriefcaseBusiness, CalendarDays, ChevronDown, LayoutGrid, LayoutDashboard, Camera, LogOut, Plus, RefreshCw, ShoppingCart, Star, X } from "lucide-react";
 import { icons } from "./icons";
 import { groups, modules } from "@/lib/nav";
 import { canSeePage } from "@/lib/access";
@@ -21,7 +21,7 @@ import { currentAdmin, logout, refreshAdmin, setAvatar, type Admin } from "@/lib
 
 // The icon on each section's dropdown button
 const GROUP_ICON: Record<string, React.ElementType> = {
-  Operations: LayoutGrid, "Loyalty & Promos": icons.users, Community: icons.trophy, Gamezone: icons.gamepad, Communication: icons.megaphone, Business: icons.chart, Admin: icons.settings,
+  Operations: BriefcaseBusiness, "Loyalty & Promos": icons.users, Community: icons.trophy, Gamezone: icons.gamepad, Communication: icons.megaphone, Business: icons.chart, Admin: icons.settings,
 };
 
 // Pages used all day, in this order (Overview is the landing page). Everything else sits behind the "More" button.

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ExternalLink, Flag, Loader2, Play, Radio, RotateCcw, Trash2, Undo2 } from "lucide-react";
@@ -7,11 +7,11 @@ import { askConfirm } from "@/lib/confirm";
 import { OrgTournament, orgSetLiveLink, organizerEditor } from "@/lib/organizer";
 import { Match, Round, Side, nepalTime } from "@/lib/tournaments";
 
-// The Live page, in three easy steps: 1) choose the match from the tie-sheet, 2) paste the Facebook Live link, 3) go live and tap a goal
+// The Live page, in three easy steps: 1) choose the match from the tie-sheet, 2) paste the live video link (Facebook, TikTok or Instagram), 3) go live and tap a goal
 // the moment it happens. The match score, the followers' notices and the tie-sheet all follow those taps.
 const msg = (e: unknown) => (e instanceof ApiError || e instanceof Error ? e.message : "Something went wrong");
 const field = "w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
-const looksFacebook = (v: string) => /^https:\/\/([a-z0-9-]+\.)*(facebook\.com|fb\.watch|fb\.com|fb\.gg)(\/|$)/i.test(v.trim());
+const looksLive = (v: string) => /^https:\/\/([a-z0-9-]+\.)*(facebook\.com|fb\.watch|fb\.com|fb\.gg|tiktok\.com|instagram\.com|instagr\.am)(\/|$)/i.test(v.trim());
 
 const STATUS = {
   upcoming: { label: "Not started", tone: "bg-slate-500/15 text-slate-600" },
@@ -39,7 +39,7 @@ export default function LiveTab({ tournament }: { tournament: OrgTournament }) {
   // a changed match from the server replaces the old one in the list
   const patch = (m: Match) => setRounds((rs) => (rs ?? []).map((r) => ({ ...r, matches: r.matches.map((x) => (x.id === m.id ? m : x)) })));
 
-  if (!rounds) return <p className="py-16 text-center text-sm text-muted">{error || "Loading your matches…"}</p>;
+  if (!rounds) return <p className="py-16 text-center text-sm text-muted">{error || "Loading your matchesâ€¦"}</p>;
   if (match) return <Console key={match.id} tid={tournament.id} m={match} round={match.round} onChange={patch} onBack={() => { setPick(""); void load(); }} />;
   return <Picker rounds={rounds} onPick={setPick} error={error} />;
 }
@@ -77,7 +77,7 @@ function Picker({ rounds, onPick, error }: { rounds: Round[]; onPick: (id: strin
                       <span className="block truncate text-base font-bold">{m.home ?? "To be decided"} <span className="font-medium text-muted">vs</span> {m.away ?? "To be decided"}</span>
                       <span className="mt-0.5 block text-xs text-muted">
                         {!ready ? "Teams not set yet" : m.status === "upcoming" ? nepalTime(m.startsAt) || "No time set" : `${m.homeScore ?? 0} - ${m.awayScore ?? 0}`}
-                        {m.liveUrl && <span className="ml-2 font-semibold text-sky-600">· Facebook link added</span>}
+                        {m.liveUrl && <span className="ml-2 font-semibold text-sky-600">Â· Live link added</span>}
                       </span>
                     </span>
                     <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${st.tone}`}>{st.label}</span>
@@ -109,12 +109,12 @@ function Console({ tid, m, round, onChange, onBack }: { tid: string; m: Match & 
 
   async function saveLink(next: string | null) {
     if (busy) return;
-    if (next && !looksFacebook(next)) { setError("This is not a Facebook link. Paste the link of your Facebook live video."); setOk(""); return; }
+    if (next && !looksLive(next)) { setError("This is not a Facebook, TikTok or Instagram link. Paste the link of your live video."); setOk(""); return; }
     setBusy("link"); setError(""); setOk("");
     try {
       const r = await orgSetLiveLink(tid, m.id, next);
       onChange({ ...m, liveUrl: r.liveUrl });
-      setLink(r.liveUrl ?? ""); setOk(r.liveUrl ? "Facebook link saved." : "Link removed.");
+      setLink(r.liveUrl ?? ""); setOk(r.liveUrl ? "Live link saved." : "Link removed.");
     } catch (e) { setError(msg(e)); } finally { setBusy(""); }
   }
 
@@ -143,9 +143,9 @@ function Console({ tid, m, round, onChange, onBack }: { tid: string; m: Match & 
 
       {/* step 2: the Facebook link */}
       <section className="space-y-2 rounded-2xl bg-surface p-4 shadow-sm">
-        <h3 className="text-sm font-bold"><span className="mr-1.5 inline-grid h-5 w-5 place-items-center rounded-full bg-brand text-[11px] text-white">2</span> Facebook live link</h3>
-        <p className="text-xs text-muted">Start your live video on Facebook, copy its link and paste it here so the customers can watch.</p>
-        <input value={link} onChange={(e) => { setLink(e.target.value); setOk(""); }} inputMode="url" autoCapitalize="none" autoCorrect="off" placeholder="https://www.facebook.com/…" aria-label="Facebook live link" className={field} />
+        <h3 className="text-sm font-bold"><span className="mr-1.5 inline-grid h-5 w-5 place-items-center rounded-full bg-brand text-[11px] text-white">2</span> Live video link</h3>
+        <p className="text-xs text-muted">Start your live video on Facebook, TikTok or Instagram, copy its link and paste it here so the customers can watch inside the app.</p>
+        <input value={link} onChange={(e) => { setLink(e.target.value); setOk(""); }} inputMode="url" autoCapitalize="none" autoCorrect="off" placeholder="https://www.facebook.com/â€¦" aria-label="Facebook live link" className={field} />
         {ok && <p role="status" className="rounded-xl bg-emerald-500/10 p-2.5 text-sm text-emerald-700">{ok}</p>}
         <div className="flex gap-2">
           <button type="button" onClick={() => saveLink(link.trim() || null)} disabled={busy !== "" || link.trim() === (m.liveUrl ?? "")} className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-brand py-3 text-sm font-semibold text-white disabled:opacity-50">{busy === "link" && <Loader2 size={15} className="animate-spin" />} Save link</button>
@@ -198,7 +198,7 @@ function Console({ tid, m, round, onChange, onBack }: { tid: string; m: Match & 
             <ul className="divide-y divide-line text-sm">
               {goals.map((g) => (
                 <li key={g.id} className="flex items-center justify-between gap-2 py-2">
-                  <span className="min-w-0 truncate"><span aria-hidden>⚽</span> <b>{g.side === "home" ? home : away}</b>{g.scorer ? <span className="text-muted"> · {g.scorer}</span> : null}{g.minute !== null ? <span className="text-muted"> · {g.minute}&apos;</span> : null}</span>
+                  <span className="min-w-0 truncate"><span aria-hidden>âš½</span> <b>{g.side === "home" ? home : away}</b>{g.scorer ? <span className="text-muted"> Â· {g.scorer}</span> : null}{g.minute !== null ? <span className="text-muted"> Â· {g.minute}&apos;</span> : null}</span>
                   <button type="button" onClick={() => run(`undo-${g.id}`, () => api.undo(g.id))} disabled={busy !== ""} className="inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-500/10 disabled:opacity-50"><Undo2 size={13} /> Undo</button>
                 </li>
               ))}
