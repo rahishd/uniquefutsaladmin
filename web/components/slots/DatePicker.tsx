@@ -49,14 +49,15 @@ export default function DatePicker({ date, onChange }: { date: string; onChange:
 
   return (
     <div ref={box} className="relative">
-      <div className="flex items-center gap-1 rounded-full bg-surface px-2 py-1.5 shadow-sm">
+      <div className="flex w-full items-center gap-1 rounded-full bg-surface px-2 py-1.5 shadow-sm sm:w-[23rem]">
         <button onClick={() => pick(shiftDate(date, -1))} aria-label="Previous day" className="rounded-full p-1.5 hover:bg-surface-2"><ChevronLeft size={16} /></button>
         <button onClick={toggle} aria-haspopup="dialog" aria-expanded={open} aria-label="Choose a date from the calendar"
-          className="flex items-center gap-2 rounded-full px-2 py-1 text-[11px] font-extrabold tracking-wide hover:bg-surface-2">
-          <CalendarDays size={14} className="text-orange-500" />
-          {longDate(date)}
-          <ChevronDown size={14} className={`transition-transform ${open ? "rotate-180" : ""}`} />
+          className="flex min-w-0 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-full px-2 py-1 text-[11px] font-extrabold tracking-wide hover:bg-surface-2">
+          <CalendarDays size={14} className="shrink-0 text-orange-500" />
+          <span className="truncate">{longDate(date)}</span>
         </button>
+        {/* the calendar arrow is a button of its own, fixed in place like Previous and Next */}
+        <button onClick={toggle} aria-haspopup="dialog" aria-expanded={open} aria-label="Open the calendar" className="rounded-full p-1.5 hover:bg-surface-2"><ChevronDown size={16} className={`transition-transform ${open ? "rotate-180" : ""}`} /></button>
         <button onClick={() => pick(shiftDate(date, 1))} aria-label="Next day" className="rounded-full p-1.5 hover:bg-surface-2"><ChevronRight size={16} /></button>
       </div>
 

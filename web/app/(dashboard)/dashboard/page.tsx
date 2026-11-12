@@ -6,6 +6,13 @@ import { useLive } from "@/lib/live";
 import { useEffect, useState } from "react";
 import { icons } from "@/components/icons";
 import { modules } from "@/lib/nav";
+
+// the pages on the bottom navigation bar (see components/Shell.tsx)
+const FOOTER_PAGES = new Set(["slots", "bookings", "gamezone", "sales"]);
+
+// the tiles in this order first (four to a row on the phone: Overview, Digital ID, Customers, Verify; then Teams, Loyalty, Membership, Tournaments), every other page after them
+const FIRST = ["overview", "digital-id", "customers", "verify", "teams", "loyalty", "membership", "tournaments"];
+const rank = (slug: string) => { const i = FIRST.indexOf(slug); return i < 0 ? FIRST.length : i; };
 import { api } from "@/lib/api";
 import { canDo, canSeePage } from "@/lib/access";
 import { rs } from "@/lib/bookings";
@@ -61,9 +68,12 @@ export default function Home() {
 
 
       <Card>
-        {modules.filter((m) => canSeePage(m.slug)).map((m) => {
+        {modules.filter((m) => canSeePage(m.slug)).map((m, i) => ({ m, i })).sort((a, b) => rank(a.m.slug) - rank(b.m.slug) || a.i - b.i).map(({ m }) => {
           const n = live?.tasks?.[m.slug] ?? 0;
-          return <Tile key={m.slug} href={`/${m.slug}`} label={m.title} Icon={icons[m.icon]} badge={n > 0 ? String(n) : undefined} onGo={n > 0 ? () => feed.targetFor(m.slug) : undefined} />;
+          // the bottom bar (phone and tablet) already has Slots, Bookings, Gamezone and Sales: no second copy of them here on those screens
+          const inFooter = FOOTER_PAGES.has(m.slug);
+          const tile = <Tile key={m.slug} href={`/${m.slug}`} label={m.title} Icon={icons[m.icon]} badge={n > 0 ? String(n) : undefined} onGo={n > 0 ? () => feed.targetFor(m.slug) : undefined} />;
+          return inFooter ? <div key={m.slug} className="contents max-lg:hidden">{tile}</div> : tile;
         })}
       </Card>
     </div>

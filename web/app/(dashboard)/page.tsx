@@ -1,6 +1,15 @@
-import { redirect } from "next/navigation";
+"use client";
 
-// The landing page is the Dashboard (Overview and Reports is one click away in the top bar).
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { canSeePage } from "@/lib/access";
+
+// The landing page: the portal opens on Slots (after signing in, reopening or reloading the portal's own address). An account that may not open
+// Slots goes to the Dashboard, and then to Overview.
 export default function Page() {
-  redirect("/dashboard");
+  const router = useRouter();
+  useEffect(() => {
+    router.replace(canSeePage("slots") ? "/slots" : canSeePage("dashboard") ? "/dashboard" : "/overview");
+  }, [router]);
+  return null;
 }

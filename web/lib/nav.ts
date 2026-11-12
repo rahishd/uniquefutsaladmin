@@ -109,7 +109,7 @@ export const modules: Module[] = [
     ],
   },
   {
-    slug: "digital-id", title: "Digital ID", group: "Customers", icon: "scan",
+    slug: "digital-id", title: "Digital ID", group: "Loyalty & Promos", icon: "scan",
     summary: "Scan a customer's QR with the camera to open their profile and activity. Also marks membership attendance.",
     clientFeatures: ["Personal Digital ID card with a private QR", "Download the card or open it from the header", "QR holds no personal data and only works inside Unique Futsal"],
     adminTasks: ["Scan the QR with a phone or tablet camera", "Search by name or number if the camera fails", "See bookings, points, referrals, Gamezone, add-ons and total spent", "Mark membership attendance", "Send the ID card to a customer on WhatsApp"],
@@ -120,7 +120,7 @@ export const modules: Module[] = [
     ],
   },
   {
-    slug: "customers", title: "Customers", group: "Customers", icon: "users",
+    slug: "customers", title: "Customers", group: "Loyalty & Promos", icon: "user",
     summary: "Registered players (phone + password, Google link for reset).",
     clientFeatures: ["Profile, location, position", "Preferences (SMS, promo, pop-up)", "Player / Captain mode", "Booking and payment history", "Gameplay stats"],
     adminTasks: ["Search and open a customer (profile, bookings, points, team)", "Add a customer by hand (name, mobile, optional email, optional app password)", "Edit details", "Suspend / unsuspend", "Anonymise on request (money records kept)"],
@@ -134,7 +134,7 @@ export const modules: Module[] = [
     ],
   },
   {
-    slug: "goal-rush", title: "Goal Rush", group: "Customers", icon: "trophy",
+    slug: "goal-rush", title: "Goal Rush", group: "Loyalty & Promos", icon: "trophy",
     summary: "Unique Goal Rush, the penalty game in the customer app: games, goals, saves, the loyalty points it gave and anything that looks odd.",
     clientFeatures: ["Home card under Quick Access: Play & Earn Now", "5 penalties against a goalkeeper played by the server", "1 loyalty point for a finished game with 3 or more goals (every 3 goals = 1 point)", "3 games a day (every game started counts), 3 points a day at most", "Guests can play practice games without points"],
     adminTasks: ["Totals for all time, today and this month: games, players, goals, saves, misses, points", "Games per day for the last 14 days", "Every game with its result and the loyalty reward reference", "Players to look at: many perfect games, very fast games or many unfinished games", "Correct a reward in Loyalty Points > Adjust (logged with the reason)"],
@@ -144,7 +144,7 @@ export const modules: Module[] = [
     ],
   },
   {
-    slug: "gift-card", title: "Gift Card", group: "Customers", icon: "gift",
+    slug: "gift-card", title: "Gift Card", group: "Loyalty & Promos", icon: "gift",
     summary: "Loyalty points and games customers bought for a friend in the app, paid with Fonepay.",
     clientFeatures: ["Gift Card in Quick Access: Buy Loyalty Points for my friend (Rs. 10 a point, 10 to 500) or Book Game Instead (a 1-hour game in the friend's name, paid by the buyer)", "The friend must be registered; both are notified when it is paid", "Up to 5 gifts a day per customer; a gifted game cannot be cancelled in the app"],
     adminTasks: ["See every gift: who bought it, for whom, points or game, amount, payment and delivery", "Filter by type, status and date, and search by code, name or number", "Cancel a paid gift: the game is cancelled or the points are taken back, and the buyer's money goes on Payments > Refunds"],
@@ -154,7 +154,7 @@ export const modules: Module[] = [
     ],
   },
   {
-    slug: "refer", title: "Refer & Earn", group: "Customers", icon: "handshake",
+    slug: "refer", title: "Refer & Earn", group: "Loyalty & Promos", icon: "handshake",
     summary: "A customer books a game for another team: you check it and both get loyalty points.",
     clientFeatures: ["Popular > Refer & Earn", "Pick the booking made for the other team, the captain's number and team name", "Both people are told when you decide", "Withdraw while waiting"],
     adminTasks: ["See referrals waiting, approved and rejected", "Approve (change the points first if needed) or reject with a reason", "Adjust the points of an approved referral", "Set the points for each side and pause the feature", "Call either person"],
@@ -166,7 +166,7 @@ export const modules: Module[] = [
     ],
   },
   {
-    slug: "membership", title: "Membership, UC & Children's Academy", group: "Customers", icon: "badge",
+    slug: "membership", title: "Membership", group: "Loyalty & Promos", icon: "idcard",
     summary: "The Children's Academy (football classes for ages 10 to 14: class times, enrolled children, terms) is the third switch on this page. Monthly / 3 / 6 month plans by shift (Basic, Premium), and Unique Club (Rs. 1,500 for 30 days, 10% off) on its own switch at the top.",
     clientFeatures: ["Membership ID (MEM-10291), status Active / Expiring soon / Expired / Suspended", "Offers with discounted prices per shift", "A fixed hour on chosen weekdays, held for the member", "4 PM to 8 PM never offered", "Points for 3 and 6 month plans", "Notices: activated, expiring, expired, renewed", "Unique Club page in Quick Access: pay Rs. 1,500 with the Fonepay QR, active at once for 30 days, 10% off court bookings and Gamezone from day one, no promo or VIP code with the club discount"],
     adminTasks: ["Unique Club switch: see club members by status (active, expiring in 7 days, expired), search by name or mobile number, see joined and end dates, payments and the discount given (the Rs. 1,500 payments are in Payments > Unique Club)", "Plans CRUD and featured plan (Courts > Membership)", "Members list by status with search by name, phone or Membership ID", "New member with live price and free-hour check, pay now (cash / Fonepay QR) or pay later", "Verify payment (activates)", "Renew (paid now), extend free days, suspend, resume, cancel", "WhatsApp reminder and invoice", "The member hour shows as MEMBER HOLD on Slots and cannot be booked by staff"],
@@ -190,7 +190,7 @@ export const modules: Module[] = [
     ],
   },
   {
-    slug: "loyalty", title: "Loyalty Points", group: "Customers", icon: "star",
+    slug: "loyalty", title: "Loyalty Points", group: "Loyalty & Promos", icon: "star",
     summary: "Points ledger, expiry and free-game vouchers.",
     clientFeatures: ["Game points price/100, goods Rs.100 = 1 (at most 10 points a day from items)", "Expiry (game 3 months, goods 1 year)", "Claim a free game voucher per shift", "Expiring-soon warnings"],
     adminTasks: ["Numbers for 7 / 30 days or this month: points given by kind, spent, owed now, expiring in 30 days", "Customers with points: search, sort, open one for the ledger, vouchers and an adjustment with a reason", "Activity feed of every earning and spending, with filters", "Free-game vouchers across customers, void an unused one", "Goods points come from Sell goods in Inventory"],
@@ -204,7 +204,7 @@ export const modules: Module[] = [
     ],
   },
   {
-    slug: "promos", title: "Promocodes & VIP", group: "Customers", icon: "tag",
+    slug: "promos", title: "Promocodes & VIP", group: "Loyalty & Promos", icon: "tag",
     summary: "Codes shown on Home and the Promos page, validated at booking, and VIP Privilege (a special code for one customer) on its own switch at the top.",
     clientFeatures: ["Active / Upcoming / Expired tabs", "Copy code", "Ends in N days", "Server-side validation", "VIP: promo code box on the booking screen; the VIP code is typed once, then applied to every booking automatically; the bigger of the VIP discount and a normal promo code is used"],
     adminTasks: ["VIP Privilege switch: pick a customer and make a code (or type your own, for example VIP), choose a percent or a rupee amount off, share it on WhatsApp, pause, change or remove it, and see who has typed it, how many games it discounted and how much it saved", "Create a code: percent or rupees off, last day, days of the week, slot hours, bookings and/or memberships", "See what customers will read before saving", "Pause or resume a code with one switch", "Edit, delete, copy, share on WhatsApp", "Each code shows how often it was used and the discount given"],
@@ -219,7 +219,7 @@ export const modules: Module[] = [
     ],
   },
   {
-    slug: "teams", title: "Teams & Challenges", group: "Customers", icon: "swords",
+    slug: "teams", title: "Teams & Challenges", group: "Loyalty & Promos", icon: "swords",
     summary: "Captain mode: teams (max 12), challenges, results and ratings.",
     clientFeatures: ["Create team, roster by phone", "Challenge with loser pays 70 / 60 / 100%", "Winning captain uploads score, other approves", "Team rating, ranking, form", "\"Did you win?\" prompt", "Disputed scores change no records until resolved"],
     adminTasks: ["Teams with captain, roster size, record and form; open a team for its players and challenges", "Challenges by status with both teams, court price, loser-pays rule, venue payment and score", "Results to review: approve (or correct) or void a disputed score", "Venue payments: who owes what, mark paid (prompts captains)"],
@@ -265,7 +265,7 @@ export const modules: Module[] = [
     ],
   },
   {
-    slug: "complaints", title: "Complaints", group: "Customers", icon: "alert",
+    slug: "complaints", title: "Complaints", group: "Admin", icon: "alert",
     summary: "What customers report from the app, with photos, and your replies.",
     clientFeatures: ["Popular > Complaints", "Category, message, optional booking code and up to 3 photos", "Status and the venue's reply shown to the customer", "5 complaints per customer per day"],
     adminTasks: ["See every complaint by status, category, name, phone or code", "View the photos", "Reply and change the status (the customer is notified)", "Call the customer"],
@@ -275,7 +275,7 @@ export const modules: Module[] = [
     ],
   },
   {
-    slug: "wheelchair", title: "Wheelchair & Health Insurance", group: "Customers", icon: "wheelchair",
+    slug: "wheelchair", title: "Wheelchair & Health Insurance", group: "Loyalty & Promos", icon: "wheelchair",
     summary: "Wheelchair visits (so the ramp and help are ready) and injury insurance claims with photos, the witness (in Nepali too) and the patient's emergency contact, on one page with a switch at the top.",
     clientFeatures: ["Quick Access > Wheelchair Request", "Day, about what time, how many wheelchair users, note, optional booking code", "Status and the venue's reply shown to the customer", "Customer can cancel until it is done", "Quick Access > Claim Insurance: photo of the incident, patient name and registered number, witness name in English and Nepali, Minor or Emergency; for an emergency, slide to call the patient's emergency contact"],
     adminTasks: ["Insurance Claims switch: see claims by status and injury case (emergencies first), view the photos, the witness and the patient's emergency contact, start review, approve, reject or close (the filer and the patient are notified), and reply with a message", "See requests by status, newest visit first", "Confirm, decline or mark done (the customer is notified)", "Reply with a message", "Call the customer"],
@@ -287,7 +287,7 @@ export const modules: Module[] = [
     ],
   },
   {
-    slug: "marketplace", title: "Partner Marketplace", group: "Operations", icon: "handshake",
+    slug: "marketplace", title: "Partner Marketplace", group: "Admin", icon: "handshake",
     summary: "Cafes, swimming pools and other businesses that give our customers a discount for loyalty points: agreement, discount codes, points, and the partner's own dashboard link.",
     clientFeatures: ["Partner offers and banners on the Loyalty Points page", "A Partners tile in Quick Access while a partnership is active", "A customer spends loyalty points on a discount and gets a card with a code to show at the partner", "A loyalty card with the balance and the latest points earned, as proof for a partner"],
     adminTasks: ["Register a partner: name, category, contact, agreement start and end dates, banner", "Set the discount codes and how many loyalty points each discount costs, and how many times one customer may use it", "Pause a partner or an offer, edit codes and points at any time", "Make or switch off the partner's dashboard link", "See the customers who used a discount, and cancel a card (the points go back)"],
@@ -302,7 +302,7 @@ export const modules: Module[] = [
     ],
   },
   {
-    slug: "content", title: "Pop-Ups and Site Content", group: "Operations", icon: "image",
+    slug: "content", title: "Pop-Ups and Site Content", group: "Admin", icon: "image",
     summary: "Pop-up ads, gallery photos, Corporate Network logos and customer notices: header, footer, in-page and pop-up ads, looping and time-targeted.",
     clientFeatures: ["Gallery on Home (landscape and portrait)", "Header, footer and in-page ad banners that loop", "Pop-up ads with a delay and a frequency", "Ads that run only at set hours, dates or weekdays", "Bell notices that drive the Popular tile badges, and Web Push (needs VAPID keys)", "\"Corporate Network. We Trusted\" strip on Home, between the promo codes and the founder message, with logos that move across the screen and pause when touched"],
     adminTasks: ["Upload gallery photos, rename, reorder, hide or delete", "Add ads with a picture, link, place and seconds per ad", "Target an ad by hours (for example 6:00 to 7:00 AM for one hour), dates and weekdays", "Pause, edit or delete an ad", "See views and clicks", "Notifications tab: send promo / tournament / general notices to all customers, team captains or one customer, see how many it reaches before sending and how many opened it (promo opt-outs are skipped)", "Corporate Network tab: upload a logo with the organisation name, rename, replace the picture, hide or delete it, and choose the order", "Birthdays tab: see customers whose birthday is today, select some or all, and send a happy birthday wish with an optional promo code gift"],
@@ -384,6 +384,6 @@ export const modules: Module[] = [
   },
 ];
 
-export const groups = ["Operations", "Customers", "Community", "Gamezone", "Communication", "Business", "Admin"];
+export const groups = ["Operations", "Loyalty & Promos", "Community", "Gamezone", "Communication", "Business", "Admin"];
 
 export const findModule = (slug: string) => modules.find((m) => m.slug === slug);

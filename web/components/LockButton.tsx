@@ -10,7 +10,8 @@ import { LockInfo, getLockInfo, removeLockCode, saveLockCode, setLocked } from "
 // Anyone can lock. Only the Owner or an Admin sees the panel to set, change or switch off the code.
 const msg = (e: unknown) => (e instanceof ApiError || e instanceof Error ? e.message : "Something went wrong");
 
-export default function LockButton() {
+// `row`: shown as a row of the profile menu (label and icon) instead of the round icon button; `onLocked` runs once the portal is locked
+export default function LockButton({ row = false, onLocked }: { row?: boolean; onLocked?: () => void } = {}) {
   const [info, setInfo] = useState<LockInfo | null>(null);
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState("");
@@ -44,7 +45,7 @@ export default function LockButton() {
     const i = (await load()) ?? info;
     if (isAdmin) { setOpen((o) => !o); return; } // the Owner or an Admin gets the panel (lock now, set or change the code)
     if (i && !i.hasCode) { setNote("No lock code is set yet. Ask the Owner or an Admin to set one."); setOpen(true); return; }
-    setLocked(true);
+    setLocked(true); onLocked?.();
   }
 
   async function save() {
@@ -61,13 +62,19 @@ export default function LockButton() {
 
   return (
     <div ref={box} className="relative">
-      <button type="button" onClick={press} title="Lock the portal" aria-label="Lock the portal" aria-expanded={open}
-        className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-(--nav-tile) text-(--nav-ink) shadow-sm ring-1 ring-(--nav-ink)/15 transition hover:bg-(--nav-tile-hover) hover:shadow md:h-11 md:w-11 md:rounded-2xl">
-        <Lock size={18} className="md:h-[22px] md:w-[22px]" />
-      </button>
+      {row ? (
+        <button type="button" onClick={press} aria-expanded={open} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold hover:bg-surface-2">
+          <Lock size={17} className="text-muted" /> Lock the portal
+        </button>
+      ) : (
+        <button type="button" onClick={press} title="Lock the portal" aria-label="Lock the portal" aria-expanded={open}
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-(--nav-tile) text-(--nav-ink) shadow-sm ring-1 ring-(--nav-ink)/15 transition hover:bg-(--nav-tile-hover) hover:shadow md:h-11 md:w-11 md:rounded-2xl">
+          <Lock size={18} className="md:h-[22px] md:w-[22px]" />
+        </button>
+      )}
 
       {open && (
-        <div role="dialog" aria-label="Portal lock" className="absolute bottom-12 left-0 z-50 w-[min(18rem,calc(100vw-2rem))] space-y-3 rounded-2xl border border-line bg-surface p-4 text-foreground shadow-xl md:bottom-14">
+        <div role="dialog" aria-label="Portal lock" className={`absolute z-50 w-[min(18rem,calc(100vw-2rem))] ${row ? "right-0 top-full mt-1" : "bottom-12 left-0 md:bottom-14"} space-y-3 rounded-2xl border border-line bg-surface p-4 text-foreground shadow-xl`}>
           <div className="flex items-center justify-between">
             <p className="text-sm font-bold">Portal lock</p>
             <button type="button" onClick={() => setOpen(false)} aria-label="Close" className="text-muted"><X size={16} /></button>
@@ -76,7 +83,7 @@ export default function LockButton() {
 
           {isAdmin ? (
             <>
-              <button type="button" disabled={!info?.hasCode} onClick={() => { setOpen(false); setLocked(true); }} className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand px-3 py-2.5 text-sm font-semibold text-white disabled:opacity-50">
+              <button type="button" disabled={!info?.hasCode} onClick={() => { setOpen(false); setLocked(true); onLocked?.(); }} className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand px-3 py-2.5 text-sm font-semibold text-white disabled:opacity-50">
                 <Lock size={16} /> Lock now
               </button>
               {!info?.hasCode && <p className="text-xs text-muted">Set a 4 digit code first. Staff will use it to unlock.</p>}
