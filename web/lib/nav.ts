@@ -287,6 +287,21 @@ export const modules: Module[] = [
     ],
   },
   {
+    slug: "marketplace", title: "Partner Marketplace", group: "Operations", icon: "handshake",
+    summary: "Cafes, swimming pools and other businesses that give our customers a discount for loyalty points: agreement, discount codes, points, and the partner's own dashboard link.",
+    clientFeatures: ["Partner offers and banners on the Loyalty Points page", "A Partners tile in Quick Access while a partnership is active", "A customer spends loyalty points on a discount and gets a card with a code to show at the partner", "A loyalty card with the balance and the latest points earned, as proof for a partner"],
+    adminTasks: ["Register a partner: name, category, contact, agreement start and end dates, banner", "Set the discount codes and how many loyalty points each discount costs, and how many times one customer may use it", "Pause a partner or an offer, edit codes and points at any time", "Make or switch off the partner's dashboard link", "See the customers who used a discount, and cancel a card (the points go back)"],
+    endpoints: [
+      e("GET", "/admin/marketplace", "all partners with offers, link and card counts"), e("POST", "/admin/marketplace", "register a partner (with its first offers)"),
+      e("PATCH", "/admin/marketplace/:id", "details, agreement dates, on or off, banner"), e("DELETE", "/admin/marketplace/:id", "delete a partner nobody has used yet"),
+      e("POST", "/admin/marketplace/:id/offers", "add a discount"), e("PATCH", "/admin/marketplace/:id/offers/:oid", "edit code, text, points, limit, on or off"), e("DELETE", "/admin/marketplace/:id/offers/:oid", "delete (or switch off when used)"),
+      e("POST", "/admin/marketplace/:id/link", "make a new dashboard link"), e("DELETE", "/admin/marketplace/:id/link", "switch the link off"),
+      e("GET", "/admin/marketplace/:id/redemptions", "customers who used a discount"), e("POST", "/admin/marketplace/redemptions/:rid/cancel", "cancel a card and return the points"),
+      e("GET", "/admin/partner/:token", "the partner's own dashboard (no staff sign-in)"), e("POST", "/admin/partner/:token/verify", "check a card code"),
+      e("POST", "/admin/partner/:token/redemptions/:rid/used", "mark a card used"), e("POST", "/admin/partner/:token/banner", "the partner changes its banner"),
+    ],
+  },
+  {
     slug: "content", title: "Pop-Ups and Site Content", group: "Operations", icon: "image",
     summary: "Pop-up ads, gallery photos, Corporate Network logos and customer notices: header, footer, in-page and pop-up ads, looping and time-targeted.",
     clientFeatures: ["Gallery on Home (landscape and portrait)", "Header, footer and in-page ad banners that loop", "Pop-up ads with a delay and a frequency", "Ads that run only at set hours, dates or weekdays", "Bell notices that drive the Popular tile badges, and Web Push (needs VAPID keys)", "\"Corporate Network. We Trusted\" strip on Home, between the promo codes and the founder message, with logos that move across the screen and pause when touched"],

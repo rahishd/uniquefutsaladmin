@@ -128,6 +128,10 @@ export const SECTIONS: Section[] = [
     { key: "refer.adjust", label: "Adjust Referral Points" },
     { key: "refer.settings", label: "Set Referral Points & Pause" },
   ] },
+  { id: "marketplace", label: "Partner Marketplace", permissions: [
+    { key: "marketplace.view", label: "View Partners, Offers & Customers Who Used Them" },
+    { key: "marketplace.manage", label: "Register / Edit Partners, Offers, Agreements & Dashboard Links, Cancel Cards" },
+  ] },
   { id: "academy", label: "Children's Academy", permissions: [
     { key: "academy.view", label: "View Classes & Enrolled Children" },
     { key: "academy.sessions", label: "Add / Edit / Cancel Classes & Show Times" },

@@ -1532,3 +1532,69 @@ model PointsOffer {
 
   @@index([userId, status])
 }
+
+// Partner Marketplace: businesses (cafes, swimming pools ...) that give customers a discount for loyalty points.
+model MarketplacePartner {
+  id             String                  @id @default(cuid())
+  name           String
+  category       String
+  contactName    String?
+  contactPhone   String?
+  about          String?
+  agreementStart String // YYYY-MM-DD
+  agreementEnd   String // YYYY-MM-DD, the last day of the agreement
+  active         Boolean                 @default(true)
+  bannerMediaId  String? // ContentMedia id of the partner's banner
+  bannerSeconds  Int                     @default(6) // seconds on screen before the next banner
+  bannerPriority Int                     @default(0) // 0 to 100, higher first
+  bannerOn       Boolean                 @default(true)
+  bannerStart    String? // first day the banner shows (optional)
+  bannerEnd      String? // last day (optional)
+  bannerDailyStart String? // hours of the day, HH:MM (both empty = all day)
+  bannerDailyEnd   String?
+  bannerDays     Int[]                   @default([]) // weekdays 0 = Sunday ... 6; none = every day
+  token          String                  @unique // the secret in the partner's dashboard link
+  tokenActive    Boolean                 @default(true)
+  lastSeenAt     DateTime?
+  createdBy      String?
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+  offers         MarketplaceOffer[]
+  redemptions    MarketplaceRedemption[]
+}
+
+model MarketplaceOffer {
+  id             String                  @id @default(cuid())
+  partnerId      String
+  title          String
+  code           String // the discount code shown on the card
+  discountText   String // for example "10% off your bill"
+  pointsCost     Decimal                 @db.Decimal(8, 1)
+  maxPerCustomer Int?
+  active         Boolean                 @default(true)
+  createdAt      DateTime                @default(now())
+  partner        MarketplacePartner      @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  redemptions    MarketplaceRedemption[]
+
+  @@unique([partnerId, code])
+  @@index([partnerId])
+}
+
+model MarketplaceRedemption {
+  id           String             @id @default(cuid())
+  partnerId    String
+  offerId      String
+  userId       String // User.phoneNumber
+  customerName String?
+  points       Decimal            @db.Decimal(8, 1)
+  code         String             @unique // the card code the customer shows
+  status       String             @default("active") // active | used | cancelled
+  spent        String? // JSON: which points (and expiry dates) were spent, so a cancel gives each part back
+  createdAt    DateTime           @default(now())
+  usedAt       DateTime?
+  partner      MarketplacePartner @relation(fields: [partnerId], references: [id])
+  offer        MarketplaceOffer   @relation(fields: [offerId], references: [id])
+
+  @@index([partnerId, createdAt])
+  @@index([userId])
+}

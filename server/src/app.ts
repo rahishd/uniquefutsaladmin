@@ -49,6 +49,7 @@ import { remindersRouter } from "./modules/reminders";
 import { dayCheckRouter } from "./modules/day-check";
 import { lockRouter } from "./modules/lock";
 import { organizerRouter } from "./modules/organizer";
+import { marketplaceRouter, partnerDashboardRouter } from "./modules/marketplace";
 
 export const app = express();
 app.set("trust proxy", 1);
@@ -59,13 +60,14 @@ app.use(cors({
 }));
 // Site Content takes pictures (big bodies); its own router reads them, after the staff sign-in check
 const smallJson = express.json({ limit: "100kb" });
-app.use((req, res, next) => ((req.path.startsWith("/api/admin/content") || req.path.startsWith("/api/admin/verify") || req.path.startsWith("/api/admin/auth/avatar")) ? next() : smallJson(req, res, next)));
+app.use((req, res, next) => ((req.path.startsWith("/api/admin/content") || req.path.startsWith("/api/admin/marketplace") || req.path.startsWith("/api/admin/partner") || req.path.startsWith("/api/admin/verify") || req.path.startsWith("/api/admin/auth/avatar")) ? next() : smallJson(req, res, next)));
 
 app.get("/api/health", (_req, res) => { res.json({ success: true, message: "Admin server is running" }); });
 
 const admin = express.Router();
 admin.use("/auth", authRouter); // login is the only route without a token
 admin.use("/fonepay/webhook", fonepayWebhookRouter); // the gateway's callback: no staff token, checked by the provider's signature
+admin.use("/partner", partnerDashboardRouter); // a marketplace partner's own dashboard: no staff token, the secret in its link opens one partner
 admin.use("/host", tournamentHostRouter); // match-day host link: no staff token, the secret in the link opens one tournament
 // Pictures for the previews in this portal. They are public anyway (the customer app shows them), and an <img> tag cannot send a token.
 admin.get("/media/:id", async (req, res, next) => {
@@ -118,6 +120,7 @@ admin.use("/reminders", remindersRouter);
 admin.use("/day-check", dayCheckRouter);
 admin.use("/lock", lockRouter);
 admin.use("/organizer", organizerRouter);
+admin.use("/marketplace", marketplaceRouter);
 admin.use("/", overviewRouter);
 app.use("/api/admin", admin);
 
