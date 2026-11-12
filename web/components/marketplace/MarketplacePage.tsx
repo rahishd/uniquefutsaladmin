@@ -420,12 +420,13 @@ export default function MarketplacePage() {
         {items?.map((p) => (
           <li key={p.id}>
             <button type="button" onClick={() => setOpenId(p.id)} className="flex h-full w-full flex-col overflow-hidden rounded-2xl bg-surface text-left shadow-sm transition hover:shadow-md">
-              <span className="grid aspect-[16/6] w-full place-items-center bg-surface-2 text-muted">
-                {p.bannerUrl ? <img src={picUrl(p.bannerUrl)} alt="" className="h-full w-full object-cover" /> : <Store size={28} />}
-              </span>
               <span className="flex flex-1 flex-col gap-1.5 p-4">
-                <span className="flex items-start justify-between gap-2"><span className="min-w-0 truncate text-base font-bold">{p.name}</span><Badge tone={STATUS[p.status].tone}>{STATUS[p.status].label}</Badge></span>
-                <span className="text-xs text-muted">{p.category} · {fmtDay(p.agreementStart)} to {fmtDay(p.agreementEnd)}</span>
+                <span className="flex items-center gap-3">
+                  <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-header text-white"><Store size={22} /></span>
+                  <span className="min-w-0 flex-1"><span className="block truncate text-base font-bold">{p.name}</span><span className="block truncate text-xs text-muted">{p.category}{p.contactName ? ` · ${p.contactName}` : ""}</span></span>
+                  <Badge tone={STATUS[p.status].tone}>{STATUS[p.status].label}</Badge>
+                </span>
+                <span className="text-xs text-muted">Agreement {fmtDay(p.agreementStart)} to {fmtDay(p.agreementEnd)}</span>
                 <span className="mt-1 flex flex-wrap gap-1.5 text-xs">
                   <span className="rounded-full bg-surface-2 px-2.5 py-1 font-semibold">{p.offers.filter((o) => o.active).length} offer{p.offers.filter((o) => o.active).length === 1 ? "" : "s"} on</span>
                   <span className="rounded-full bg-surface-2 px-2.5 py-1 font-semibold">{p.stats.active + p.stats.used} customers</span>
