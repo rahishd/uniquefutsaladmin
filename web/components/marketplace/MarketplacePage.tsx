@@ -271,13 +271,7 @@ function ManageSheet({ partner, categories, onClose, onChange, onDeleted }: { pa
   }
 
   return (
-    <Sheet title={p.name} sub={<span className="flex flex-wrap items-center gap-2"><Badge tone={STATUS[p.status].tone}>{STATUS[p.status].label}</Badge><span>{p.category} · agreement {fmtDay(p.agreementStart)} to {fmtDay(p.agreementEnd)}</span>{p.link.active && (
-    <span className="flex w-full max-w-full items-center gap-1.5 rounded-full border border-line bg-surface-2 py-1 pl-3 pr-1 text-xs">
-      <Link2 size={13} className="shrink-0 text-muted" /><span className="min-w-0 flex-1 truncate font-mono" title={url}>{url}</span>
-      <button type="button" onClick={async (e) => { e.stopPropagation(); await copyText(url); setCopied(true); setTimeout(() => setCopied(false), 1500); }} aria-label="Copy the partner link" className="flex shrink-0 items-center gap-1 rounded-full bg-brand px-2.5 py-1 font-semibold text-white">{copied ? <Check size={12} /> : <Copy size={12} />} {copied ? "Copied" : "Copy"}</button>
-      <a href={url} target="_blank" rel="noopener noreferrer" aria-label="Open the partner link" className="grid shrink-0 place-items-center rounded-full p-1.5 hover:bg-surface"><ExternalLink size={13} /></a>
-    </span>
-  )}</span>} onClose={onClose}>
+    <Sheet title={p.name} sub={<span className="flex flex-wrap items-center gap-2"><Badge tone={STATUS[p.status].tone}>{STATUS[p.status].label}</Badge><span>{p.category} · agreement {fmtDay(p.agreementStart)} to {fmtDay(p.agreementEnd)}</span></span>} onClose={onClose}>
       {err && <p role="alert" className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600">{err}</p>}
       {ok && <p role="status" className="rounded-xl bg-emerald-500/10 p-3 text-sm text-emerald-700">{ok}</p>}
 
