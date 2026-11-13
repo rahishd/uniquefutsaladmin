@@ -39,6 +39,7 @@ const frequents: { href: string; label: string; icon: React.ElementType; deskOnl
   { href: "/ev-charging", label: "EV Charging", icon: icons.battery },
   { href: "/verify", label: "Verify Documents", icon: icons.shield },
   { href: "/digital-id", label: "Digital ID", icon: icons.scan },
+  { href: "/wheelchair", label: "Wheelchair & Health Insurance", icon: icons.wheelchair },
 ];
 
 // Sign-in guard is only for the UI; the API enforces staff access on every request.
