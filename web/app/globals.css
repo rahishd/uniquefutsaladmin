@@ -10,7 +10,7 @@
   --brand: #0b1f4d;
   --header: #0b1f4d;
   --nav-ink: #0c0b5d;
-  --nav-wash: rgba(255, 255, 255, 0.3);
+  --nav-wash: #e4ecfa; /* the top bar: a solid light blue, never see-through */
   --nav-tile: rgba(255, 255, 255, 0.6);
   --nav-tile-hover: #ffffff;
 }
@@ -26,7 +26,7 @@
     --brand: #3b6fe0;
     --header: #0b1f4d;
     --nav-ink: #e8ecf1;
-    --nav-wash: rgba(11, 15, 20, 0.55);
+    --nav-wash: #0b0f14; /* the top bar: solid, never see-through */
     --nav-tile: rgba(255, 255, 255, 0.08);
     --nav-tile-hover: rgba(255, 255, 255, 0.16);
     color-scheme: dark;
@@ -43,7 +43,7 @@
     --brand: #3b6fe0;
     --header: #0b1f4d;
     --nav-ink: #e8ecf1;
-    --nav-wash: rgba(11, 15, 20, 0.55);
+    --nav-wash: #0b0f14; /* the top bar: solid, never see-through */
     --nav-tile: rgba(255, 255, 255, 0.08);
     --nav-tile-hover: rgba(255, 255, 255, 0.16);
     color-scheme: dark;

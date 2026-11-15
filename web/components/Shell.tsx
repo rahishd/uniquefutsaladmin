@@ -26,7 +26,8 @@ const GROUP_ICON: Record<string, React.ElementType> = {
 
 // Pages used all day, in this order (Overview is the landing page). Everything else sits behind the "More" button.
 // deskOnly: shown in the top icon row on tablet and desktop only (the phone has its own bottom bar and the sidebar menu)
-const frequents: { href: string; label: string; icon: React.ElementType; deskOnly?: boolean }[] = [
+// notInTopBar: kept in the Frequents list of the side menu, but not shown as an icon in the top bar
+const frequents: { href: string; label: string; icon: React.ElementType; deskOnly?: boolean; notInTopBar?: boolean }[] = [
   { href: "/overview", label: "Overview and Reports", icon: BarChart3 },
   { href: "/slots", label: "Manual Booking", icon: icons.clock, deskOnly: true },
   { href: "/bookings", label: "Bookings & Payments", icon: icons.calendar, deskOnly: true },
@@ -36,10 +37,10 @@ const frequents: { href: string; label: string; icon: React.ElementType; deskOnl
   { href: "/membership", label: "Membership", icon: icons.idcard },
   { href: "/tournaments", label: "Tournaments", icon: icons.trophy },
   { href: "/teams", label: "Teams & Challenges", icon: icons.swords },
-  { href: "/ev-charging", label: "EV Charging", icon: icons.battery },
+  { href: "/ev-charging", label: "EV Charging", icon: icons.battery, notInTopBar: true },
   { href: "/verify", label: "Verify Documents", icon: icons.shield },
   { href: "/digital-id", label: "Digital ID", icon: icons.scan },
-  { href: "/wheelchair", label: "Wheelchair & Health Insurance", icon: icons.wheelchair },
+  { href: "/wheelchair", label: "Wheelchair & Health Insurance", icon: icons.wheelchair, notInTopBar: true },
 ];
 
 // Sign-in guard is only for the UI; the API enforces staff access on every request.
@@ -133,7 +134,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[264px_minmax(0,1fr)]">
-        <header className="sticky top-0 z-30 flex h-auto min-h-16 min-w-0 flex-wrap items-center md:flex-nowrap pb-2 pt-[max(calc(env(safe-area-inset-top)_-_0.625rem),0.5rem)] md:h-16 md:pb-0 md:pt-0 justify-between gap-3 bg-(--nav-wash) backdrop-blur-md pl-2 pr-4 text-(--nav-ink) lg:col-span-2 lg:pl-3 lg:pr-8">
+        <header className="sticky top-0 z-30 flex h-auto min-h-16 min-w-0 flex-wrap items-center md:flex-nowrap pb-2 pt-[max(calc(env(safe-area-inset-top)_-_0.625rem),0.5rem)] md:h-16 md:pb-0 md:pt-0 justify-between gap-3 bg-(--nav-wash) pl-2 pr-4 text-(--nav-ink) lg:col-span-2 lg:pl-3 lg:pr-8">
           {/* the logo and name reload the portal from its home page (a plain link, not a client-side one, so it is a real restart) */}
           <a href={withBase("/")} aria-label="Unique Futsal, reload the portal" className="flex shrink-0 items-center gap-3 pr-2 text-(--nav-ink) no-underline">
             {/* the player alone, turned white for the navy bar */}
@@ -147,7 +148,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           {/* the Dashboard is the page of shortcuts itself, so the icon row is not shown there */}
           {!pathname.startsWith("/dashboard") && (
             <nav aria-label="Frequent pages" className="order-last mx-0 flex min-w-0 basis-full md:order-none md:flex-1 md:basis-auto items-center justify-between gap-1.5 overflow-x-auto py-1 max-md:-mr-2 md:mx-3 md:justify-center md:gap-2.5 md:[mask-image:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {visible.map((f) => {
+              {visible.filter((f) => !f.notInTopBar).map((f) => {
                 const on = isActive(f.href);
                 const n = live.unseenFor(f.href).length;
                 return (
