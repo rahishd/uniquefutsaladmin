@@ -14,7 +14,7 @@ const phone = z.string().regex(/^9\d{9}$/, "registered mobile number like 98XXXX
 
 // ---- the Loyalty Points page ----
 // Balance as the admin sees it: valid earned points plus spent (negative) ones. The customer app is the source of truth for what is spendable.
-const KINDS = ["game", "goods", "membership", "referral", "captain_win", "goal_rush", "gift", "free_game"] as const;
+const KINDS = ["game", "goods", "membership", "referral", "captain_win", "goal_rush", "ludo", "gift", "free_game"] as const;
 const SOON_DAYS = 30;
 
 type Holder = { phone: string; valid: number; spent: number; expiring: number };
@@ -79,6 +79,12 @@ loyaltyRouter.get("/customers", requirePermission("loyalty.view"), handler(async
   const vouch = new Map(unused.map((u) => [u.userId, u._count._all]));
   let rows = list.map((h) => ({ phone: h.phone, name: name.get(h.phone) ?? null, balance: round1(h.valid + h.spent), expiringSoon: round1(h.expiring), unusedVouchers: vouch.get(h.phone) ?? 0 }));
   if (q) rows = rows.filter((r) => r.phone.includes(q) || (r.name ?? "").toLowerCase().includes(q));
+  // a customer who has never had any points is not in the ledger, but staff still need to find them (to top up or adjust): a search also looks at every customer
+  if (q) {
+    const have = new Set(rows.map((r) => r.phone));
+    const extra = await prisma.user.findMany({ where: { role: "user", OR: [{ phoneNumber: { contains: q } }, { name: { contains: q, mode: "insensitive" } }] }, select: { phoneNumber: true, name: true }, take: 50 });
+    for (const u of extra) if (!have.has(u.phoneNumber)) rows.push({ phone: u.phoneNumber, name: u.name, balance: 0, expiringSoon: 0, unusedVouchers: 0 });
+  }
   rows.sort(sort === "name" ? (a, b) => (a.name ?? a.phone).localeCompare(b.name ?? b.phone) : sort === "expiring" ? (a, b) => b.expiringSoon - a.expiringSoon || b.balance - a.balance : (a, b) => b.balance - a.balance);
   const { take, skip, pageNo, limit } = page(req.query as Record<string, unknown>);
   send(res, { items: rows.slice(skip, skip + take), total: rows.length, page: pageNo, limit });

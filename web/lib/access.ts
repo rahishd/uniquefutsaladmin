@@ -10,12 +10,12 @@ export const canDo = (permission: string) => !!currentAdmin()?.permissions?.incl
 const pageGroups: Record<string, string[]> = {
   overview: ["dashboard", "reports"], dashboard: ["dashboard"], slots: ["slots"], bookings: ["bookings", "payments"],
   sales: ["inventory"], payments: ["payments"], "ev-charging": ["payments"], "service-funds": ["servicefunds"],
-  courts: ["courts"], "digital-id": ["digitalid"], customers: ["customers"], "goal-rush": ["goalrush"],
+  courts: ["courts"], "digital-id": ["digitalid"], customers: ["customers"], ludo: ["ludo"],
   "gift-card": ["giftcards"], club: ["club"], vip: ["vip"], membership: ["membership", "club", "academy"], loyalty: ["loyalty"],
   promos: ["promos", "vip"], "promo-codes": ["promos"], teams: ["teams"], disputes: ["teams"], tournaments: ["tournaments"], gamezone: ["gamezone"],
   notifications: ["notifications"], complaints: ["complaints"], wheelchair: ["wheelchair", "insurance"], "wheelchair-requests": ["wheelchair"], insurance: ["insurance"], refer: ["refer"], marketplace: ["marketplace"], academy: ["academy"], content: ["content", "notifications"],
   partners: ["content"], verify: ["verify"], "letter-head": ["letterhead"], inventory: ["inventory"], reports: ["reports"], staff: ["staff"],
-  audit: ["audit"], settings: ["settings"], reminders: ["reminders"], "day-check": ["staff"], // Day Check is the owner's: only the owner holds a staff.* permission
+  audit: ["audit"], sms: ["sms"], settings: ["settings"], reminders: ["reminders"], "day-check": ["staff"], // Day Check is the owner's: only the owner holds a staff.* permission
 };
 
 // A page (its sidebar link and its dashboard icon) shows when this account holds at least one permission of that page, even a small one

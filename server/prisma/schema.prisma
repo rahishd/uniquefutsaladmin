@@ -1599,3 +1599,136 @@ model MarketplaceRedemption {
   @@index([partnerId, createdAt])
   @@index([userId])
 }
+
+// Every text the customer backend sends (it writes the rows; the SMS page here reads them). A one-time code is never stored.
+model SmsLog {
+  id            String   @id @default(cuid())
+  createdAt     DateTime @default(now())
+  phoneNumber   String
+  recipientName String?
+  kind          String   @default("other")
+  message       String
+  status        String
+  provider      String
+  providerId    String?
+  error         String?
+  bookingCode   String?
+
+  @@index([createdAt])
+  @@index([phoneNumber])
+  @@index([kind])
+}
+
+// A mass text staff sent from the SMS page (wishes, offers, notices) and how far it got. The texts themselves are in SmsLog.
+model SmsCampaign {
+  id            String    @id @default(cuid())
+  createdAt     DateTime  @default(now())
+  createdByName String
+  title         String
+  body          String
+  audience      String
+  audienceLabel String
+  total         Int
+  sent          Int       @default(0)
+  failed        Int       @default(0)
+  status        String    @default("sending") // sending | done | stopped
+  finishedAt    DateTime?
+
+  @@index([createdAt])
+}
+
+// Unique Ludo (online game). A game is a row here from the moment a room is opened (status "lobby") until it ends.
+// The full board is kept in `state` (JSON, written only by the server); every action is also logged in LudoEvent.
+// Entry fees, rewards and refunds are rows in LoyaltyEntry (kind "ludo"), never a separate balance.
+model LudoGame {
+  id          String    @id @default(cuid())
+  code        String    @unique // room code, e.g. K7M2QX
+  mode        String // solo | multi
+  status      String    @default("lobby") // lobby | active | completed | cancelled | abandoned
+  hostId      String
+  maxPlayers  Int       @default(4)
+  difficulty  String    @default("normal") // solo: easy | normal | hard
+  state       Json?
+  day         String? // Nepal day the game started (YYYY-MM-DD): the day it counts against the limit
+  actAt       DateTime? // when the server must act next (a computer player, or a turn that timed out)
+  turnSeat    Int?
+  winnerSeat  Int?
+  cancelReason String?
+  createdAt   DateTime  @default(now())
+  startedAt   DateTime?
+  finishedAt  DateTime?
+  lastActivityAt DateTime @default(now())
+  players     LudoPlayer[]
+  invites     LudoInvite[]
+  events      LudoEvent[]
+
+  @@index([hostId, status])
+  @@index([status, actAt])
+  @@index([status, finishedAt])
+}
+
+model LudoPlayer {
+  id          String   @id @default(cuid())
+  gameId      String
+  seat        Int
+  userId      String? // null = a computer player
+  name        String
+  isBot       Boolean  @default(false)
+  botControl  Boolean  @default(false) // a person whose seat the computer has taken over (they can take it back)
+  ready       Boolean  @default(false)
+  status      String   @default("joined") // joined | left | removed
+  missedTurns Int      @default(0)
+  disconnectedAt DateTime?
+  feeEntryId  String?
+  rewardEntryId String?
+  refundEntryId String?
+  result      String? // won | lost | left
+  rank        Int?
+  captures    Int      @default(0)
+  joinedAt    DateTime @default(now())
+  game        LudoGame @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, seat])
+  @@index([userId, gameId])
+  @@index([gameId])
+}
+
+model LudoInvite {
+  id        String    @id @default(cuid())
+  gameId    String
+  inviterId String
+  inviteeId String
+  status    String    @default("invited") // invited | accepted | declined | cancelled
+  createdAt DateTime  @default(now())
+  respondedAt DateTime?
+  game      LudoGame  @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, inviteeId])
+  @@index([inviteeId, status])
+}
+
+// One row per action, in order (seq is unique per game): the dice rolled, the tokens moved, the turns passed.
+model LudoEvent {
+  id        String   @id @default(cuid())
+  gameId    String
+  seq       Int
+  seat      Int
+  kind      String // roll | move | auto | takeover
+  value     Int?
+  token     Int?
+  detail    String?
+  createdAt DateTime @default(now())
+  game      LudoGame @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, seq])
+}
+
+// Games started per customer per Nepal day and mode: the daily limit (4 solo, 5 multiplayer) is counted here.
+model LudoDailyUsage {
+  userId String
+  day    String
+  mode   String // solo | multi
+  count  Int    @default(0)
+
+  @@id([userId, day, mode])
+}

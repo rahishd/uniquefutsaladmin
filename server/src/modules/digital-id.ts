@@ -151,7 +151,7 @@ async function customerExtras(phone: string) {
   const today = todayKey();
   const mine = { AND: [NOT_LEDGER, { OR: [{ userId: phone }, { customerPhone: phone }] }] };
   const live = { status: { notIn: DEAD } };
-  const [upcoming, addOnRows, gzRows, gzDone, gzUpcoming, ledger, vouchers, refOut, refIn, refRecent, sub, subCount, clubRow, clubCourt, clubGz, doneGames, rushToday, rushAll, rushRecent, hosting, joined] = await Promise.all([
+  const [upcoming, addOnRows, gzRows, gzDone, gzUpcoming, ledger, vouchers, refOut, refIn, refRecent, sub, subCount, clubRow, clubCourt, clubGz, doneGames, ludoToday, ludoAll, ludoRecent, hosting, joined] = await Promise.all([
     prisma.booking.findMany({
       where: { AND: [mine, { status: { in: ["pending", "confirmed"] }, date: { gte: today } }] },
       orderBy: [{ date: "asc" }, { startTime: "asc" }], take: 10,
@@ -172,10 +172,10 @@ async function customerExtras(phone: string) {
     prisma.booking.aggregate({ where: { userId: phone, clubDiscount: { gt: 0 }, status: { notIn: DEAD } }, _sum: { clubDiscount: true }, _count: { _all: true } }),
     prisma.gzBooking.aggregate({ where: { userId: phone, clubDiscount: { gt: 0 }, status: { notIn: DEAD } }, _sum: { clubDiscount: true }, _count: { _all: true } }),
     prisma.booking.findMany({ where: { userId: phone, status: "completed" }, select: { date: true } }),
-    // Unique Goal Rush
-    prisma.goalRushGame.aggregate({ where: { userId: phone, day: today }, _count: { _all: true }, _sum: { points: true, goals: true } }),
-    prisma.goalRushGame.aggregate({ where: { userId: phone }, _count: { _all: true }, _sum: { points: true } }),
-    prisma.goalRushGame.findMany({ where: { userId: phone, status: { not: "active" } }, orderBy: { startedAt: "desc" }, take: 5 }),
+    // Unique Ludo: games started today (per mode), games played and won in total, and the last five
+    prisma.ludoDailyUsage.findMany({ where: { userId: phone, day: today } }),
+    prisma.ludoPlayer.findMany({ where: { userId: phone, feeEntryId: { not: null }, game: { status: { in: ["completed", "abandoned"] } } }, select: { result: true } }),
+    prisma.ludoPlayer.findMany({ where: { userId: phone, feeEntryId: { not: null }, game: { status: { in: ["completed", "abandoned"] } } }, orderBy: { game: { createdAt: "desc" } }, take: 5, include: { game: { select: { mode: true, day: true } } } }),
     // Find Player: games they are looking for players for, and ones they joined
     prisma.playerRequest.findMany({ where: { userId: phone, date: { gte: today }, status: { in: ["open", "awaiting_advance", "confirmed"] } }, include: { joins: { select: { userId: true } } }, orderBy: [{ date: "asc" }, { startHour: "asc" }], take: 10 }),
     prisma.playerRequestJoin.findMany({ where: { userId: phone, request: { date: { gte: today }, status: { in: ["open", "awaiting_advance", "confirmed"] } } }, include: { request: true }, take: 10 }),
@@ -223,10 +223,10 @@ async function customerExtras(phone: string) {
 
   return {
     club,
-    goalRush: {
-      gamesToday: rushToday._count._all, pointsToday: rushToday._sum.points ?? 0, goalsToday: rushToday._sum.goals ?? 0,
-      gamesTotal: rushAll._count._all, pointsTotal: rushAll._sum.points ?? 0,
-      recent: rushRecent.map((g) => ({ day: g.day, status: g.status, goals: g.goals, shots: g.shotsTaken, points: g.points })),
+    ludo: {
+      soloToday: ludoToday.find((u) => u.mode === "solo")?.count ?? 0, multiToday: ludoToday.find((u) => u.mode === "multi")?.count ?? 0,
+      gamesTotal: ludoAll.length, winsTotal: ludoAll.filter((p) => p.result === "won").length,
+      recent: ludoRecent.map((p) => ({ day: p.game.day ?? "", mode: p.game.mode, result: p.result ?? "lost" })),
     },
     findPlayer: {
       hosting: hosting.map((r) => ({ id: r.id, date: r.date, time: `${String(r.startHour).padStart(2, "0")}:00`, status: r.status, needed: r.playersNeeded, joined: r.joins.length })),

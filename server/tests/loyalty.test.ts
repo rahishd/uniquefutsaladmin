@@ -26,6 +26,11 @@ describe("Loyalty points page", () => {
     assert.deepEqual(list.items[0], { phone: "9890000002", name: "Sita Shah", balance: 30, expiringSoon: 0, unusedVouchers: 0 });
     assert.deepEqual(list.items[1], { phone: "9890000001", name: "Raju Rai", balance: 7.5, expiringSoon: 5, unusedVouchers: 1 }, "12.5 + 5 earned and valid, 10 spent; the expired 3 is left out");
     assert.equal((await api.get("/loyalty/customers?q=raju", mgr.auth)).body.data.total, 1);
+    // a customer with no points yet is still found by name or number (so staff can top them up)
+    await customer("9890000003", "Shivanchu Dumre");
+    const none = (await api.get("/loyalty/customers?q=shivanchu", mgr.auth)).body.data;
+    assert.deepEqual(none.items, [{ phone: "9890000003", name: "Shivanchu Dumre", balance: 0, expiringSoon: 0, unusedVouchers: 0 }]);
+    assert.equal((await api.get("/loyalty/customers", mgr.auth)).body.data.total, 2, "the plain list still shows only customers with points");
     assert.equal((await api.get("/loyalty/customers?sort=expiring", mgr.auth)).body.data.items[0].phone, "9890000001");
   });
 

@@ -68,8 +68,8 @@ export default function LockButton({ row = false, onLocked }: { row?: boolean; o
         </button>
       ) : (
         <button type="button" onClick={press} title="Lock the portal" aria-label="Lock the portal" aria-expanded={open}
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-(--nav-tile) text-(--nav-ink) shadow-sm ring-1 ring-(--nav-ink)/15 transition hover:bg-(--nav-tile-hover) hover:shadow md:h-11 md:w-11 md:rounded-2xl">
-          <Lock size={18} className="md:h-[22px] md:w-[22px]" />
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-(--nav-tile) text-(--nav-ink) shadow-sm ring-1 ring-(--nav-ink)/15 transition hover:bg-(--nav-tile-hover) hover:shadow">
+          <Lock size={16} />
         </button>
       )}
 

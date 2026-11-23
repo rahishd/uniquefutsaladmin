@@ -173,35 +173,6 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             </nav>
           )}
           <div className="flex shrink-0 items-center gap-3 pl-0 max-md:ml-auto md:pl-4">
-            <div ref={menuBox} className="relative shrink-0">
-              <button type="button" onClick={() => setMenuOpen((o) => !o)} aria-haspopup="menu" aria-expanded={menuOpen} title={`${admin?.name ?? who} (${who})`} aria-label={`Profile menu: ${admin?.name ?? who}, ${who}`} className="grid h-9 w-9 place-items-center overflow-hidden rounded-full bg-[#0c0b5d] ring-2 ring-white md:h-11 md:w-11">
-                {avatar ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={avatar} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <span className="text-sm font-bold text-white">{initials}</span>
-                )}
-              </button>
-              <input ref={picker} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" aria-label="Choose profile picture" onChange={(e) => { void choosePhoto(e.target.files?.[0]); e.target.value = ""; }} />
-              {menuOpen && (
-                <div role="menu" aria-label="Profile" className="absolute right-0 top-full z-50 mt-2 w-64 rounded-2xl border border-line bg-surface p-2 text-foreground shadow-xl">
-                  <div className="flex items-center gap-3 px-3 py-2.5">
-                    <span className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full bg-[#0c0b5d] text-sm font-bold text-white">
-                      {avatar ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={avatar} alt="" className="h-full w-full object-cover" />
-                      ) : initials}
-                    </span>
-                    <span className="min-w-0"><span className="block truncate text-sm font-bold">{admin?.name ?? who}</span><span className={`mt-0.5 inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${who === "Staff" ? "bg-slate-500/15 text-slate-700" : "bg-brand/15 text-brand"}`}>{who}</span></span>
-                  </div>
-                  <div className="my-1 border-t border-line" />
-                  <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); picker.current?.click(); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold hover:bg-surface-2"><Camera size={17} className="text-muted" /> Change picture</button>
-                  <LockButton row onLocked={() => setMenuOpen(false)} />
-                  <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); logout(); router.replace("/login"); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-red-600 hover:bg-red-500/10"><LogOut size={17} /> Sign out</button>
-                </div>
-              )}
-              {photoErr && <p role="alert" className="absolute right-0 top-full z-40 mt-2 w-56 rounded-xl bg-surface p-2.5 text-xs font-medium text-red-600 shadow-lg">{photoErr}</p>}
-            </div>
             <button type="button" onClick={refreshPage} title="Refresh this page" aria-label="Refresh this page" className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-emerald-600 text-white shadow-md transition hover:bg-emerald-700 md:h-11 md:w-11 md:rounded-2xl">
               <RefreshCw size={18} className={`md:h-[22px] md:w-[22px] ${spinning ? "animate-spin" : ""}`} />
             </button>
@@ -245,7 +216,36 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
         <div className="shrink-0 px-2 py-3 text-(--nav-ink)">
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center justify-between gap-2 px-1">
+        <div ref={menuBox} className="relative shrink-0">
+          <button type="button" onClick={() => setMenuOpen((o) => !o)} aria-haspopup="menu" aria-expanded={menuOpen} title={`${admin?.name ?? who} (${who})`} aria-label={`Profile menu: ${admin?.name ?? who}, ${who}`} className="grid h-8 w-8 place-items-center overflow-hidden rounded-full bg-[#0c0b5d] ring-2 ring-white">
+            {avatar ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={avatar} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <span className="text-sm font-bold text-white">{initials}</span>
+            )}
+          </button>
+          <input ref={picker} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" aria-label="Choose profile picture" onChange={(e) => { void choosePhoto(e.target.files?.[0]); e.target.value = ""; }} />
+          {menuOpen && (
+            <div role="menu" aria-label="Profile" className="absolute bottom-full left-0 z-50 mb-2 w-64 rounded-2xl border border-line bg-surface p-2 text-foreground shadow-xl">
+              <div className="flex items-center gap-3 px-3 py-2.5">
+                <span className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full bg-[#0c0b5d] text-sm font-bold text-white">
+                  {avatar ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={avatar} alt="" className="h-full w-full object-cover" />
+                  ) : initials}
+                </span>
+                <span className="min-w-0"><span className="block truncate text-sm font-bold">{admin?.name ?? who}</span><span className={`mt-0.5 inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${who === "Staff" ? "bg-slate-500/15 text-slate-700" : "bg-brand/15 text-brand"}`}>{who}</span></span>
+              </div>
+              <div className="my-1 border-t border-line" />
+              <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); picker.current?.click(); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold hover:bg-surface-2"><Camera size={17} className="text-muted" /> Change picture</button>
+              <LockButton row onLocked={() => setMenuOpen(false)} />
+              <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); logout(); router.replace("/login"); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-red-600 hover:bg-red-500/10"><LogOut size={17} /> Sign out</button>
+            </div>
+          )}
+          {photoErr && <p role="alert" className="absolute bottom-full left-0 z-40 mb-2 w-56 rounded-xl bg-surface p-2.5 text-xs font-medium text-red-600 shadow-lg">{photoErr}</p>}
+        </div>
           <LockButton />
           <SirenToggle up />
           <ThemeToggle />

@@ -33,8 +33,8 @@ export default function ThemeToggle() {
   const dark = theme === "dark";
   return (
     <button type="button" onClick={flip} title={dark ? "Switch to light mode" : "Switch to dark mode"} aria-label={dark ? "Switch to light mode" : "Switch to dark mode"} aria-pressed={dark}
-      className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-(--nav-tile) text-(--nav-ink) shadow-sm ring-1 ring-(--nav-ink)/15 transition hover:bg-(--nav-tile-hover) hover:shadow md:h-11 md:w-11 md:rounded-2xl">
-      {dark ? <Sun size={18} className="md:h-[22px] md:w-[22px]" /> : <Moon size={18} className="md:h-[22px] md:w-[22px]" />}
+      className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-(--nav-tile) text-(--nav-ink) shadow-sm ring-1 ring-(--nav-ink)/15 transition hover:bg-(--nav-tile-hover) hover:shadow">
+      {dark ? <Sun size={16} /> : <Moon size={16} />}
     </button>
   );
 }

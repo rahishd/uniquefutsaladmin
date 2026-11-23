@@ -47,23 +47,23 @@ export default function SirenToggle({ up = false }: { up?: boolean }) {
     try { const r = await sendTestPush(); setNote(r.devices > 0 ? "Sent. Close this tab to see how it looks." : "No device is registered yet. Turn on closed-portal alerts first."); } catch { setNote("Could not send the test."); }
   }
 
-  const btn = "grid h-9 place-items-center text-(--nav-ink) transition hover:bg-(--nav-ink)/5 md:h-11";
+  const btn = "grid h-8 place-items-center text-(--nav-ink) transition hover:bg-(--nav-ink)/5";
   return (
     <div ref={box} className="relative">
-      <div className="flex overflow-hidden rounded-xl bg-(--nav-tile) shadow-sm ring-1 ring-(--nav-ink)/15 md:rounded-2xl">
+      <div className="flex overflow-hidden rounded-lg bg-(--nav-tile) shadow-sm ring-1 ring-(--nav-ink)/15">
         <button
           type="button"
           onClick={() => { setSirenMuted(!muted); if (muted) startSiren(600); }} // unmuting plays a short beep so you know it works
           title={muted ? "Alert sound is off. Click to turn on" : blocked ? "Click anywhere on the page once to switch the alert sound on" : "Alert sound is on. Click to mute"}
           aria-label={muted ? "Unmute alert sound" : "Mute alert sound"}
           aria-pressed={muted}
-          className={`${btn} relative w-9 md:w-11 ${muted ? "opacity-50" : ""}`}
+          className={`${btn} relative w-8 ${muted ? "opacity-50" : ""}`}
         >
-          <Icon size={18} className="md:h-[22px] md:w-[22px]" />
+          <Icon size={16} />
           {!muted && blocked && <span aria-hidden className="absolute right-1 top-1 h-2.5 w-2.5 animate-pulse rounded-full bg-amber-400 ring-2 ring-(--nav-tile)" />}
         </button>
-        <button type="button" onClick={() => setOpen((o) => !o)} aria-label="Sound and alert settings" aria-expanded={open} className={`${btn} w-5 border-l border-(--nav-ink)/20 md:w-6`}>
-          <ChevronDown size={14} />
+        <button type="button" onClick={() => setOpen((o) => !o)} aria-label="Sound and alert settings" aria-expanded={open} className={`${btn} w-4 border-l border-(--nav-ink)/20`}>
+          <ChevronDown size={12} />
         </button>
       </div>
 

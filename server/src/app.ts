@@ -42,10 +42,12 @@ import { staffRouter } from "./modules/staff";
 import { teamsRouter } from "./modules/teams";
 import { vipRouter } from "./modules/vip";
 import { clubRouter } from "./modules/club";
-import { goalRushRouter } from "./modules/goalrush";
+import { ludoRouter } from "./modules/ludo";
 import { serviceFundsRouter } from "./modules/service-funds";
 import { giftsRouter } from "./modules/gifts";
 import { remindersRouter } from "./modules/reminders";
+import { smsRouter } from "./modules/sms";
+import { smsMassRouter } from "./modules/sms-mass";
 import { dayCheckRouter } from "./modules/day-check";
 import { lockRouter } from "./modules/lock";
 import { organizerRouter } from "./modules/organizer";
@@ -113,10 +115,12 @@ admin.use("/tournaments", tournamentEventsRouter); // hosted events first, so /h
 admin.use("/tournaments", tournamentsRouter);
 admin.use("/vip", vipRouter);
 admin.use("/club", clubRouter);
-admin.use("/goal-rush", goalRushRouter);
+admin.use("/ludo", ludoRouter); // Unique Ludo replaced Goal Rush in the customer app
 admin.use("/service-funds", serviceFundsRouter);
 admin.use("/gifts", giftsRouter);
 admin.use("/reminders", remindersRouter);
+admin.use("/sms", smsRouter);
+admin.use("/sms", smsMassRouter);
 admin.use("/day-check", dayCheckRouter);
 admin.use("/lock", lockRouter);
 admin.use("/organizer", organizerRouter);

@@ -8,7 +8,7 @@ export type Extras = {
     member: boolean; validUntil: string; startedAt: string; daysLeft: number; payments: number; mature: boolean; daysIn: number; gamesPlayed: number;
     matureAfterDays: number; matureAfterGames: number; discountGiven: number; discountedGames: number;
   };
-  goalRush: { gamesToday: number; pointsToday: number; goalsToday: number; gamesTotal: number; pointsTotal: number; recent: { day: string; status: string; goals: number; shots: number; points: number }[] };
+  ludo: { soloToday: number; multiToday: number; gamesTotal: number; winsTotal: number; recent: { day: string; mode: string; result: string }[] };
   findPlayer: {
     hosting: { id: string; date: string; time: string; status: string; needed: number; joined: number }[];
     joined: { id: string; date: string; time: string; status: string; host: string }[];

@@ -108,11 +108,13 @@ describe("Digital ID: membership attendance", () => {
   });
 });
 
-describe("Digital ID: Unique Club, Goal Rush and Find Player on the scan result", () => {
-  it("shows the club, the Goal Rush games and the Find Player games of the customer", async () => {
+describe("Digital ID: Unique Club, Unique Ludo and Find Player on the scan result", () => {
+  it("shows the club, the Ludo games and the Find Player games of the customer", async () => {
     const day = todayKey();
     await prisma.clubMember.create({ data: { userId: P, startedAt: new Date(Date.now() - 20 * 86400000), validUntil: new Date(Date.now() + 10 * 86400000), payments: 2 } });
-    await prisma.goalRushGame.create({ data: { userId: P, day, status: "completed", shotsTaken: 5, goals: 3, saves: 2, points: 1 } });
+    await prisma.ludoDailyUsage.create({ data: { userId: P, day, mode: "solo", count: 2 } });
+    const lg = await prisma.ludoGame.create({ data: { code: "TSTLUD", mode: "solo", status: "completed", hostId: P, day, startedAt: new Date(), finishedAt: new Date() } });
+    await prisma.ludoPlayer.create({ data: { gameId: lg.id, seat: 0, userId: P, name: "P", feeEntryId: "fee-x", result: "won" } });
     await prisma.playerRequest.create({ data: { userId: P, date: day, startHour: 23, playersNeeded: 4, status: "open", courtPrice: 1500 } });
 
     const r = await api.get(`/digital-id/${P}`, owner.auth);
@@ -122,7 +124,7 @@ describe("Digital ID: Unique Club, Goal Rush and Find Player on the scan result"
     assert.equal(x.club.payments, 2);
     assert.equal(x.club.mature, true, "20 days in");
     assert.ok(x.club.daysLeft >= 9 && x.club.daysLeft <= 10);
-    assert.deepEqual([x.goalRush.gamesToday, x.goalRush.pointsToday, x.goalRush.pointsTotal], [1, 1, 1]);
+    assert.deepEqual([x.ludo.soloToday, x.ludo.multiToday, x.ludo.gamesTotal, x.ludo.winsTotal], [2, 0, 1, 1]);
     assert.equal(x.findPlayer.hosting.length, 1);
     assert.deepEqual([x.findPlayer.hosting[0].needed, x.findPlayer.hosting[0].joined], [4, 0]);
 

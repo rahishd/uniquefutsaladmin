@@ -60,8 +60,8 @@ export const SECTIONS: Section[] = [
     { key: "giftcards.view", label: "View Gift Cards" },
     { key: "giftcards.refund", label: "Cancel a Gift & Refund the Buyer" },
   ] },
-  { id: "goalrush", label: "Unique Goal Rush", permissions: [
-    { key: "goalrush.view", label: "View Goal Rush Games & Statistics" },
+  { id: "ludo", label: "Unique Ludo", permissions: [
+    { key: "ludo.view", label: "View Unique Ludo Games & Statistics" },
   ] },
   { id: "club", label: "Unique Club", permissions: [
     { key: "club.view", label: "View Unique Club Members" },
@@ -154,6 +154,11 @@ export const SECTIONS: Section[] = [
     { key: "reminders.view", label: "View All Reminders" },
     { key: "reminders.manage", label: "Add / Edit / Delete Reminders" },
   ] },
+  { id: "sms", label: "SMS Messages", permissions: [
+    { key: "sms.view", label: "View Sent SMS Messages" },
+    { key: "sms.manage", label: "Edit the Wording of SMS Messages" },
+    { key: "sms.send", label: "Send Mass SMS and Login Details to Customers" },
+  ] },
   { id: "notices", label: "Notices", permissions: [{ key: "notifications.send", label: "Send Notices to Customers (with an optional link)" }] },
   { id: "reports", label: "Reports & Audit", permissions: [
     { key: "reports.view", label: "View Reports" },
@@ -180,7 +185,7 @@ const EXPAND: Record<string, string[]> = {
   "customers.read": ["customers.view", "club.view"], "customers.write": ["customers.create", "customers.edit", "customers.suspend", "vip.view", "vip.manage"],
   "courts.read": ["courts.view"], "courts.write": ["courts.price", "courts.block"],
   "promos.read": ["promos.view"], "promos.write": ["promos.create", "promos.edit", "promos.delete"],
-  "loyalty.read": ["loyalty.view", "goalrush.view"], "loyalty.write": ["loyalty.goods"],
+  "loyalty.read": ["loyalty.view", "ludo.view"], "goalrush.view": ["ludo.view"], "loyalty.write": ["loyalty.goods"],
   "teams.read": ["teams.view"], "teams.write": ["teams.resolve", "teams.venuepaid"],
   "gamezone.read": ["gamezone.view"], "gamezone.write": ["gamezone.collect", "gamezone.manage", "gamezone.catalog"],
   "membership.read": ["membership.view"], "membership.write": ["membership.create", "membership.edit"],

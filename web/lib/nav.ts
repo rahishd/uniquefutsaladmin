@@ -134,13 +134,13 @@ export const modules: Module[] = [
     ],
   },
   {
-    slug: "goal-rush", title: "Goal Rush", group: "Loyalty & Promos", icon: "trophy",
-    summary: "Unique Goal Rush, the penalty game in the customer app: games, goals, saves, the loyalty points it gave and anything that looks odd.",
-    clientFeatures: ["Home card under Quick Access: Play & Earn Now", "5 penalties against a goalkeeper played by the server", "1 loyalty point for a finished game with 3 or more goals (every 3 goals = 1 point)", "3 games a day (every game started counts), 3 points a day at most", "Guests can play practice games without points"],
-    adminTasks: ["Totals for all time, today and this month: games, players, goals, saves, misses, points", "Games per day for the last 14 days", "Every game with its result and the loyalty reward reference", "Players to look at: many perfect games, very fast games or many unfinished games", "Correct a reward in Loyalty Points > Adjust (logged with the reason)"],
+    slug: "ludo", title: "Unique Ludo", group: "Loyalty & Promos", icon: "trophy",
+    summary: "Unique Ludo, the online board game in the customer app (it replaced Goal Rush): games, who played, the loyalty points it moved and anything that looks odd.",
+    clientFeatures: ["Home card under Quick Access: Play Unique Ludo", "Single player against 1 to 3 computer players (Easy, Normal, Hard) or a private room with friends, 2 to 4 players, live", "1 loyalty point to play (taken when the game starts), 2 points to the human winner", "4 single player and 5 multiplayer games a day per customer (Nepal time); a game counts when it starts", "The server rolls the dice and decides every move; a player who stays away is replaced by the computer"],
+    adminTasks: ["Totals for all time, today and this month: games, solo and friends, players, points collected, given and refunded", "Games per day for the last 14 days", "Every game with its players, result and the loyalty rows for the fee, reward and refund", "The dice and moves log of one game, to check a complaint", "Players to look at: many wins, many unfinished games, or the same pair playing each other again and again", "Correct points in Loyalty Points > Adjust (logged with the reason)"],
     endpoints: [
-      e("GET", "/admin/goal-rush", "totals, games per day, flags and the games list"),
-      e("GET", "/admin/goal-rush/:id", "one game shot by shot with its reward"),
+      e("GET", "/admin/ludo", "totals, games per day, flags and the games list (filters: status, mode, q)"),
+      e("GET", "/admin/ludo/:id", "one game with its players, points and dice log"),
     ],
   },
   {
@@ -317,6 +317,19 @@ export const modules: Module[] = [
       e("PATCH", "/admin/content/partners/:id", "rename, show or hide, replace the picture"), e("POST", "/admin/content/partners/reorder", "save the order"),
       e("DELETE", "/admin/content/partners/:id", "delete a logo"),
       e("GET", "/admin/content/birthdays", "customers with a birthday today, and the promo codes that can be given"), e("POST", "/admin/content/birthdays/wish", "send happy birthday (with or without a promo code) to the selected customers"),
+    ],
+  },
+  {
+    slug: "sms", title: "SMS Messages", group: "Admin", icon: "message",
+    summary: "The texts sent to customers (booking requested, confirmed, cancelled, reminders and OTP codes), and the wording of each.",
+    clientFeatures: ["Texts about their bookings: requested, confirmed, cancelled, a reminder one hour before", "A 6-digit code by SMS to sign in or to verify a new mobile number"],
+    adminTasks: ["Send a message to many customers at once (wishes, offers, notices): pick a group (all, members, VIP, played recently, haven't played in a while, birthdays today, new this week, or typed numbers), write the text with {name}, send yourself a test, review the count, confirm, and watch it send with a Stop button", "New customers: share login details by SMS (mobile number, app address and how to sign in with a password or an OTP code; a password is never sent), and see who already got them", "See every text sent: who, which number, what type, the full message and whether the gateway took it", "Search by name, number, booking code or words, and filter by type, result and dates", "Change the wording of booking confirmation, cancelled booking, booking requested, game reminder and OTP messages, with placeholders like {name} and {time}", "See a live example of the text while typing, and go back to the standard wording any time", "One-time codes are never stored: the log shows them hidden"],
+    endpoints: [
+      e("GET", "/admin/sms/logs", "sent texts with filters, counts and pages"), e("GET", "/admin/sms/templates", "the wording of each message"),
+      e("PUT", "/admin/sms/templates/:key", "save new wording"), e("DELETE", "/admin/sms/templates/:key", "back to the standard wording"),
+      e("GET", "/admin/sms/audiences", "the groups of customers and how many are in each"), e("POST", "/admin/sms/campaigns/preview", "how many people a group is"),
+      e("POST", "/admin/sms/campaigns", "start a mass message"), e("GET", "/admin/sms/campaigns", "recent mass messages and their progress"), e("POST", "/admin/sms/campaigns/:id/stop", "stop one that is sending"), e("POST", "/admin/sms/campaigns/test", "a test text to one number"),
+      e("GET", "/admin/sms/new-customers", "recent registrations and whether login details were sent"), e("POST", "/admin/sms/login-details", "text login details to chosen new customers"),
     ],
   },
   {

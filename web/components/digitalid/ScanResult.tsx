@@ -305,14 +305,14 @@ export default function ScanResult({ view, busy, note, buildCard, onAttendance, 
             </div>
             {x.referrals.recent.length > 0 && <ul className="space-y-1.5 text-sm">{x.referrals.recent.map((r) => <li key={r.code} className="flex justify-between gap-2 rounded-lg bg-surface-2 px-3 py-2"><span>{r.role === "referrer" ? "Referred" : "Was referred by a friend"} · {r.teamName}</span><span className="text-muted">{say(r.status)}</span></li>)}</ul>}
           </Section>
-          <Section title="Goal Rush (penalty game)" hint="3 or more goals out of 5 earn 1 point, 3 games a day.">
+          <Section title="Unique Ludo" hint="1 point to play, 2 points to the winner. 4 solo and 5 multiplayer games a day.">
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <Tile label="Games today" value={`${x.goalRush.gamesToday}/3`} />
-              <Tile label="Points today" value={x.goalRush.pointsToday} />
-              <Tile label="Games in total" value={x.goalRush.gamesTotal} />
-              <Tile label="Points in total" value={x.goalRush.pointsTotal} />
+              <Tile label="Solo today" value={`${x.ludo.soloToday}/4`} />
+              <Tile label="With friends today" value={`${x.ludo.multiToday}/5`} />
+              <Tile label="Games in total" value={x.ludo.gamesTotal} />
+              <Tile label="Wins in total" value={x.ludo.winsTotal} />
             </div>
-            {x.goalRush.recent.length > 0 && <ul className="space-y-1.5 text-sm">{x.goalRush.recent.map((g, i) => <li key={i} className="flex justify-between gap-2 rounded-lg bg-surface-2 px-3 py-2"><span>{prettyDate(g.day)} · {g.goals}/{g.shots} goals</span><span className="text-muted">{g.points} point{g.points === 1 ? "" : "s"}</span></li>)}</ul>}
+            {x.ludo.recent.length > 0 && <ul className="space-y-1.5 text-sm">{x.ludo.recent.map((g, i) => <li key={i} className="flex justify-between gap-2 rounded-lg bg-surface-2 px-3 py-2"><span>{g.day ? prettyDate(g.day) : ""} · {g.mode === "solo" ? "Single player" : "With friends"}</span><span className="text-muted">{g.result === "won" ? "Won" : g.result === "left" ? "Left" : "Lost"}</span></li>)}</ul>}
           </Section>
           <Section title="Find Player" hint="Games they asked players for, and games they joined">
             {x.findPlayer.hosting.length === 0 && x.findPlayer.joined.length === 0 ? <Empty>No Find Player games coming up.</Empty> : (
