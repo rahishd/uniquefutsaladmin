@@ -18,7 +18,6 @@ import { letterheadRouter } from "./modules/letterhead";
 import { courtsRouter } from "./modules/courts";
 import { customersRouter } from "./modules/customers";
 import { digitalIdRouter } from "./modules/digital-id";
-import { fonepayRouter, fonepayWebhookRouter } from "./modules/fonepay";
 import { tournamentsRouter } from "./modules/tournaments";
 import { tournamentEventsRouter } from "./modules/tournament-events";
 import { tournamentHostRouter } from "./modules/tournament-host";
@@ -68,7 +67,6 @@ app.get("/api/health", (_req, res) => { res.json({ success: true, message: "Admi
 
 const admin = express.Router();
 admin.use("/auth", authRouter); // login is the only route without a token
-admin.use("/fonepay/webhook", fonepayWebhookRouter); // the gateway's callback: no staff token, checked by the provider's signature
 admin.use("/partner", partnerDashboardRouter); // a marketplace partner's own dashboard: no staff token, the secret in its link opens one partner
 admin.use("/host", tournamentHostRouter); // match-day host link: no staff token, the secret in the link opens one tournament
 // Pictures for the previews in this portal. They are public anyway (the customer app shows them), and an <img> tag cannot send a token.
@@ -98,7 +96,6 @@ admin.use("/content", contentRouter);
 admin.use("/verify", verifyRouter);
 admin.use("/letter-head", letterheadRouter);
 admin.use("/inventory", inventoryRouter);
-admin.use("/fonepay", fonepayRouter);
 admin.use("/courts", courtsRouter);
 admin.use("/promos", promosRouter);
 admin.use("/loyalty", loyaltyRouter);

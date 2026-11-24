@@ -8,7 +8,7 @@ import { addDaysKey, todayKey } from "../lib/dates";
 import { AppError, dateStr, handler, page, param, parse, send } from "../lib/http";
 import { extraChargeFor, extraMinutesAt } from "../lib/gz-clock";
 import { requirePermission } from "../middleware/auth";
-import { PAY_METHODS, claimFonepay, paysSchema, resolvePays } from "../lib/settle";
+import { PAY_METHODS, paysSchema, resolvePays } from "../lib/settle";
 
 export const gamezoneRouter = Router();
 
@@ -149,7 +149,7 @@ const load = async (code: string) => {
 // Collected in cash, by Fonepay QR, or part cash and part Fonepay (same rules as a court booking: the Fonepay part must be
 // backed by a QR the gateway marked paid for exactly that amount). With no body it is all cash, as before. The session keeps
 // the method that paid most of it; the exact split is written to the payment log.
-const collectBody = z.object({ payments: paysSchema.optional(), single: z.enum(PAY_METHODS).optional(), fonepayQrId: z.string().min(1).optional() });
+const collectBody = z.object({ payments: paysSchema.optional(), single: z.enum(PAY_METHODS).optional() });
 gamezoneRouter.post("/bookings/:code/mark-paid", requirePermission("gamezone.collect"), handler(async (req, res) => {
   const body = parse(collectBody, req.body ?? {});
   const b = await load(param(req, "code"));
@@ -158,12 +158,11 @@ gamezoneRouter.post("/bookings/:code/mark-paid", requirePermission("gamezone.col
   const clock = await prisma.gzClock.findUnique({ where: { bookingCode: b.code } });
   if (clock && !clock.endedAt) throw new AppError(409, "The session is still running. Stop it first so the final bill, with any extra minutes, is known.");
   const due = b.total - (clock?.prepaid ?? 0); // after extra time on a prepaid session, only the extra is collected
-  const input = { payments: body.payments, single: body.payments ? undefined : body.single ?? ("cash" as const), fonepayQrId: body.fonepayQrId };
+  const input = { payments: body.payments, single: body.payments ? undefined : body.single ?? ("cash" as const) };
   const pays = resolvePays(input, due);
   const cash = pays.filter((p) => p.method === "cash").reduce((n, p) => n + p.amount, 0);
   const fonepay = due - cash;
   await prisma.$transaction(async (tx) => {
-    await claimFonepay(tx, input, pays, b.code);
     await tx.gzBooking.update({ where: { code: b.code }, data: { paymentStatus: "paid", holdExpiresAt: null, paymentMethod: cash >= fonepay ? "venue" : "fonepay" } });
     await tx.paymentOrder.updateMany({ where: { orderCode: b.code, status: { in: ["pending", "expired"] } }, data: { status: "paid", paidAt: new Date(), paidBy: req.staff!.id } });
     await tx.paymentEvent.create({ data: { orderCode: b.code, source: "staff", payload: JSON.stringify({ event: "MARKED_PAID", by: req.staff!.id, cash, fonepay }) } });

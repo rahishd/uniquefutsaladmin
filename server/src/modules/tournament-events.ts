@@ -14,7 +14,7 @@ import { audit } from "../lib/audit";
 import { addDaysKey, currentHour, todayKey } from "../lib/dates";
 import { AppError, dateStr, handler, param, parse, send } from "../lib/http";
 import { memberHolds } from "../lib/member-holds";
-import { claimFonepay, buildGoods, paysSchema, PAY_METHODS, resolvePays } from "../lib/settle";
+import { buildGoods, paysSchema, PAY_METHODS, resolvePays } from "../lib/settle";
 import { requirePermission } from "../middleware/auth";
 
 export const tournamentEventsRouter = Router();
@@ -303,16 +303,15 @@ tournamentEventsRouter.delete("/:id/lines/:lineId", requirePermission("tournamen
   send(res, await refresh(id), "Removed");
 }));
 
-// ---------- receive a payment (cash and/or Fonepay QR) ----------
+// ---------- receive a payment (cash and/or Fonepay) ----------
 tournamentEventsRouter.post("/:id/payments", requirePermission("tournaments.bill"), handler(async (req, res) => {
   const id = param(req, "id");
-  const b = parse(z.object({ amount: z.number().int().min(1).max(10_000_000), payments: paysSchema.optional(), single: z.enum(PAY_METHODS).optional(), fonepayQrId: z.string().optional(), note: z.string().trim().max(200).optional() }), req.body);
+  const b = parse(z.object({ amount: z.number().int().min(1).max(10_000_000), payments: paysSchema.optional(), single: z.enum(PAY_METHODS).optional(), note: z.string().trim().max(200).optional() }), req.body);
   await open(id);
   const now = await bill(id);
   if (b.amount > now.due) throw new AppError(409, now.due <= 0 ? "Nothing is due on this tournament" : `Only Rs. ${now.due} is due`);
-  const pays = resolvePays({ payments: b.payments, single: b.single, fonepayQrId: b.fonepayQrId }, b.amount);
+  const pays = resolvePays({ payments: b.payments, single: b.single }, b.amount);
   await prisma.$transaction(async (tx) => {
-    await claimFonepay(tx, { payments: b.payments, single: b.single, fonepayQrId: b.fonepayQrId }, pays, `tournament:${id}`);
     await tx.tournamentPayment.create({ data: { tournamentId: id, cash: pays.filter((p) => p.method === "cash").reduce((n, p) => n + p.amount, 0), fonepay: pays.filter((p) => p.method === "fonepay").reduce((n, p) => n + p.amount, 0), note: b.note ?? null, receivedBy: req.staff!.id } });
   });
   await audit(req, "receive-payment", "tournament", id, { amount: b.amount, payments: pays, note: b.note });

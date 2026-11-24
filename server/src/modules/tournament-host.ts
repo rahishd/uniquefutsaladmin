@@ -23,7 +23,7 @@ const host = (req: Request, linkId: string): Actor => ({ id: `host:${linkId}`, n
 
 tournamentHostRouter.get("/:token", handler(async (req, res) => {
   const link = await linkOr404(req);
-  const t = await prisma.tournament.findUniqueOrThrow({ where: { id: link.tournamentId } });
+  const t = await prisma.tournament.findUniqueOrThrow({ where: { id: link.tournamentId }, include: { days: { select: { date: true, endHour: true } } } });
   send(res, { tournament: { id: t.id, name: t.name, startDate: t.startDate, endDate: t.endDate, state: stateOf(t) }, rounds: await loadSheet(t.id), expiresAt: link.expiresAt });
 }));
 

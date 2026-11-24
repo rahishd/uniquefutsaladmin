@@ -96,7 +96,7 @@ export function RecordSheet({ rate, onClose, onDone }: { rate: number; onClose: 
     if (ready.problem) return setError(ready.problem);
     setBusy(true);
     setError("");
-    const how = ready.payments ? { payments: ready.payments, fonepayQrId: ready.fonepayQrId } : { payment: ready.single === "cash" ? ("cash" as const) : ("online" as const), fonepayQrId: ready.fonepayQrId };
+    const how = ready.payments ? { payments: ready.payments } : { payment: ready.single === "cash" ? ("cash" as const) : ("online" as const) };
     try {
       await recordEv({ ...how, hours, customerName: name.trim() || undefined, phone: phone || undefined, vehicle: vehicle.trim() || undefined });
       setSaved(total);
@@ -134,7 +134,7 @@ export function RecordSheet({ rate, onClose, onDone }: { rate: number; onClose: 
               </label>
             </div>
             <label className="block text-sm font-medium">Hours
-              <select value={hours} onChange={(e) => { setHours(Number(e.target.value)); setPay((p) => ({ ...p, qr: null })); }} className={`${field} mt-1`}>
+              <select value={hours} onChange={(e) => { setHours(Number(e.target.value)); }} className={`${field} mt-1`}>
                 {Array.from({ length: 12 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1} hour{i ? "s" : ""}</option>)}
               </select>
             </label>

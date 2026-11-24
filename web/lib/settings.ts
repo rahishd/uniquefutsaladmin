@@ -6,7 +6,6 @@ export type SettingsData = {
   wifi: { ssid: string; password: string; visible: boolean; access: "booked" | "all" };
   booking: { advanceDeposit: number };
   integrations: {
-    fonepay: { mode: "test" | "live"; configured: boolean; note: string };
     push: { configured: boolean };
     database: boolean;
     environment: "production" | "development";

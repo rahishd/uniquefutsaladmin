@@ -15,6 +15,7 @@ export type TournamentItem = {
   id: string; name: string; startDate: string; endDate: string; state: "upcoming" | "live" | "completed"; prizePool: number;
   minTeams: number; maxTeams: number; registrations: number; entryFee: number; isActive: boolean; matches: number; live: number; finished: number;
   hostedEvent?: boolean; hostName?: string | null;
+  billTotal?: number; billDue?: number; // a hosted event: its bill total and what is still due
 };
 export type HostLink = { token: string; active: boolean; expired: boolean; expiresAt: string | null; lastUsedAt: string | null; createdAt: string };
 export type TournamentDetail = {

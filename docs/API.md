@@ -182,25 +182,9 @@ All counter collections go through one shared module (`server/src/lib/settle.ts`
 - **Goods on credit:** `POST /inventory/checkout` with `payment: "due"` and only `items`: the stock leaves now, a `GoodsDue` row (admin-owned table, `sql/011_goods_dues.sql`) is put on the customer's account (registered customers only), no bill and no points yet, and it is not counted in sales. It needs only `inventory.sell`.
 - **Collecting dues:** `GET /bookings/:id/dues` also returns `goods[]` and `goodsTotal`; `POST /bookings/collect-dues` and `POST /inventory/checkout` accept `goodsDueIds[]` next to `bookingIds[]` (needs `payments.collect`). Paying a goods due makes the bill line, earns the goods points (Rs. 100 = 1) and cannot be done twice (409). `GET /inventory/customer-bill` also lists `goodsDues`; `GET /inventory/overview` has `goodsDue {amount, count}`; `GET /inventory/sales` marks each sale `credit: due|paid|null`.
 
-## Fonepay dynamic QR (eSewa is removed: cash and Fonepay only)
+## Fonepay (fixed QR, amount typed by staff)
 
-Money collected at the counter is **cash** and/or **Fonepay**. The Fonepay part is always backed by a dynamic QR the server makes for the exact amount. Example: a bill of Rs. 1000, staff enter Rs. 500 cash, the screen works out Rs. 500 for Fonepay and shows a Rs. 500 QR; when the gateway reports it paid, the bill can be saved.
-
-| Route | Who | Notes |
-|---|---|---|
-| `POST /fonepay/qr` | payments.collect, inventory.sell or bookings.create | `{amount (whole rupees, 1 to 1,000,000), remarks?, purpose?, customerPhone?}` -> `{id, prn, amount, status: pending, expiresAt (10 minutes), qrPayload, qrImage (PNG data URL), mode: test or live}` |
-| `GET /fonepay/qr/:id` | same | status `pending, paid, failed, expired`; the screen polls it every 3 seconds; asks the gateway on each call |
-| `POST /fonepay/qr/:id/cancel` | same | not allowed once paid |
-| `POST /fonepay/qr/:id/simulate-paid` | same | **TEST mode only** (404 in live mode): plays the gateway |
-| `POST /fonepay/webhook` | gateway (public) | the gateway's callback; trusted only after the provider verifies its signature; idempotent; amount must match. Returns 501 until the live provider is filled in |
-
-How a QR backs a bill: `checkout`, `collect-dues`, `POST /inventory/sales` and `mark-paid` take `fonepayQrId`. The server checks that the QR is **paid**, **not used before**, and **exactly the Fonepay part** (409 otherwise), and marks it used for that bill. Staff cannot say "it was paid": only the gateway can. A walk-in or bulk booking cannot be created already "paid by Fonepay" (400): book it unpaid, then collect with the QR.
-
-**Going live with the real Fonepay API** (everything else stays the same):
-1. Fill in `LiveFonepayProvider` in `server/src/lib/fonepay.ts`: `createQr` (call Fonepay, return the QR text), `checkStatus` (Fonepay status API), `verifyCallback` (check the gateway signature, return `{prn, paidAmount, reference}`).
-2. Set in `.env`: `FONEPAY_MODE=live`, `FONEPAY_MERCHANT_CODE`, `FONEPAY_SECRET`, `FONEPAY_BASE_URL` (and `FONEPAY_QR_TTL_MINUTES` if needed). `FONEPAY_MODE=test` is refused when `NODE_ENV=production`.
-3. Give Fonepay the callback address `https://<admin server>/api/admin/fonepay/webhook`.
-Table `FonepayQr` (admin-owned, `sql/012_fonepay_qr.sql`) keeps every QR with its PRN, amount, status, who made it and which bill used it.
+Customers pay the venue's one fixed Fonepay QR (shown in the app) and write the booking code as the remark. There is no Fonepay gateway and no dynamic QR any more. Staff see the payment in the Fonepay app, then type the amount that arrived: in Collect payment > Fonepay (or Cash + Fonepay), or `POST /bookings/:id/mark-paid` with `{method: "fonepay", amount}`. The amount must equal the amount due, otherwise 400. `checkout`, `collect-dues`, `POST /inventory/sales` and the other payment calls take the Fonepay part as `payments: [{method: "fonepay", amount}]` and no longer take `fonepayQrId`. The old `FonepayQr` table (`sql/012_fonepay_qr.sql`) is kept for its history and is not used.
 
 ## Bulk booking
 

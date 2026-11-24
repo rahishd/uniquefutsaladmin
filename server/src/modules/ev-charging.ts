@@ -6,7 +6,7 @@ import { prisma } from "../db";
 import { audit } from "../lib/audit";
 import { AppError, handler, page, param, parse, send } from "../lib/http";
 import { controllerFor, parseConfig } from "../lib/ev-controller";
-import { claimFonepay, paysSchema, resolvePays } from "../lib/settle";
+import { paysSchema, resolvePays } from "../lib/settle";
 import { requirePermission } from "../middleware/auth";
 import { getSetting } from "./settings-store";
 
@@ -159,14 +159,13 @@ async function switchOff(row: { id: string; portId: string | null; customerName:
 evChargingRouter.post("/", requirePermission("payments.collect"), handler(async (req, res) => {
   const b = parse(z.object({
     customerName: z.string().trim().max(80).optional(), phone: z.string().regex(/^9\d{9}$/, "Enter a 10-digit mobile number starting with 9").optional(), vehicle: z.string().trim().max(40).optional(),
-    portId: z.string().min(1).optional(), hours: z.number().int().min(1).max(MAX_HOURS), payment: z.enum(["cash", "online"]).optional(), payments: paysSchema.optional(), fonepayQrId: z.string().min(1).optional(),
+    portId: z.string().min(1).optional(), hours: z.number().int().min(1).max(MAX_HOURS), payment: z.enum(["cash", "online"]).optional(), payments: paysSchema.optional(),
   }), req.body);
   const rate = await rateNow();
   const amount = rate * b.hours;
-  const input = { payments: b.payments, fonepayQrId: b.fonepayQrId, single: b.payment === "online" ? ("fonepay" as const) : b.payment === "cash" ? ("cash" as const) : undefined };
+  const input = { payments: b.payments, single: b.payment === "online" ? ("fonepay" as const) : b.payment === "cash" ? ("cash" as const) : undefined };
   const pays = resolvePays(input, amount);
   const row = await prisma.$transaction(async (tx) => {
-    await claimFonepay(tx, input, pays, "ev charging");
     const cash = pays.filter((p) => p.method === "cash").reduce((s, p) => s + p.amount, 0);
     return tx.evCharge.create({
       data: {
@@ -197,14 +196,13 @@ evChargingRouter.post("/:id/stop", requirePermission("payments.collect"), handle
 // Collect an unpaid session: cash, Fonepay QR, or both.
 evChargingRouter.post("/:id/pay", requirePermission("payments.collect"), handler(async (req, res) => {
   const id = param(req, "id");
-  const b = parse(z.object({ payment: z.enum(["cash", "online"]).optional(), payments: paysSchema.optional(), fonepayQrId: z.string().min(1).optional() }), req.body);
+  const b = parse(z.object({ payment: z.enum(["cash", "online"]).optional(), payments: paysSchema.optional() }), req.body);
   const row = await prisma.evCharge.findUnique({ where: { id } });
   if (!row) throw new AppError(404, "Session not found");
   if (row.status !== "unpaid") throw new AppError(409, row.status === "paid" ? "This session is already paid" : "Stop the charging session first");
-  const input = { payments: b.payments, fonepayQrId: b.fonepayQrId, single: b.payment === "online" ? ("fonepay" as const) : b.payment === "cash" ? ("cash" as const) : undefined };
+  const input = { payments: b.payments, single: b.payment === "online" ? ("fonepay" as const) : b.payment === "cash" ? ("cash" as const) : undefined };
   const pays = resolvePays(input, row.amount);
   await prisma.$transaction(async (tx) => {
-    await claimFonepay(tx, input, pays, "ev charging");
     const cash = pays.filter((p) => p.method === "cash").reduce((s, p) => s + p.amount, 0);
     const claimed = await tx.evCharge.updateMany({ where: { id, status: "unpaid" }, data: { status: "paid", paidAt: new Date(), cashAmount: cash, onlineAmount: row.amount - cash } });
     if (claimed.count !== 1) throw new AppError(409, "This session is already paid");

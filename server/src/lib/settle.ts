@@ -15,8 +15,8 @@ export type PayMethod = (typeof PAY_METHODS)[number];
 export type Pay = { method: PayMethod; amount: number };
 export const paysSchema = z.array(z.object({ method: z.enum(PAY_METHODS), amount: z.number().int().min(1).max(10_000_000) })).min(1).max(3);
 // What the caller sent: a list of payments (split), or one method for the whole amount
-// fonepayQrId: the paid Fonepay QR that covers the Fonepay part (required whenever there is one)
-export type PayInput = { payments?: Pay[]; single?: PayMethod; fonepayQrId?: string };
+// The Fonepay part is the amount staff typed in after seeing it arrive in the Fonepay app (the customer's remark is the booking code)
+export type PayInput = { payments?: Pay[]; single?: PayMethod };
 
 export function resolvePays(input: PayInput, total: number): Pay[] {
   let pays: Pay[];
@@ -52,21 +52,6 @@ export function allocate(lineAmounts: number[], pays: Pay[]): Share[] {
 const online = (s: Share) => s.fonepay;
 // The booking's main method is the one that paid most of it
 const dominant = (s: Share): "venue" | "fonepay" => (s.cash >= s.fonepay ? "venue" : "fonepay");
-
-// The Fonepay part of a bill must be backed by a QR the gateway has marked paid, for exactly that amount, and not used before.
-// Staff cannot say "it was paid": only the gateway can (callback or status check), see lib/fonepay.ts.
-export async function claimFonepay(tx: Tx, input: PayInput, pays: Pay[], usedFor: string) {
-  const part = pays.find((p) => p.method === "fonepay");
-  if (!part) return;
-  if (!input.fonepayQrId) throw new AppError(400, "Make the Fonepay QR and wait until it is paid before saving");
-  const q = await tx.fonepayQr.findUnique({ where: { id: input.fonepayQrId } });
-  if (!q) throw new AppError(404, "Fonepay QR not found");
-  if (q.status !== "paid") throw new AppError(409, "The Fonepay QR has not been paid yet");
-  if (q.consumedAt) throw new AppError(409, "This Fonepay payment was already used for another bill");
-  if (q.amount !== part.amount) throw new AppError(409, `The QR is for Rs. ${q.amount} but the Fonepay part is Rs. ${part.amount}. Make a new QR.`);
-  const claimed = await tx.fonepayQr.updateMany({ where: { id: q.id, consumedAt: null }, data: { consumedAt: new Date(), consumedFor: usedFor } });
-  if (claimed.count === 0) throw new AppError(409, "This Fonepay payment was already used for another bill");
-}
 
 // ---------- helpers ----------
 const ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
@@ -120,7 +105,6 @@ export async function sellGoods(tx: Tx, merged: Map<string, number>, pay: PayInp
   const lines = await buildGoods(tx, merged);
   const total = lines.reduce((s, l) => s + l.amount, 0);
   const pays = resolvePays(pay, total);
-  await claimFonepay(tx, pay, pays, "counter sale");
   return commitGoods(tx, lines, staffId, phoneNo, allocate(lines.map((l) => l.amount), pays), who);
 }
 
@@ -158,7 +142,6 @@ export async function settle(inp: SettleInput) {
     const total = lines.reduce((s, l) => s + l.amount, 0);
     if (total <= 0) throw new AppError(400, "There is nothing to collect");
     const pays = resolvePays(inp.pay, total);
-    await claimFonepay(tx, inp.pay, pays, code ?? "counter");
     const shares = allocate(lines.map((l) => l.amount), pays);
     const bill: { type: "game" | "goods"; label: string; quantity: number; amount: number; clubDiscount?: number }[] = [];
     let clubSaved = 0;

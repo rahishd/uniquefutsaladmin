@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, describe, it } from "node:test";
-import { addDaysKey, api, app, customer, customerToken, paidQr, PASSWORD, prisma, request, reset, staff, todayKey } from "./helpers";
+import { addDaysKey, api, app, customer, customerToken, PASSWORD, prisma, request, reset, staff, todayKey } from "./helpers";
+import { awardForCompletedBooking } from "../src/lib/customer-effects";
+import { currentHour } from "../src/lib/dates";
 
 const today = todayKey();
 const tomorrow = addDaysKey(today, 1);
@@ -84,29 +86,39 @@ describe("bookings", () => {
     assert.equal((await api.post("/bookings/walk-in", fd.auth, { date: addDaysKey(today, -90), startTime: "10:00", customerName: "Ram" })).status, 400);
     assert.equal((await api.post("/bookings/walk-in", fd.auth, { date: addDaysKey(today, 90), startTime: "10:00", customerName: "Ram" })).status, 400);
     assert.equal((await api.post("/bookings/walk-in", fd.auth, { date: tomorrow, startTime: "10:30", customerName: "Ram" })).status, 400);
+    // A game that started more than 2 hours ago is closed: yesterday's slots show "Not available now" and the server refuses them
+    const old = await api.post("/bookings/walk-in", fd.auth, { date: addDaysKey(today, -1), startTime: "10:00", customerName: "Ram", customerPhone: "9877000001", paid: true, priceOverride: 1150 });
+    assert.equal(old.status, 400);
+    assert.match(old.body.message, /not available now/);
+    // A game that started within the last 2 hours can still be logged: it is completed and earns points once
     await customer("9877000001");
-    const retro = await api.post("/bookings/walk-in", fd.auth, { date: addDaysKey(today, -1), startTime: "10:00", customerName: "Ram", customerPhone: "9877000001", paid: true, priceOverride: 1150 });
-    assert.equal(retro.status, 201);
-    assert.equal(retro.body.data.status, "completed");
-    assert.equal(Number((await prisma.loyaltyEntry.findFirstOrThrow({ where: { userId: "9877000001" } })).points), 11.5);
+    const h = currentHour();
+    if (h >= 1) {
+      const retro = await api.post("/bookings/walk-in", fd.auth, { date: today, startTime: `${String(h - 1).padStart(2, "0")}:00`, customerName: "Ram", customerPhone: "9877000001", paid: true, priceOverride: 1150 });
+      assert.equal(retro.status, 201);
+      assert.equal(retro.body.data.status, "completed");
+      assert.equal(Number((await prisma.loyaltyEntry.findFirstOrThrow({ where: { userId: "9877000001" } })).points), 11.5);
+    }
     assert.equal((await api.post("/bookings/walk-in", fd.auth, { date: tomorrow, startTime: "10:00", customerName: "Ram", customerPhone: "123" })).status, 400);
   });
 
   it("a paid game earns points exactly once; guests and unpaid bookings earn none", async () => {
     await customer("9822222222");
     const fd = await staff("frontdesk");
-    // Yesterday's hours have passed, so these are logged as completed.
-    const mk = (startTime: string, extra: object) => api.post("/bookings/walk-in", fd.auth, { date: addDaysKey(today, -1), startTime, customerName: "Sita", customerPhone: "9822222222", ...extra });
-    const paid = (await mk("06:00", { paid: true, priceOverride: 1250 })).body.data;
-    assert.equal(paid.status, "completed");
+    // A game that started more than 2 hours ago can no longer be logged by hand, so the finished games are created directly.
+    const yesterday = addDaysKey(today, -1);
+    const past = (startTime: string, over: object) => prisma.booking.create({ data: { userId: "9822222222", date: yesterday, startTime, endTime: `${String(Number(startTime.slice(0, 2)) + 1).padStart(2, "0")}:00`, duration: 1, customerName: "Sita", basePrice: 1000, subtotal: 1000, totalPrice: 1000, paymentMethod: "venue", status: "completed", paymentStatus: "completed", code: `UF-P${startTime.slice(0, 2)}`, ...over } });
+    const paid = await past("06:00", { totalPrice: 1250 });
+    await awardForCompletedBooking(paid);
     const entries = await prisma.loyaltyEntry.findMany({ where: { userId: "9822222222" } });
     assert.equal(entries.length, 1);
     assert.equal(Number(entries[0].points), 12.5);
     assert.equal((await api.post(`/bookings/${paid.id}/complete`, fd.auth)).status, 409, "already completed");
+    await awardForCompletedBooking(paid); // a second award for the same game changes nothing
     assert.equal(await prisma.loyaltyEntry.count(), 1);
 
-    await mk("07:00", { priceOverride: 1000 }); // unpaid
-    await api.post("/bookings/walk-in", fd.auth, { date: addDaysKey(today, -1), startTime: "08:00", customerName: "Guest", paid: true, priceOverride: 1000 }); // guest
+    await awardForCompletedBooking(await past("07:00", { paymentStatus: "pending" })); // unpaid
+    await awardForCompletedBooking(await past("08:00", { userId: null, customerName: "Guest" })); // guest
     assert.equal(await prisma.loyaltyEntry.count(), 1);
 
     // A confirmed paid game completed by hand awards points exactly once.
@@ -278,17 +290,14 @@ describe("gamezone, teams, notices, reports", () => {
     assert.equal((await api.get("/payments/refunds?status=due", fd.auth)).body.data.length, 1);
   });
 
-  it("gamezone: a session can be paid part cash and part Fonepay, and the Fonepay part needs a paid QR for that amount", async () => {
+  it("gamezone: a session can be paid part cash and part Fonepay, as long as the parts add up to the total", async () => {
     const fd = await staff("frontdesk");
     await prisma.gzBooking.create({ data: { code: "GZ-SPLIT", guestName: "Sita", guestPhone: "9877777778", consoleId: "c1", gameTitle: "FIFA 26", date: tomorrow, startHour: 16, hours: 1, players: 2, total: 400, paymentMethod: "venue", paymentStatus: "pay_at_venue" } });
-    // cash + Fonepay with no QR is refused, a QR for the wrong amount is refused
     const split = [{ method: "cash", amount: 100 }, { method: "fonepay", amount: 300 }];
-    assert.equal((await api.post("/gamezone/bookings/GZ-SPLIT/mark-paid", fd.auth, { payments: split })).status, 400);
-    assert.equal((await api.post("/gamezone/bookings/GZ-SPLIT/mark-paid", fd.auth, { payments: split, fonepayQrId: await paidQr(fd.auth, 250) })).status, 409);
     // the payments must add up to the session total
     assert.equal((await api.post("/gamezone/bookings/GZ-SPLIT/mark-paid", fd.auth, { payments: [{ method: "cash", amount: 100 }] })).status, 400);
     assert.equal((await prisma.gzBooking.findUnique({ where: { code: "GZ-SPLIT" } }))?.paymentStatus, "pay_at_venue");
-    const ok = await api.post("/gamezone/bookings/GZ-SPLIT/mark-paid", fd.auth, { payments: split, fonepayQrId: await paidQr(fd.auth, 300) });
+    const ok = await api.post("/gamezone/bookings/GZ-SPLIT/mark-paid", fd.auth, { payments: split });
     assert.equal(ok.status, 200);
     const row = await prisma.gzBooking.findUnique({ where: { code: "GZ-SPLIT" } });
     assert.equal(row?.paymentStatus, "paid");
@@ -464,7 +473,8 @@ describe("gamezone, teams, notices, reports", () => {
 
   it("dashboard, revenue report and audit log work; the audit log never holds passwords", async () => {
     const owner = await staff("owner");
-    await api.post("/bookings/walk-in", owner.auth, { date: today, startTime: "09:00", customerName: "Ram", paid: true, priceOverride: 1000 });
+    // (created directly: by now 09:00 is more than 2 hours past, so it can no longer be logged by hand)
+    await prisma.booking.create({ data: { userId: null, date: today, startTime: "09:00", endTime: "10:00", duration: 1, customerName: "Ram", basePrice: 1000, subtotal: 1000, totalPrice: 1000, paymentMethod: "venue", status: "completed", paymentStatus: "completed", amountPaidNow: 1000, remainingAmount: 0, cashAmount: 1000, code: "UF-DASH1" } });
     const dash = await api.get("/dashboard", owner.auth);
     assert.equal(dash.body.data.bookingsToday, 1);
     assert.equal(dash.body.data.revenueToday, 1000);
@@ -555,8 +565,9 @@ describe("payments ledger", () => {
   it("collecting an unpaid booking moves it to paid and records how it was really paid", async () => {
     const fd = await staff("frontdesk");
     const b = await mk(5, "venue");
-    assert.equal((await api.post(`/bookings/${b.id}/mark-paid`, fd.auth, { method: "fonepay" })).status, 400, "Fonepay needs a paid QR, staff cannot just say it was paid");
-    assert.equal((await api.post(`/bookings/${b.id}/mark-paid`, fd.auth, { method: "fonepay", fonepayQrId: await paidQr(fd.auth, 1005) })).status, 200);
+    assert.equal((await api.post(`/bookings/${b.id}/mark-paid`, fd.auth, { method: "fonepay" })).status, 400, "Fonepay needs the amount that arrived");
+    assert.equal((await api.post(`/bookings/${b.id}/mark-paid`, fd.auth, { method: "fonepay", amount: 1000 })).status, 400, "the amount must be the amount due");
+    assert.equal((await api.post(`/bookings/${b.id}/mark-paid`, fd.auth, { method: "fonepay", amount: 1005 })).status, 200);
     const row = (await api.get("/payments/ledger?q=UF-LED5", fd.auth)).body.data.items[0];
     assert.equal(row.status, "paid");
     assert.equal(row.method, "fonepay");

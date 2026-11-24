@@ -3,7 +3,8 @@ import ExcelJS from "exceljs";
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db";
-import { addDaysKey, todayKey } from "../lib/dates";
+import { addDaysKey, currentHour, todayKey } from "../lib/dates";
+import { bill } from "./tournament-events";
 import { AppError, handler, param, parse, send } from "../lib/http";
 import { requirePermission } from "../middleware/auth";
 import { audit } from "../lib/audit";
@@ -15,7 +16,14 @@ import { Actor, addGoal, goalBody, loadSheet, record, removeGoal, saveStructure,
 export const tournamentsRouter = Router();
 
 const who = (req: Parameters<Parameters<typeof handler>[0]>[0]): Actor => ({ id: req.staff!.id, name: req.staff!.name, ip: req.ip ?? null });
-export const stateOf = (t: { status: string; startDate: string; endDate: string }) => (t.status === "completed" ? "completed" : t.startDate > todayKey() ? "upcoming" : "live");
+// Finished when staff closed it OR its last day has passed OR it is the last day and that day's court hours are over (nobody has to remember
+// to close it); coming up before the first day; else running. Without hours (days not loaded or none), the last date decides.
+export const stateOf = (t: { status: string; startDate: string; endDate: string; days?: { date: string; endHour: number }[] }) => {
+  const today = todayKey();
+  const lastDay = t.days?.find((d) => d.date === t.endDate);
+  const over = t.status === "completed" || t.endDate < today || (t.endDate === today && !!lastDay && currentHour() >= lastDay.endHour);
+  return over ? "completed" : t.startDate > today ? "upcoming" : "live";
+};
 
 // When a host link stops working by itself: a few days after the tournament ends (end of that day, Nepal time).
 export const linkExpiry = (endDate: string) => new Date(`${addDaysKey(endDate, 3)}T23:59:59+05:45`);
@@ -29,7 +37,7 @@ tournamentsRouter.get("/", requirePermission("tournaments.view"), handler(async 
     where: { status: { not: "cancelled" } },
     orderBy: [{ startDate: "desc" }],
     take: 100,
-    include: { _count: { select: { registrations: true } } },
+    include: { _count: { select: { registrations: true } }, days: { select: { date: true, endHour: true } } },
   });
   const rounds = await prisma.tournamentRound.findMany({ where: { tournamentId: { in: rows.map((t) => t.id) } }, select: { tournamentId: true, matches: { select: { status: true } } } });
   const sheet = new Map<string, { matches: number; live: number; finished: number }>();
@@ -38,9 +46,14 @@ tournamentsRouter.get("/", requirePermission("tournaments.view"), handler(async 
     for (const m of r.matches) { s.matches++; if (m.status === "live") s.live++; if (m.status === "finished") s.finished++; }
     sheet.set(r.tournamentId, s);
   }
-  send(res, rows.map((t) => ({
+  const items = rows.map((t) => ({
     id: t.id, name: t.name, startDate: t.startDate, endDate: t.endDate, state: stateOf(t), prizePool: t.prizePool, minTeams: t.minTeams, maxTeams: t.maxTeams,
     registrations: t._count.registrations, entryFee: t.entryFee, isActive: t.isActive, hostedEvent: t.hostedEvent, hostName: t.hostName, ...(sheet.get(t.id) ?? { matches: 0, live: 0, finished: 0 }),
+  })).map((t) => (t.state === "completed" ? { ...t, live: 0 } : t));
+  // a hosted event also carries its bill (the total and what is still due), so the card can show a Paid or Due tag
+  send(res, await Promise.all(items.map(async (t) => {
+    if (!t.hostedEvent) return t;
+    try { const b = await bill(t.id); return { ...t, billTotal: b.total, billDue: b.due }; } catch { return t; }
   })));
 }));
 
@@ -98,7 +111,7 @@ tournamentsRouter.get("/contacts-export", requirePermission("tournaments.registr
 }));
 
 tournamentsRouter.get("/:id", requirePermission("tournaments.view"), handler(async (req, res) => {
-  const t = await prisma.tournament.findUnique({ where: { id: param(req, "id") }, include: { _count: { select: { registrations: true } } } });
+  const t = await prisma.tournament.findUnique({ where: { id: param(req, "id") }, include: { _count: { select: { registrations: true } }, days: { select: { date: true, endHour: true } } } });
   if (!t) throw new AppError(404, "Tournament not found");
   const canShare = !!req.staff!.permissions.includes("tournaments.share");
   const link = canShare ? await prisma.tournamentHostLink.findUnique({ where: { tournamentId: t.id } }) : null;

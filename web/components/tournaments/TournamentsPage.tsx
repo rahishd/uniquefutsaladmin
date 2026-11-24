@@ -56,7 +56,13 @@ export default function TournamentsPage() {
                   <p className="truncate text-lg font-semibold">{t.name}</p>
                   <p className="flex items-center gap-1.5 text-sm text-muted"><CalendarDays size={14} /> {prettyDate(t.startDate)} to {prettyDate(t.endDate)}</p>
                 </div>
-                <Badge tone={TONE[t.state]}>{LABEL[t.state]}</Badge>
+                <div className="flex shrink-0 flex-col items-end gap-1.5">
+                  <Badge tone={TONE[t.state]}>{LABEL[t.state]}</Badge>
+                  {/* a hosted event: whether the bill is paid or how much is still due (clear and easy to see) */}
+                  {t.hostedEvent && (t.billTotal ?? 0) > 0 && ((t.billDue ?? 0) > 0
+                    ? <span className="rounded-full bg-red-600 px-3 py-1 text-xs font-extrabold tracking-wide text-white">DUE {rs(t.billDue ?? 0)}</span>
+                    : <span className="rounded-full bg-emerald-600 px-3 py-1 text-xs font-extrabold tracking-wide text-white">PAID</span>)}
+                </div>
                 <ChevronRight size={18} className="mt-1 shrink-0 text-muted" />
               </div>
               <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm">

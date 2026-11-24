@@ -189,7 +189,7 @@ function PaySheet({ row, onClose, onDone }: { row: EvCharge; onClose: () => void
     if (ready.problem) return setError(ready.problem);
     setBusy(true);
     setError("");
-    const how = ready.payments ? { payments: ready.payments, fonepayQrId: ready.fonepayQrId } : { payment: ready.single === "cash" ? ("cash" as const) : ("online" as const), fonepayQrId: ready.fonepayQrId };
+    const how = ready.payments ? { payments: ready.payments } : { payment: ready.single === "cash" ? ("cash" as const) : ("online" as const) };
     try { await payEv(row.id, how); onDone(); } catch (e) { setError(msg(e)); setBusy(false); }
   }
 

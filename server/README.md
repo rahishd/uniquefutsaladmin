@@ -26,8 +26,6 @@ For the test database: `DATABASE_URL=postgresql://unique:unique_dev_pw@localhost
 
 Endpoints: `../docs/API.md`.
 
-## Fonepay: test mode on a deployed server
+## Fonepay
 
-`FONEPAY_MODE=test` makes the QR fake and shows a Simulate button to staff. Production refuses test mode so nobody can mark a payment as received by mistake.
-For a **demo or test deployment** (no real money, no real customers) set `ALLOW_TEST_PAYMENTS=true` together with `FONEPAY_MODE=test`.
-The Settings page then shows a DEMO MODE note. Turn the switch off, and use `FONEPAY_MODE=live` with the Fonepay keys, before real customers pay.
+Customers pay the venue's one fixed Fonepay QR (shown in the app) and write the booking code as the remark. There is no Fonepay gateway and no dynamic QR any more. Staff see the payment in the Fonepay app, then type the amount that arrived: in Collect payment > Fonepay (or Cash + Fonepay), or `POST /bookings/:id/mark-paid` with `{method: "fonepay", amount}`. The amount must equal the amount due, otherwise 400. `checkout`, `collect-dues`, `POST /inventory/sales` and the other payment calls take the Fonepay part as `payments: [{method: "fonepay", amount}]` and no longer take `fonepayQrId`. The old `FonepayQr` table (`sql/012_fonepay_qr.sql`) is kept for its history and is not used.

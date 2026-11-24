@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, describe, it } from "node:test";
-import { api, paidQr, prisma, reset, staff } from "./helpers";
+import { api, prisma, reset, staff } from "./helpers";
 
 async function wipe() {
   await prisma.$executeRawUnsafe('DELETE FROM "EvCharge"');
@@ -49,10 +49,9 @@ describe("EV charging (admin)", () => {
     assert.equal(list.unpaid.amount, 38);
     assert.equal(list.summary.today.amount, 0);
 
-    // a split payment needs a paid Fonepay QR for the online part
-    assert.equal((await api.post(`/ev-charging/${row.id}/pay`, owner.auth, { payments: [{ method: "cash", amount: 18 }, { method: "fonepay", amount: 20 }] })).status, 400);
-    const qr = await paidQr(owner.auth, 20);
-    const pay = await api.post(`/ev-charging/${row.id}/pay`, owner.auth, { payments: [{ method: "cash", amount: 18 }, { method: "fonepay", amount: 20 }], fonepayQrId: qr });
+    // the parts of a split payment must add up to the amount
+    assert.equal((await api.post(`/ev-charging/${row.id}/pay`, owner.auth, { payments: [{ method: "cash", amount: 18 }, { method: "fonepay", amount: 10 }] })).status, 400);
+    const pay = await api.post(`/ev-charging/${row.id}/pay`, owner.auth, { payments: [{ method: "cash", amount: 18 }, { method: "fonepay", amount: 20 }] });
     assert.equal(pay.status, 200);
     assert.equal(pay.body.data.status, "paid");
     assert.equal((await api.post(`/ev-charging/${row.id}/pay`, owner.auth, { payment: "cash" })).status, 409);

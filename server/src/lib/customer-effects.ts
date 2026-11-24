@@ -3,6 +3,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma, Tx } from "../db";
 import { addMonthsKey, todayKey } from "./dates";
+import { pushToUsers } from "./push";
 
 export type LoyaltyKind = "game" | "captain_win" | "goods" | "membership" | "referral" | "goal_rush" | "ludo" | "gift";
 
@@ -19,7 +20,11 @@ function expiryFor(kind: LoyaltyKind, earnedOn: string): string | null {
   return null; // membership never expires
 }
 
-// In-app notice (the customer backend pushes to devices; this only writes the inbox row). Never throws.
+// Notice types a customer can switch off in the app (the same rules as the customer backend's push service).
+const PROMO_TYPES = new Set(["promo", "players"]);
+
+// In-app notice, and the same alert pushed to the customer's saved devices (a phone, and the Apple or Samsung watch that mirrors it).
+// Every notice staff cause (booking cancelled, payment received, points earned, ...) goes through here. Never throws.
 export async function notify(db: Tx | typeof prisma, n: { userId: string; type: string; title: string; message: string; href?: string; dedupeKey?: string }) {
   try {
     const user = await db.user.findUnique({ where: { phoneNumber: n.userId }, select: { phoneNumber: true } });
@@ -27,7 +32,18 @@ export async function notify(db: Tx | typeof prisma, n: { userId: string; type: 
     if (n.dedupeKey && (await db.notification.findUnique({ where: { dedupeKey: n.dedupeKey } }))) return;
     await db.notification.create({ data: { userId: n.userId, type: n.type, title: n.title, message: n.message, href: n.href ?? null, dedupeKey: n.dedupeKey ?? null } });
   } catch {
-    /* a failed notice must never break a booking or payment */
+    return; /* a failed notice must never break a booking or payment */
+  }
+  // only a notice that was new gets here (the dedupe check above returns early otherwise), so a repeat never alerts twice
+  try {
+    const prefs = await prisma.userPrefs.findUnique({ where: { userId: n.userId } });
+    if (prefs) {
+      if (PROMO_TYPES.has(n.type) && !prefs.promoNotifications) return;
+      if (n.type === "reminder" && !prefs.popupReminder) return;
+    }
+    await pushToUsers([n.userId], { title: n.title, body: n.message, href: n.href, tag: n.dedupeKey });
+  } catch {
+    /* the inbox row is saved; a failed alert is not worth breaking anything for */
   }
 }
 

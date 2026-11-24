@@ -162,14 +162,14 @@ function PaySheet({ b, onClose, onDone }: { b: Bill; onClose: () => void; onDone
     if (!guard("tournaments.bill")) return;
     if (ready.problem) return setError(ready.problem);
     setBusy(true); setError("");
-    try { onDone(await receivePayment(b.id, { amount: n, ...(ready.payments ? { payments: ready.payments } : { single: ready.single }), fonepayQrId: ready.fonepayQrId, note: note.trim() || undefined })); onClose(); } catch (e) { setError(msg(e)); setBusy(false); }
+    try { onDone(await receivePayment(b.id, { amount: n, ...(ready.payments ? { payments: ready.payments } : { single: ready.single }), note: note.trim() || undefined })); onClose(); } catch (e) { setError(msg(e)); setBusy(false); }
   }
   return (
     <Sheet title="Receive a payment" sub={`${b.name} · due ${rs(b.due)}`} onClose={onClose}>
       <label className="block text-sm font-medium">Amount received now (Rs.)
-        <input inputMode="numeric" className={`${input} mt-1 w-full text-lg font-bold`} value={amount} onChange={(e) => { setAmount(e.target.value.replace(/\D/g, "").slice(0, 8)); setPay({ ...pay, qr: null }); setError(""); }} />
+        <input inputMode="numeric" className={`${input} mt-1 w-full text-lg font-bold`} value={amount} onChange={(e) => { setAmount(e.target.value.replace(/\D/g, "").slice(0, 8)); setPay({ ...pay, fonepay: "" }); setError(""); }} />
       </label>
-      <div className="flex gap-2 text-xs">{[Math.round(b.due / 2), b.due].filter((v, i, a) => v > 0 && a.indexOf(v) === i).map((v) => <button key={v} type="button" onClick={() => { setAmount(String(v)); setPay({ ...pay, qr: null }); }} className="rounded-full border border-line px-3 py-1 font-semibold">{v === b.due ? "All due" : "Half"} {rs(v)}</button>)}</div>
+      <div className="flex gap-2 text-xs">{[Math.round(b.due / 2), b.due].filter((v, i, a) => v > 0 && a.indexOf(v) === i).map((v) => <button key={v} type="button" onClick={() => { setAmount(String(v)); setPay({ ...pay, fonepay: "" }); }} className="rounded-full border border-line px-3 py-1 font-semibold">{v === b.due ? "All due" : "Half"} {rs(v)}</button>)}</div>
       {n > 0 && n <= b.due && <PaySplit total={n} value={pay} onChange={(v) => { setPay(v); setError(""); }} customerPhone={b.hostPhone ?? undefined} />}
       <input className={`${input} w-full`} value={note} maxLength={200} onChange={(e) => setNote(e.target.value)} placeholder="Note (for example advance, final settlement)" />
       {n > b.due && <p className="text-xs font-semibold text-red-600">More than is due ({rs(b.due)}).</p>}

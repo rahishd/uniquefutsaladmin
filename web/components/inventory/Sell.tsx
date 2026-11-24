@@ -88,7 +88,7 @@ export default function Sell({ tick, onChanged }: { tick: number; onChanged: () 
     if (!onAccount && ready.problem) return setError(ready.problem);
     setBusy(true); setError("");
     const items = lines.map((l) => ({ productId: l.p.id, quantity: l.qty }));
-    const how = ready.payments ? { payments: ready.payments, fonepayQrId: ready.fonepayQrId } : { payment: ready.single === "cash" ? ("cash" as const) : ("online" as const), fonepayQrId: ready.fonepayQrId };
+    const how = ready.payments ? { payments: ready.payments } : { payment: ready.single === "cash" ? ("cash" as const) : ("online" as const) };
     try {
       if (onAccount && phone) setDone(await checkout({ phone, payment: "due", items, bookingIds: [], goodsDueIds: [] }));
       else if (phone && known) setDone(await checkout({ phone, ...how, items, bookingIds: chosenGames.map((g) => g.id), goodsDueIds: chosenDues.map((d) => d.id) }));

@@ -16,10 +16,8 @@ describe("Settings page", () => {
     const r = (await api.get("/settings", owner.auth)).body.data;
     assert.equal(r.venue.name, "Unique Futsal");
     assert.equal(r.booking.advanceDeposit, 0);
-    assert.equal(r.integrations.fonepay.mode, "test");
     assert.equal(r.integrations.database, true);
     assert.equal(r.canEdit, true);
-    assert.equal(JSON.stringify(r).includes("FONEPAY_SECRET"), false);
   });
 
   it("saves venue details in the key the customer app reads, and audits only what changed", async () => {

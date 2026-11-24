@@ -18,7 +18,7 @@ export type EvPort = {
 };
 export type PortControl = { provider?: EvProvider; webhookUrl?: string; webhookSecret?: string; deviceId?: string };
 
-type PayArgs = { payment?: "cash" | "online"; payments?: { method: "cash" | "fonepay"; amount: number }[]; fonepayQrId?: string };
+type PayArgs = { payment?: "cash" | "online"; payments?: { method: "cash" | "fonepay"; amount: number }[] };
 
 export const listEv = (q = "", status = "") => api<EvList>(`/admin/ev-charging?q=${encodeURIComponent(q)}&status=${status}&limit=50`);
 export const recordEv = (b: PayArgs & { customerName?: string; phone?: string; vehicle?: string; portId?: string; hours: number }) =>

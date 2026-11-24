@@ -83,7 +83,7 @@ function CollectGoods({ group, onClose, onDone }: { group: Group; onClose: () =>
     if (ready.problem) return setError(ready.problem);
     setBusy(true);
     setError("");
-    const how = ready.payments ? { payments: ready.payments, fonepayQrId: ready.fonepayQrId } : { payment: ready.single === "cash" ? ("cash" as const) : ("online" as const), fonepayQrId: ready.fonepayQrId };
+    const how = ready.payments ? { payments: ready.payments } : { payment: ready.single === "cash" ? ("cash" as const) : ("online" as const) };
     try {
       setBill((await checkout({ phone: group.phone, ...how, items: [], bookingIds: [], goodsDueIds: group.dues.map((d) => d.id) })) as BillResult);
       onDone();

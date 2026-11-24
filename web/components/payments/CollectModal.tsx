@@ -9,8 +9,8 @@ import { ApiError } from "@/lib/api";
 import { guard } from "@/lib/access";
 import { CollectTarget, collectGamezone } from "@/lib/payments";
 
-// Record that an unpaid booking or session was paid. A court booking can be paid in cash, by Fonepay QR, or part cash and part Fonepay
-// (the Fonepay part is backed by a dynamic QR that the gateway marks paid). A Gamezone session is paid in cash.
+// Record that an unpaid booking or session was paid. A court booking can be paid in cash, by Fonepay, or part cash and part Fonepay
+// (staff type the amount that arrived in the Fonepay app). A Gamezone session is paid in cash.
 export default function CollectModal({ target: row, onClose, onDone }: { target: CollectTarget; onClose: () => void; onDone: () => void }) {
   const [pay, setPay] = useState<PayState>(INITIAL_PAY);
   const [busy, setBusy] = useState(false);
@@ -27,10 +27,10 @@ export default function CollectModal({ target: row, onClose, onDone }: { target:
     try {
       const paidBy = ready.payments ? `Cash Rs. ${ready.payments[0].amount} + Fonepay Rs. ${ready.payments[1].amount}` : ready.single === "fonepay" ? "Fonepay" : "Cash";
       if (court) {
-        const r = await collectDues({ anchorId: row.ref, bookingIds: [row.ref], goodsDueIds: [], ...(ready.payments ? { payments: ready.payments, fonepayQrId: ready.fonepayQrId } : { method: ready.single === "fonepay" ? "fonepay" : "venue", fonepayQrId: ready.fonepayQrId }) });
+        const r = await collectDues({ anchorId: row.ref, bookingIds: [row.ref], goodsDueIds: [], ...(ready.payments ? { payments: ready.payments } : { method: ready.single === "fonepay" ? "fonepay" : "venue" }) });
         setPaid({ code: r.billCode ?? row.code, lines: r.lines.length ? r.lines : [{ label: `Court booking ${row.code}`, amount: row.amount }], paidBy, points: r.points });
       } else {
-        await collectGamezone(row, ready.payments ? { payments: ready.payments, fonepayQrId: ready.fonepayQrId } : { single: ready.single, fonepayQrId: ready.fonepayQrId });
+        await collectGamezone(row, ready.payments ? { payments: ready.payments } : { single: ready.single });
         setPaid({ code: row.code, lines: [{ label: `Gamezone session ${row.code}`, amount: row.amount }], paidBy, points: 0 });
       }
       onDone();

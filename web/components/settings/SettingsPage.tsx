@@ -171,8 +171,6 @@ export default function SettingsPage() {
           </div>
           <Card title="Connected services" hint="Read only. Keys and secrets are set on the server and are never shown here.">
             <ul className="divide-y divide-line">
-              <Status ok={d.integrations.fonepay.mode === "live" && d.integrations.fonepay.configured} label={`Fonepay payments: ${d.integrations.fonepay.mode === "live" ? "live" : "test mode"}`}
-                detail={d.integrations.fonepay.mode === "live" ? (d.integrations.fonepay.configured ? "Real QR codes are made and payments are checked with Fonepay." : "Live mode is on but the merchant code, secret or URL is missing.") : d.integrations.fonepay.note} />
               <Status ok={d.integrations.push.configured} label="Push notifications to customers' phones" detail={d.integrations.push.configured ? "Ready. Notices also reach installed apps." : "Not set up. Notices only appear inside the app until the push keys are added on the server."} />
               <Status ok={d.integrations.database} label="Database" detail={d.integrations.database ? "Connected." : "Not reachable."} />
               <Status ok={d.integrations.environment === "production"} label={`Environment: ${d.integrations.environment}`} detail={d.integrations.environment === "production" ? "This is the real venue system." : "This is a development copy: do not use it for real customers."} />

@@ -61,7 +61,7 @@ export default function Dues({ bookingId, onPaid }: { bookingId: string; onPaid:
     if (ready.problem) return setError(ready.problem);
     setBusy(true); setError("");
     try {
-      const r = await collectDues({ anchorId: bookingId, bookingIds: chosen.map((x) => x.id), goodsDueIds: chosenGoods.map((g) => g.id), ...(ready.payments ? { payments: ready.payments } : { method: ready.single === "fonepay" ? "fonepay" : "venue" }), fonepayQrId: ready.fonepayQrId });
+      const r = await collectDues({ anchorId: bookingId, bookingIds: chosen.map((x) => x.id), goodsDueIds: chosenGoods.map((g) => g.id), ...(ready.payments ? { payments: ready.payments } : { method: ready.single === "fonepay" ? "fonepay" : "venue" }) });
       setDone({ ...r, paidBy: ready.payments ? `Cash Rs. ${ready.payments[0].amount} + Fonepay Rs. ${ready.payments[1].amount}` : ready.single === "fonepay" ? "Fonepay" : "Cash" }); onPaid();
     } catch (e) { setError(e instanceof ApiError ? e.message : "Could not collect the payment"); } finally { setBusy(false); }
   }

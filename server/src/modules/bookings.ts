@@ -11,7 +11,7 @@ import { addDaysKey, currentHour, todayKey } from "../lib/dates";
 import { AppError, dateStr, handler, page, param, parse, send, timeStr } from "../lib/http";
 import { requirePermission } from "../middleware/auth";
 import { giftBookingCancelled } from "./gifts";
-import { DEAD, claimFonepay, gameLabel, paysSchema, settle } from "../lib/settle";
+import { DEAD, gameLabel, paysSchema, settle } from "../lib/settle";
 import { getHourPrice } from "./settings-store";
 import { waterForBooking } from "../lib/water";
 
@@ -122,7 +122,7 @@ bookingsRouter.get("/:id/dues", requirePermission("bookings.view"), handler(asyn
 bookingsRouter.post("/collect-dues", requirePermission("payments.collect"), handler(async (req, res) => {
   const b = parse(z.object({
     anchorId: z.string().min(1), bookingIds: z.array(z.string().min(1)).max(40).default([]), goodsDueIds: z.array(z.string().min(1)).max(40).default([]),
-    method: z.enum(["venue", "fonepay"]).optional(), payments: paysSchema.optional(), fonepayQrId: z.string().min(1).optional(),
+    method: z.enum(["venue", "fonepay"]).optional(), payments: paysSchema.optional(),
   }), req.body);
   if (b.bookingIds.length === 0 && b.goodsDueIds.length === 0) throw new AppError(400, "Choose at least one due to collect");
   const anchor = await load(b.anchorId);
@@ -138,7 +138,7 @@ bookingsRouter.post("/collect-dues", requirePermission("payments.collect"), hand
   const account = key ? await prisma.user.findUnique({ where: { phoneNumber: key }, select: { phoneNumber: true } }) : null;
   const r = await settle({
     staffId: req.staff!.id, userId: anchor.userId ?? account?.phoneNumber ?? null, bookings: rows, goodsDues, items: new Map(),
-    pay: { payments: b.payments, fonepayQrId: b.fonepayQrId, single: b.payments ? undefined : b.method === "fonepay" ? ("fonepay" as const) : ("cash" as const) },
+    pay: { payments: b.payments, single: b.payments ? undefined : b.method === "fonepay" ? ("fonepay" as const) : ("cash" as const) },
   });
   await audit(req, "collect-dues", "booking", anchor.id, { bookings: rows.map((x) => x.code ?? x.id), goodsDues: goodsDues.map((g) => g.items), total: r.total, payments: r.payments, bill: r.code });
   send(res, { count: r.count, total: r.total, billCode: r.code, points: Math.round((r.pointsGoods + r.pointsGames) * 10) / 10, payments: r.payments, lines: r.lines, clubDiscount: r.clubDiscount }, `Collected Rs. ${r.total} for ${r.count} due${r.count === 1 ? "" : "s"}`);
@@ -172,6 +172,8 @@ bookingsRouter.post("/walk-in", requirePermission("bookings.create"), handler(as
   if (b.date < addDaysKey(todayKey(), -60) || b.date > addDaysKey(todayKey(), 60)) throw new AppError(400, "Pick a date within 60 days of today");
   const startHour = Number(b.startTime.slice(0, 2));
   if (startHour + b.duration > 24) throw new AppError(400, "The booking cannot pass midnight");
+  // A game that already started can be logged by hand only for 2 hours after its scheduled start; after that the slot is closed.
+  if (b.date < todayKey() || (b.date === todayKey() && currentHour() >= startHour + 2)) throw new AppError(400, "This slot is not available now. A past game can only be logged within 2 hours of its start time.");
   const held = await memberHolds([b.date], Array.from({ length: b.duration }, (_, i) => startHour + i), b.customerPhone);
   if (held.length) throw new AppError(409, `That hour is held for member ${held[0].name ?? held[0].userId} (${held[0].memberCode ?? "membership"})`);
   let basePrice = 0;
@@ -330,14 +332,17 @@ bookingsRouter.post("/:id/no-show", requirePermission("bookings.noshow"), handle
 
 // Money collected at the venue (or confirmed by staff) for a booking.
 bookingsRouter.post("/:id/mark-paid", requirePermission("payments.collect"), handler(async (req, res) => {
-  const { method, fonepayQrId } = parse(z.object({ method: z.enum(["venue", "fonepay"]).default("venue"), fonepayQrId: z.string().min(1).optional() }), req.body ?? {});
+  const { method, amount } = parse(z.object({ method: z.enum(["venue", "fonepay"]).default("venue"), amount: z.number().int().min(1).optional() }), req.body ?? {});
   const b = await load(param(req, "id"));
   if (b.status === "cancelled") throw new AppError(409, "This booking is cancelled");
   if (b.paymentStatus === "completed") throw new AppError(409, "Already paid");
   const total = b.totalPrice;
+  // Fonepay: staff type the amount that arrived in the Fonepay app; it has to be the amount due (the customer wrote the booking code as the remark)
+  if (method === "fonepay") {
+    if (amount === undefined) throw new AppError(400, "Enter the amount received in Fonepay");
+    if (amount !== Math.round(total)) throw new AppError(400, `The Fonepay amount (Rs. ${amount}) is not the amount due (Rs. ${Math.round(total)}).`);
+  }
   await prisma.$transaction(async (tx) => {
-    // a Fonepay payment must be backed by a QR the gateway marked paid, for exactly this amount
-    if (method === "fonepay") await claimFonepay(tx, { fonepayQrId }, [{ method: "fonepay", amount: Math.round(total) }], b.code ?? b.id);
     await tx.booking.update({
       where: { id: b.id },
       data: { paymentStatus: "completed", status: b.status === "pending" ? "confirmed" : b.status, holdExpiresAt: null, paymentMethod: method, amountPaidNow: total, remainingAmount: 0, cashAmount: method === "venue" ? total : b.cashAmount, onlineAmount: method === "venue" ? b.onlineAmount : total },
@@ -349,6 +354,8 @@ bookingsRouter.post("/:id/mark-paid", requirePermission("payments.collect"), han
   });
   const fresh = await load(b.id);
   if (fresh.status === "completed") await awardForCompletedBooking(fresh);
+  // a booking that was waiting for the venue is now confirmed (the same notice the customer app sends when an online payment confirms it, so it never shows twice)
+  if (fresh.userId && b.status === "pending" && fresh.status === "confirmed") await notify(prisma, { userId: fresh.userId, type: "booking", title: "Booking confirmed", message: `${fresh.date} · ${fresh.startTime} – ${fresh.endTime}. Booking ${fresh.code || fresh.id}.`, href: `/booking/${fresh.code || fresh.id}`, dedupeKey: `booked-${fresh.id}` });
   if (fresh.userId) await notify(prisma, { userId: fresh.userId, type: "payment", title: "Payment received", message: `Rs. ${Math.round(total)} for your game on ${fresh.date} at ${fresh.startTime} was received. Thank you!`, href: "/profile", dedupeKey: `paid-${fresh.id}` });
   await audit(req, "mark-paid", "booking", b.id, { method, total });
   send(res, withCode(fresh), "Marked as paid");

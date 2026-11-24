@@ -191,6 +191,8 @@ export default function SlotsPage() {
 
   const go = (d: string) => { setDate(d); setHours(null); setError(""); };
   const isPast = (hour: number) => date < todayKey() || (date === todayKey() && hour < nowHour());
+  // A game that has already started can still be logged by hand for 2 hours after its scheduled start. After that the slot is closed ("Not available now").
+  const isTooOld = (hour: number) => date < todayKey() || (date === todayKey() && nowHour() >= hour + 2);
   useHighlight(!!hours);
   const shown = hours?.filter((h) => (h.hour >= OPEN_FROM && h.hour < OPEN_TO) || h.state !== "free") ?? [];
 
@@ -238,6 +240,7 @@ export default function SlotsPage() {
         <ul className="space-y-2">
           {shown.map((h) => {
             const past = isPast(h.hour);
+            const tooOld = past && isTooOld(h.hour);
             return (
               <li key={h.hour} data-hl={h.booking && Number(h.booking.startTime.slice(0, 2)) === h.hour ? `b-${h.booking.id}` : undefined} className="flex items-center gap-3 sm:gap-4">
                 <span className="w-16 shrink-0 text-xs font-extrabold sm:w-20 sm:text-sm">{hourLabel(h.hour)}</span>
@@ -264,7 +267,17 @@ export default function SlotsPage() {
                     </div>
                   )}
 
-                  {h.state === "free" && !h.member && (
+                  {h.state === "free" && !h.member && tooOld && (
+                    <div aria-label={`Not available now: ${hourLabel(h.hour)}`} className="flex w-full items-center gap-3 rounded-2xl border-2 border-dashed border-line p-3 opacity-50 sm:p-4">
+                      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-surface-2 text-muted"><Clock size={18} /></span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[11px] font-extrabold tracking-wide">PAST SLOT</span>
+                        <span className="block text-[10px] font-semibold tracking-wide text-muted">NOT AVAILABLE NOW</span>
+                      </span>
+                    </div>
+                  )}
+
+                  {h.state === "free" && !h.member && !tooOld && (
                     <button onClick={() => guard("bookings.create") && setBook(h.hour)} aria-label={`${past ? "Log a past booking at" : "Book"} ${hourLabel(h.hour)}`}
                       className={`flex w-full items-center gap-3 rounded-2xl border-2 border-dashed p-3 text-left hover:border-brand hover:bg-brand/5 sm:p-4 ${past ? "border-line opacity-60" : "border-line"}`}>
                       <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-surface-2 text-muted">{past ? <Clock size={18} /> : <Plus size={20} />}</span>
@@ -284,7 +297,7 @@ export default function SlotsPage() {
           })}
         </ul>
         <div className="mt-4 space-y-3 border-t border-line pt-3">
-        <p className="text-xs text-muted">Tap + on an open hour to book a customer by hand. Open hours are 5 AM to 10 PM.</p>
+        <p className="text-xs text-muted">Tap + on an open hour to book a customer by hand. Open hours are 5 AM to 10 PM. A game that has started can be logged for 2 hours after its start time; after that the slot shows Not available now.</p>
         <Legend />
         <p className="text-xs leading-relaxed text-muted">Chips on each game show Guest, Paid or Unpaid, Promo code with its amount, Free game, booked by staff and Mineral water waived. On today&apos;s games, Coming means the customer tapped I&apos;m coming in the app; Arrival not confirmed means they have not yet.</p>
         </div>

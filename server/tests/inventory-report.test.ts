@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, describe, it } from "node:test";
-import { addDaysKey, api, customer, paidQr, prisma, reset, staff, todayKey } from "./helpers";
+import { addDaysKey, api, customer, prisma, reset, staff, todayKey } from "./helpers";
 
 const today = todayKey();
 before(reset);
@@ -58,8 +58,7 @@ describe("Inventory report", () => {
     assert.equal(r.itemsSold[0].qty, 10);
     // pay the game and the credit goods together: Rs. 1500 + Rs. 400, Rs. 900 cash and Rs. 1000 Fonepay
     const due = await prisma.goodsDue.findFirstOrThrow();
-    const qr = await paidQr(mgr.auth, 1000);
-    const paid = await api.post("/bookings/collect-dues", mgr.auth, { anchorId: g.id, bookingIds: [g.id], goodsDueIds: [due.id], payments: [{ method: "cash", amount: 900 }, { method: "fonepay", amount: 1000 }], fonepayQrId: qr });
+    const paid = await api.post("/bookings/collect-dues", mgr.auth, { anchorId: g.id, bookingIds: [g.id], goodsDueIds: [due.id], payments: [{ method: "cash", amount: 900 }, { method: "fonepay", amount: 1000 }] });
     assert.equal(paid.status, 200);
     r = (await api.get(`/inventory/report?from=${today}`, mgr.auth)).body.data;
     assert.equal(r.totals.total, 1900, "each rupee once, though a bill and the sources both record it");

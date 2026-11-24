@@ -113,7 +113,7 @@ export function NewMemberSheet({ onClose, onDone }: { onClose: () => void; onDon
     if (!ready || clash) return;
     if (payNow && paid.problem) return setError(paid.problem);
     setBusy(true); setError("");
-    const body: NewMember = { phone, planId, length, timeSlot: hourSlot(hour), days, startDate: start, notes: notes.trim() || undefined, ...(payNow ? { pay: { ...(paid.payments ? { payments: paid.payments, fonepayQrId: paid.fonepayQrId } : { single: paid.single, fonepayQrId: paid.fonepayQrId }), advance: advance && total > 1 } } : {}) };
+    const body: NewMember = { phone, planId, length, timeSlot: hourSlot(hour), days, startDate: start, notes: notes.trim() || undefined, ...(payNow ? { pay: { ...(paid.payments ? { payments: paid.payments } : { single: paid.single }), advance: advance && total > 1 } } : {}) };
     try { const m = await createMember(body); setDone({ m, total: payNow ? dueNow : undefined }); onDone(); } catch (e) { setError(msg(e)); } finally { setBusy(false); }
   }
 
@@ -188,7 +188,7 @@ export function VerifySheet({ m, onClose, onDone }: { m: Member; onClose: () => 
   async function save() {
     if (paid.problem) return setError(paid.problem);
     setBusy(true); setError("");
-    try { setDone(await verifyMember(m.id, { ...(paid.payments ? { payments: paid.payments, fonepayQrId: paid.fonepayQrId } : { single: paid.single, fonepayQrId: paid.fonepayQrId }), advance: advance && m.totalPrice > 1 })); onDone(); } catch (e) { setError(msg(e)); } finally { setBusy(false); }
+    try { setDone(await verifyMember(m.id, { ...(paid.payments ? { payments: paid.payments } : { single: paid.single }), advance: advance && m.totalPrice > 1 })); onDone(); } catch (e) { setError(msg(e)); } finally { setBusy(false); }
   }
   return (
     <Frame title="Verify payment" sub={`${m.customer.name ?? m.customer.phone} · ${m.memberCode} · ${m.plan.name}`} onClose={onClose}>
@@ -216,7 +216,7 @@ export function BalanceSheet({ m, onClose, onDone }: { m: Member; onClose: () =>
   async function save() {
     if (paid.problem) return setError(paid.problem);
     setBusy(true); setError("");
-    try { setDone(await collectBalance(m.id, paid.payments ? { payments: paid.payments, fonepayQrId: paid.fonepayQrId } : { single: paid.single, fonepayQrId: paid.fonepayQrId })); onDone(); } catch (e) { setError(msg(e)); } finally { setBusy(false); }
+    try { setDone(await collectBalance(m.id, paid.payments ? { payments: paid.payments } : { single: paid.single })); onDone(); } catch (e) { setError(msg(e)); } finally { setBusy(false); }
   }
   return (
     <Frame title="Collect balance" sub={`${m.customer.name ?? m.customer.phone} · ${m.memberCode} · ${m.plan.name}`} onClose={onClose}>
@@ -251,7 +251,7 @@ export function RenewSheet({ m, onClose, onDone }: { m: Member; onClose: () => v
   async function save() {
     if (price == null || paid.problem) return setError(paid.problem ?? "No price for this length");
     setBusy(true); setError("");
-    try { setDone(await renewMember(m.id, { length, pay: paid.payments ? { payments: paid.payments, fonepayQrId: paid.fonepayQrId } : { single: paid.single, fonepayQrId: paid.fonepayQrId } })); onDone(); } catch (e) { setError(msg(e)); } finally { setBusy(false); }
+    try { setDone(await renewMember(m.id, { length, pay: paid.payments ? { payments: paid.payments } : { single: paid.single } })); onDone(); } catch (e) { setError(msg(e)); } finally { setBusy(false); }
   }
   return (
     <Frame title="Renew membership" sub={`${m.customer.name ?? m.customer.phone} · ${m.memberCode} · ends ${shortDate(m.endDate)}`} onClose={onClose}>

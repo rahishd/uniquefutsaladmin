@@ -30,7 +30,7 @@ const REFRESH_MS = 20000;
 const input = "rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
 
 // What staff do to a session. Each checks the permission first, then reloads.
-// Start runs the clock at once; "Mark paid" opens the payment popup (cash, Fonepay QR or both); Stop / Complete and Cancel ask once.
+// Start runs the clock at once; "Mark paid" opens the payment popup (cash, Fonepay or both); Stop / Complete and Cancel ask once.
 type Kind = "start" | "pay" | "done" | "cancel";
 function useActions(onDone: () => void, setError: (m: string) => void, onCollect: (s: GzSession) => void) {
   return useCallback(async (s: GzSession, kind: Kind) => {

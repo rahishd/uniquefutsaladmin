@@ -59,7 +59,7 @@ export type DueRow = { id: string; code: string; date: string; startTime: string
 export type GoodsDueRow = { id: string; items: string; amount: number; createdAt: string };
 export type DuesInfo = { goods: GoodsDueRow[]; goodsTotal: number; customer: { name: string | null; phone: string | null; registered: boolean; known: boolean }; current: DueRow & { owed: boolean }; past: DueRow[]; today: DueRow[]; upcoming: DueRow[]; pastTotal: number };
 export const getDues = (id: string) => api<DuesInfo>(`/admin/bookings/${encodeURIComponent(id)}/dues`);
-export const collectDues = (b: { anchorId: string; bookingIds: string[]; goodsDueIds: string[]; method?: "venue" | "fonepay"; payments?: { method: "cash" | "fonepay"; amount: number }[]; fonepayQrId?: string }) =>
+export const collectDues = (b: { anchorId: string; bookingIds: string[]; goodsDueIds: string[]; method?: "venue" | "fonepay"; payments?: { method: "cash" | "fonepay"; amount: number }[] }) =>
   api<{ count: number; total: number; billCode: string | null; points: number; lines: { type: "game" | "goods"; label: string; quantity: number; amount: number; clubDiscount?: number }[]; clubDiscount?: number }>("/admin/bookings/collect-dues", { method: "POST", body: JSON.stringify(b) });
 
 // ---- display helpers ----

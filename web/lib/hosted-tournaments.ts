@@ -33,7 +33,7 @@ export const addItems = (id: string, items: { productId: string; quantity: numbe
 export const addLine = (id: string, b: { kind: "extra" | "discount"; label: string; amount: number }) => post(id, "lines", b);
 export const removeLine = (id: string, lineId: string) => api<Bill>(`/admin/tournaments/${id}/lines/${lineId}`, { method: "DELETE" });
 export const setRate = (id: string, minRate: number) => api<Bill>(`/admin/tournaments/${id}/rate`, { method: "PATCH", body: JSON.stringify({ minRate }) });
-export const receivePayment = (id: string, b: { amount: number; payments?: { method: "cash" | "fonepay"; amount: number }[]; single?: "cash" | "fonepay"; fonepayQrId?: string; note?: string }) => post(id, "payments", b);
+export const receivePayment = (id: string, b: { amount: number; payments?: { method: "cash" | "fonepay"; amount: number }[]; single?: "cash" | "fonepay"; note?: string }) => post(id, "payments", b);
 export const previewHours = (id: string, b: { date: string; startHour: number; endHour: number }) => api<Preview>(`/admin/tournaments/${id}/hours`, { method: "POST", body: JSON.stringify({ ...b, dryRun: true }) });
 export const addHours = (id: string, b: { date: string; startHour: number; endHour: number }) => post(id, "hours", b);
 export const setServices = (id: string, services: string[], amounts?: Record<string, number>) => api<Bill>(`/admin/tournaments/${id}/services`, { method: "PATCH", body: JSON.stringify({ services, ...(amounts ? { amounts } : {}) }) });

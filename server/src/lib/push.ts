@@ -6,7 +6,8 @@ export type PushPayload = { title: string; body: string; href?: string; tag?: st
 type Sub = { endpoint: string; keys: { p256dh: string; auth: string } };
 export type PushSender = (sub: Sub, payload: string) => Promise<unknown>;
 
-const realSender: PushSender = (sub, payload) => webpush.sendNotification(sub, payload, { TTL: 3600 });
+// urgency high: the push service delivers it straight away, even to a phone that is asleep (so the watch gets it too)
+const realSender: PushSender = (sub, payload) => webpush.sendNotification(sub, payload, { TTL: 3600, urgency: "high" });
 let sender: PushSender = realSender;
 let forced = false;
 let configured = false;

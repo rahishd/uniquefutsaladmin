@@ -12,7 +12,7 @@ import { awardPoints, notify } from "../lib/customer-effects";
 import { addDaysKey, todayKey } from "../lib/dates";
 import { AppError, dateStr, handler, page, param, parse, send } from "../lib/http";
 import { WEEKDAYS, keyOf, memberHolds, weekdayOf } from "../lib/member-holds";
-import { PAY_METHODS, Pay, claimFonepay, paysSchema, resolvePays } from "../lib/settle";
+import { PAY_METHODS, Pay, paysSchema, resolvePays } from "../lib/settle";
 import { requirePermission } from "../middleware/auth";
 import { Length, LENGTHS, SHIFTS, Shift, priceCol, discountCol } from "./membership-plans";
 
@@ -29,7 +29,7 @@ const slotName = (h: number) => `${String(h).padStart(2, "0")}:00-${String(h + 1
 const fmtDate = (k: string) => new Date(`${k}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 
 // advance: take half now (rounded up to a whole rupee) and the rest later with "collect balance". The membership is active from the advance.
-const payInput = z.object({ payments: paysSchema.optional(), single: z.enum(PAY_METHODS).optional(), fonepayQrId: z.string().optional(), advance: z.boolean().optional() });
+const payInput = z.object({ payments: paysSchema.optional(), single: z.enum(PAY_METHODS).optional(), advance: z.boolean().optional() });
 const ADVANCE_SHARE = 0.5;
 const advanceOf = (total: number) => Math.ceil(total * ADVANCE_SHARE);
 type PayIn = z.infer<typeof payInput>;
@@ -242,7 +242,7 @@ membershipSubsRouter.post("/subscriptions", requirePermission("membership.create
         },
         include,
       });
-      if (pays) { await claimFonepay(tx, b.pay!, pays, `membership:${row.id}`); await recordPayment(tx, row, row.plan.name, dueNow, pays, false); }
+      if (pays) { await recordPayment(tx, row, row.plan.name, dueNow, pays, false); }
       return row;
     });
   } catch (e) {
@@ -273,11 +273,10 @@ membershipSubsRouter.post("/subscriptions/:id/verify", requirePermission("member
   }
   const advance = !!pay.advance && total > 1;
   const dueNow = advance ? advanceOf(total) : total;
-  const pays = resolvePays({ payments: pay.payments, single: pay.single, fonepayQrId: pay.fonepayQrId }, dueNow);
+  const pays = resolvePays({ payments: pay.payments, single: pay.single }, dueNow);
   const done = await prisma.$transaction(async (tx) => {
     const flip = await tx.membershipSubscription.updateMany({ where: { id: s.id, status: "pending" }, data: { status: "active", paymentStatus: advance ? "partial" : "verified", paymentVerifiedAt: new Date(), paymentVerifiedBy: req.staff!.id, memberCode: s.memberCode ?? (await nextMemberCode(tx)) } });
     if (flip.count === 0) throw new AppError(409, "This membership was just verified by someone else");
-    await claimFonepay(tx, pay, pays, `membership:${s.id}`);
     await recordPayment(tx, s, s.plan.name, dueNow, pays, false);
     return tx.membershipSubscription.findUniqueOrThrow({ where: { id: s.id }, include });
   });
@@ -297,11 +296,10 @@ membershipSubsRouter.post("/subscriptions/:id/collect-balance", requirePermissio
   const paid = (await paidOf([s.id])).get(s.id) ?? 0;
   const balance = Math.round(total - paid);
   if (balance <= 0) throw new AppError(409, "There is no balance to collect on this membership");
-  const pays = resolvePays({ payments: pay.payments, single: pay.single, fonepayQrId: pay.fonepayQrId }, balance);
+  const pays = resolvePays({ payments: pay.payments, single: pay.single }, balance);
   const done = await prisma.$transaction(async (tx) => {
     const flip = await tx.membershipSubscription.updateMany({ where: { id: s.id, paymentStatus: "partial" }, data: { paymentStatus: "verified", paymentVerifiedAt: new Date(), paymentVerifiedBy: req.staff!.id } });
     if (flip.count === 0) throw new AppError(409, "The balance was just collected by someone else");
-    await claimFonepay(tx, pay, pays, `membership-balance:${s.id}`);
     await recordPayment(tx, s, s.plan.name, balance, pays, false);
     return tx.membershipSubscription.findUniqueOrThrow({ where: { id: s.id }, include });
   });
@@ -330,7 +328,6 @@ membershipSubsRouter.post("/subscriptions/:id/renew", requirePermission("members
   if (check.clashes.length) throw new AppError(409, `The hour is not free on ${check.clashes.length} days of the new period (first: ${fmtDate(check.clashes[0].date)}, ${check.clashes[0].reason})`);
   const pays = resolvePays(b.pay, quote.total);
   const done = await prisma.$transaction(async (tx) => {
-    await claimFonepay(tx, b.pay, pays, `membership-renew:${s.id}`);
     await recordPayment(tx, s, s.plan.name, quote.total, pays, true);
     return tx.membershipSubscription.update({
       where: { id: s.id },

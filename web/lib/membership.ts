@@ -23,7 +23,7 @@ export type MemberList = {
 export type MemberDetail = Member & { earlier: Member[]; payments: { id: string; date: string; amount: number; cash: number; online: number; renewal: boolean; status: string }[] };
 
 export const PAGE_SIZE = 25;
-export type PayBody = { payments?: { method: "cash" | "fonepay"; amount: number }[]; single?: "cash" | "fonepay"; fonepayQrId?: string; advance?: boolean };
+export type PayBody = { payments?: { method: "cash" | "fonepay"; amount: number }[]; single?: "cash" | "fonepay"; advance?: boolean };
 // "advance" takes half now (rounded up) and the rest later; "full" takes everything now.
 export const advanceOf = (total: number) => Math.ceil(total / 2);
 

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, describe, it } from "node:test";
-import { addDaysKey, api, customer, paidQr, prisma, reset, staff, todayKey } from "./helpers";
+import { addDaysKey, api, customer, prisma, reset, staff, todayKey } from "./helpers";
 
 const today = todayKey();
 before(reset);
@@ -57,14 +57,14 @@ describe("Membership subscriptions", () => {
     assert.equal((await api.post(`/membership/subscriptions/${sub.id}/collect-balance`, mgr.auth, { single: "cash" })).status, 409);
   });
 
-  it("verifies a pending membership with a 50% advance, part of it by Fonepay QR", async () => {
+  it("verifies a pending membership with a 50% advance, part of it by Fonepay", async () => {
     await customer("9840000001", "Mina Member");
     const mgr = await staff("manager");
     const p = await plan();
     const made = await api.post("/membership/subscriptions", mgr.auth, body(p.id));
     const id = made.body.data.id;
     // Rs. 1,500 due now: Rs. 500 cash + Rs. 1,000 Fonepay
-    const r = await api.post(`/membership/subscriptions/${id}/verify`, mgr.auth, { advance: true, payments: [{ method: "cash", amount: 500 }, { method: "fonepay", amount: 1000 }], fonepayQrId: await paidQr(mgr.auth, 1000) });
+    const r = await api.post(`/membership/subscriptions/${id}/verify`, mgr.auth, { advance: true, payments: [{ method: "cash", amount: 500 }, { method: "fonepay", amount: 1000 }] });
     assert.equal(r.status, 200);
     assert.equal(r.body.data.status, "active");
     assert.equal(r.body.data.paymentStatus, "partial");
@@ -131,16 +131,15 @@ describe("Membership subscriptions", () => {
     assert.equal(await prisma.notification.count({ where: { userId: "9840000001", type: "membership" } }), 1);
   });
 
-  it("verifies with cash plus a paid Fonepay QR; a Fonepay part without a paid QR is refused", async () => {
+  it("verifies with cash plus Fonepay; parts that do not add up to the amount are refused", async () => {
     await customer("9840000001");
     const mgr = await staff("manager");
     const p = await plan();
     const made = await api.post("/membership/subscriptions", mgr.auth, body(p.id));
     const id = made.body.data.id;
-    const bad = await api.post(`/membership/subscriptions/${id}/verify`, mgr.auth, { payments: [{ method: "cash", amount: 1000 }, { method: "fonepay", amount: 2000 }] });
+    const bad = await api.post(`/membership/subscriptions/${id}/verify`, mgr.auth, { payments: [{ method: "cash", amount: 1000 }, { method: "fonepay", amount: 1500 }] });
     assert.equal(bad.status, 400);
-    const qr = await paidQr(mgr.auth, 2000);
-    const ok = await api.post(`/membership/subscriptions/${id}/verify`, mgr.auth, { payments: [{ method: "cash", amount: 1000 }, { method: "fonepay", amount: 2000 }], fonepayQrId: qr });
+    const ok = await api.post(`/membership/subscriptions/${id}/verify`, mgr.auth, { payments: [{ method: "cash", amount: 1000 }, { method: "fonepay", amount: 2000 }] });
     assert.equal(ok.status, 200);
     const row = (await prisma.booking.findMany({ where: { notes: { contains: `MEMBERSHIP_SUB:${id}` } } }))[0];
     assert.equal(row.cashAmount, 1000);

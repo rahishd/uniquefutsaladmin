@@ -31,7 +31,7 @@ export const modules: Module[] = [
   },
   {
     slug: "bookings", title: "Bookings & Payments", group: "Operations", icon: "calendar",
-    summary: "Payments (Fonepay QR orders, pay-at-venue, refunds) is the second switch on this page. Court bookings made in the app (online, pay at venue, free-game voucher, guest).",
+    summary: "Payments (Fonepay orders, pay-at-venue, refunds) is the second switch on this page. Court bookings made in the app (online, pay at venue, free-game voucher, guest).",
     clientFeatures: ["Slots up to 10 days ahead", "Quote, promo and voucher at checkout", "Guest vs registered rules", "10 minute QR hold", "Free cancellation until start", "Quick Rebook", "Short booking code (UF-XXXXXX)"],
     adminTasks: ["Day view and list with filters (date, status, code, phone)", "Walk-in booking", "Cancel, complete (awards points), no-show", "Upload invoice", "Record player goals and assists"],
     endpoints: [
@@ -87,7 +87,7 @@ export const modules: Module[] = [
     slug: "ev-charging", title: "EV Charging", group: "Operations", icon: "battery",
     summary: "Paid AC EV charging at the venue: charging ports with QR codes, who is charging now, bills and payments.",
     clientFeatures: ["Quick Access > EV Charging", "Scan the QR at a charging port to start charging", "Live charging time and bill, stop when done", "Charging and payment history", "Pay at the venue"],
-    adminTasks: ["Add charging ports and print each port's QR code (a new QR switches the old one off)", "See who is charging now and stop a session if the customer forgot", "Collect an unpaid charge in cash, Fonepay QR or both", "Record a walk-in charge that is paid straight away", "History with search and status, revenue today and for 30 days (also in Payments > EV charging)"],
+    adminTasks: ["Add charging ports and print each port's QR code (a new QR switches the old one off)", "See who is charging now and stop a session if the customer forgot", "Collect an unpaid charge in cash, Fonepay or both", "Record a walk-in charge that is paid straight away", "History with search and status, revenue today and for 30 days (also in Payments > EV charging)"],
     endpoints: [
       e("GET", "/admin/ev-charging", "sessions, live list, revenue and unpaid totals"), e("GET", "/admin/ev-charging/ports", "ports with in-use status"),
       e("POST", "/admin/ev-charging/ports", "add a port (also PATCH, DELETE)"), e("POST", "/admin/ev-charging", "walk-in charge, paid now"),
@@ -168,8 +168,8 @@ export const modules: Module[] = [
   {
     slug: "membership", title: "Membership", group: "Loyalty & Promos", icon: "idcard",
     summary: "The Children's Academy (football classes for ages 10 to 14: class times, enrolled children, terms) is the third switch on this page. Monthly / 3 / 6 month plans by shift (Basic, Premium), and Unique Club (Rs. 1,500 for 30 days, 10% off) on its own switch at the top.",
-    clientFeatures: ["Membership ID (MEM-10291), status Active / Expiring soon / Expired / Suspended", "Offers with discounted prices per shift", "A fixed hour on chosen weekdays, held for the member", "4 PM to 8 PM never offered", "Points for 3 and 6 month plans", "Notices: activated, expiring, expired, renewed", "Unique Club page in Quick Access: pay Rs. 1,500 with the Fonepay QR, active at once for 30 days, 10% off court bookings and Gamezone from day one, no promo or VIP code with the club discount"],
-    adminTasks: ["Unique Club switch: see club members by status (active, expiring in 7 days, expired), search by name or mobile number, see joined and end dates, payments and the discount given (the Rs. 1,500 payments are in Payments > Unique Club)", "Plans CRUD and featured plan (Courts > Membership)", "Members list by status with search by name, phone or Membership ID", "New member with live price and free-hour check, pay now (cash / Fonepay QR) or pay later", "Verify payment (activates)", "Renew (paid now), extend free days, suspend, resume, cancel", "WhatsApp reminder and invoice", "The member hour shows as MEMBER HOLD on Slots and cannot be booked by staff"],
+    clientFeatures: ["Membership ID (MEM-10291), status Active / Expiring soon / Expired / Suspended", "Offers with discounted prices per shift", "A fixed hour on chosen weekdays, held for the member", "4 PM to 8 PM never offered", "Points for 3 and 6 month plans", "Notices: activated, expiring, expired, renewed", "Unique Club page in Quick Access: pay Rs. 1,500 with the Fonepay, active at once for 30 days, 10% off court bookings and Gamezone from day one, no promo or VIP code with the club discount"],
+    adminTasks: ["Unique Club switch: see club members by status (active, expiring in 7 days, expired), search by name or mobile number, see joined and end dates, payments and the discount given (the Rs. 1,500 payments are in Payments > Unique Club)", "Plans CRUD and featured plan (Courts > Membership)", "Members list by status with search by name, phone or Membership ID", "New member with live price and free-hour check, pay now (cash / Fonepay) or pay later", "Verify payment (activates)", "Renew (paid now), extend free days, suspend, resume, cancel", "WhatsApp reminder and invoice", "The member hour shows as MEMBER HOLD on Slots and cannot be booked by staff"],
     endpoints: [
       e("GET", "/admin/club", "Unique Club members with status, dates, payments, discount given and totals"), e("GET", "/admin/payments/ledger?kind=club", "the Rs. 1,500 club payments"),
       e("GET", "/admin/membership/plans", "plans with the shift x 1/3/6 month price matrix"),

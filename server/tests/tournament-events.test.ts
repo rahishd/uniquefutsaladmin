@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, describe, it } from "node:test";
-import { addDaysKey, api, customer, paidQr, prisma, reset, staff, todayKey } from "./helpers";
+import { addDaysKey, api, customer, prisma, reset, staff, todayKey } from "./helpers";
 
 const today = todayKey();
 const d1 = addDaysKey(today, 1);
@@ -167,15 +167,14 @@ describe("Hosted tournaments", () => {
     assert.equal((await api.patch(`/tournaments/${id}/rate`, mgr.auth, { minRate: 2500 })).body.data.court, 20000);
   });
 
-  it("receives payments in cash and with a paid Fonepay QR, never more than is due, and tracks paid and due", async () => {
+  it("receives payments in cash and by Fonepay, never more than is due, and tracks paid and due", async () => {
     const mgr = await staff("admin");
     const id = (await api.post("/tournaments", mgr.auth, event())).body.data.id; // Rs. 16,000
     assert.equal((await api.post(`/tournaments/${id}/payments`, mgr.auth, { amount: 5000, single: "cash", note: "Advance" })).body.data.due, 11000);
     assert.equal((await api.post(`/tournaments/${id}/payments`, mgr.auth, { amount: 20000, single: "cash" })).status, 409, "more than is due");
-    const bad = await api.post(`/tournaments/${id}/payments`, mgr.auth, { amount: 6000, payments: [{ method: "cash", amount: 1000 }, { method: "fonepay", amount: 5000 }] });
-    assert.equal(bad.status, 400, "a Fonepay part needs a paid QR");
-    const qr = await paidQr(mgr.auth, 5000);
-    const ok = await api.post(`/tournaments/${id}/payments`, mgr.auth, { amount: 6000, payments: [{ method: "cash", amount: 1000 }, { method: "fonepay", amount: 5000 }], fonepayQrId: qr });
+    const bad = await api.post(`/tournaments/${id}/payments`, mgr.auth, { amount: 6000, payments: [{ method: "cash", amount: 1000 }, { method: "fonepay", amount: 4000 }] });
+    assert.equal(bad.status, 400, "the parts must add up to the amount");
+    const ok = await api.post(`/tournaments/${id}/payments`, mgr.auth, { amount: 6000, payments: [{ method: "cash", amount: 1000 }, { method: "fonepay", amount: 5000 }] });
     assert.equal(ok.status, 201);
     assert.deepEqual([ok.body.data.paid, ok.body.data.paidCash, ok.body.data.paidFonepay, ok.body.data.due], [11000, 6000, 5000, 5000]);
     assert.equal((await prisma.tournament.findFirstOrThrow()).paymentStatus, "partial");
@@ -216,8 +215,7 @@ describe("Hosted tournaments", () => {
     const id = (await api.post("/tournaments", mgr.auth, event())).body.data.id; // Rs. 16,000
     await api.post(`/tournaments/${id}/items`, mgr.auth, { items: [{ productId: water.id, quantity: 10 }] }); // Rs. 400 on the bill, no cash yet
     await api.post(`/tournaments/${id}/payments`, mgr.auth, { amount: 5000, single: "cash" });
-    const qr = await paidQr(mgr.auth, 2000);
-    await api.post(`/tournaments/${id}/payments`, mgr.auth, { amount: 2000, payments: [{ method: "fonepay", amount: 2000 }], fonepayQrId: qr });
+    await api.post(`/tournaments/${id}/payments`, mgr.auth, { amount: 2000, payments: [{ method: "fonepay", amount: 2000 }] });
     const r = (await api.get(`/inventory/report?from=${today}&to=${d1}`, mgr.auth)).body.data; // the days of the event are ahead, the money was received today
     assert.deepEqual([r.totals.cash, r.totals.fonepay, r.totals.total], [5000, 2000, 7000], "only the payments received, not the 400 of goods");
     assert.deepEqual(r.totals.bySource.tournaments, { cash: 5000, fonepay: 2000 });
