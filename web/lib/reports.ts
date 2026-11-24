@@ -6,7 +6,7 @@ type Money = { cash: number; fonepay: number; total: number };
 export type Summary = {
   from: string; to: string; days: number;
   totals: Money & { games: number; goods: number; gamezone: number; tournaments?: number }; previous: Money & { games: number; goods: number; gamezone: number; tournaments?: number };
-  byDay: (Money & { date: string; games: number; goods: number; gamezone: number })[];
+  byDay: (Money & { date: string; games: number; goods: number; gamezone: number; tournaments?: number })[];
   games: { count: number; paid: number; unpaid: number; unpaidAmount: number; averageRate: number; cancelled: number; noShows: number; source: { app: number; staff: number; challenge: number } };
   occupancy: { bookedHours: number; perDay: number; peakHours: { hour: number; games: number }[]; weekdays: { day: string; hours: number }[] };
   promos: { code: string; uses: number; discount: number }[];
@@ -14,6 +14,7 @@ export type Summary = {
   loyalty: { unexpiredEarnedPoints: number; spentPoints: number; unusedVouchers: number };
   memberships: { active: number; expiringSoon: number; waitingForPayment: number; activeValue: number };
 };
+export const getDetail = (from: string, to: string) => api<import("./inventory").Report>(`/admin/reports/detail?from=${from}&to=${to}`);
 export const getSummary = (from: string, to: string) => api<Summary>(`/admin/reports/summary?from=${from}&to=${to}`);
 
 export const nepalToday = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kathmandu" }).format(new Date());

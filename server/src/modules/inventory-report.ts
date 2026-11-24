@@ -31,7 +31,7 @@ inventoryReportRouter.get("/report", requirePermission("inventory.view"), handle
   const to = q.to ?? from;
   if (from > to) throw new AppError(400, "The From date must not be after the To date");
   if (to > addDaysKey(today, 1) || from < addDaysKey(today, -366)) throw new AppError(400, "Pick dates within the last year");
-  if (new Date(`${to}T00:00:00Z`).getTime() - new Date(`${from}T00:00:00Z`).getTime() > 92 * 86_400_000) throw new AppError(400, "Pick at most 93 days at a time");
+  if (new Date(`${to}T00:00:00Z`).getTime() - new Date(`${from}T00:00:00Z`).getTime() > 366 * 86_400_000) throw new AppError(400, "Pick at most one year at a time");
   send(res, await buildReport(from, to));
 }));
 

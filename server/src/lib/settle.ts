@@ -203,6 +203,14 @@ export async function settle(inp: SettleInput) {
     if (fresh.status === "completed") { if (await awardForCompletedBooking(fresh)) pointsGames += pointsForGame(fresh.totalPrice); } else waiting++;
   }
   pointsGames = Math.round(pointsGames * 10) / 10;
+  // a game that was waiting (an online order the customer paid by Fonepay, or a venue request) is confirmed now: tell the customer, once
+  // (the same key the customer app uses when a payment confirms a booking, so it never shows twice)
+  if (inp.userId) {
+    for (const g of games) {
+      if (g.status !== "pending") continue;
+      await notify(prisma, { userId: inp.userId, type: "booking", title: "Booking confirmed", message: `${g.date} · ${g.startTime} – ${g.endTime}. Booking ${g.code || g.id}.`, href: `/booking/${g.code || g.id}`, dedupeKey: `booked-${g.id}` });
+    }
+  }
   if (out.row) {
     await prisma.checkout.update({ where: { id: out.row.id }, data: { pointsGoods: new Prisma.Decimal(pointsGoods.toFixed(1)), pointsGames: new Prisma.Decimal(pointsGames.toFixed(1)) } });
     const how = out.pays.length > 1 ? "in cash and by Fonepay" : out.pays[0].method === "cash" ? "in cash" : "by Fonepay";

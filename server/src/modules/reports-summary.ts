@@ -9,6 +9,7 @@ import { AppError, dateStr, handler, parse, send } from "../lib/http";
 import { DEAD } from "../lib/settle";
 import { gzSplits } from "../lib/gz-pay";
 import { requirePermission } from "../middleware/auth";
+import { buildReport } from "./inventory-report";
 
 export const reportsSummaryRouter = Router();
 
@@ -55,6 +56,18 @@ async function period(from: string, to: string) {
   return { bookings, byDay, totals: { cash: sum("cash"), fonepay: sum("fonepay"), total: sum("total"), games: sum("games"), goods: sum("goods"), gamezone: sum("gamezone"), tournaments: sum("tournaments") } };
 }
 
+// Every sale in the period, line by line (for the detailed PDF)
+reportsSummaryRouter.get("/detail", requirePermission("reports.view"), handler(async (req, res) => {
+  const q = parse(query, req.query);
+  const today = todayKey();
+  const to = q.to ?? today;
+  const from = q.from ?? to;
+  if (from > to) throw new AppError(400, "The From date must not be after the To date");
+  if (to > today) throw new AppError(400, "Pick dates up to today");
+  if (new Date(`${to}T00:00:00Z`).getTime() - new Date(`${from}T00:00:00Z`).getTime() > 366 * 86_400_000 || from < addDaysKey(today, -366)) throw new AppError(400, "Pick at most one year, within the last year");
+  send(res, await buildReport(from, to));
+}));
+
 reportsSummaryRouter.get("/summary", requirePermission("reports.view"), handler(async (req, res) => {
   const q = parse(query, req.query);
   const today = todayKey();
@@ -63,7 +76,7 @@ reportsSummaryRouter.get("/summary", requirePermission("reports.view"), handler(
   if (from > to) throw new AppError(400, "The From date must not be after the To date");
   if (to > today) throw new AppError(400, "Pick dates up to today");
   const days = Math.round((new Date(`${to}T00:00:00Z`).getTime() - new Date(`${from}T00:00:00Z`).getTime()) / 86_400_000) + 1;
-  if (days > 93 || from < addDaysKey(today, -366)) throw new AppError(400, "Pick at most 93 days, within the last year");
+  if (days > 366 || from < addDaysKey(today, -366)) throw new AppError(400, "Pick at most one year, within the last year");
 
   const [cur, prev] = await Promise.all([period(from, to), period(addDaysKey(from, -days), addDaysKey(from, -1))]);
   const all = cur.bookings;

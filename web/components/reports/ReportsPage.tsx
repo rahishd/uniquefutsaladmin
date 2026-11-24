@@ -7,11 +7,11 @@ import SendPdfButton from "../SendPdfButton";
 import { pdfFileName } from "@/lib/branded-pdf";
 import { businessReportPdf } from "@/lib/report-pdfs";
 import { issuePdfCode } from "@/lib/verify";
-import { Summary, change, getSummary, h12, nepalToday, periodLabel, shiftDay, shortDay } from "@/lib/reports";
+import { Summary, change, getDetail, getSummary, h12, nepalToday, periodLabel, shiftDay, shortDay } from "@/lib/reports";
 
-type Range = "today" | "yesterday" | "week" | "month" | "thismonth" | "custom";
+type Range = "today" | "yesterday" | "week" | "month" | "thismonth" | "thisyear" | "custom";
 const RANGES: { id: Range; label: string }[] = [
-  { id: "today", label: "Today" }, { id: "yesterday", label: "Yesterday" }, { id: "week", label: "Last 7 days" }, { id: "month", label: "Last 30 days" }, { id: "thismonth", label: "This month" }, { id: "custom", label: "Custom" },
+  { id: "today", label: "Today" }, { id: "yesterday", label: "Yesterday" }, { id: "week", label: "Last 7 days" }, { id: "month", label: "Last 30 days" }, { id: "thismonth", label: "This month" }, { id: "thisyear", label: "This year" }, { id: "custom", label: "Custom" },
 ];
 const field = "rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
 
@@ -43,7 +43,7 @@ export default function ReportsPage() {
 
   const today = nepalToday();
   const [f, t] = range === "today" ? [today, today] : range === "yesterday" ? [shiftDay(today, -1), shiftDay(today, -1)] : range === "week" ? [shiftDay(today, -6), today]
-    : range === "month" ? [shiftDay(today, -29), today] : range === "thismonth" ? [`${today.slice(0, 8)}01`, today] : [from, to];
+    : range === "month" ? [shiftDay(today, -29), today] : range === "thismonth" ? [`${today.slice(0, 8)}01`, today] : range === "thisyear" ? [`${today.slice(0, 4)}-01-01`, today] : [from, to];
   const invalid = !f || !t || f > t;
 
   useEffect(() => {
@@ -66,8 +66,8 @@ export default function ReportsPage() {
         </div>
         {shown && (
           <div className="flex gap-2">
-            <SendPdfButton label="Send on WhatsApp (PDF)" build={async () => businessReportPdf(shown, await issuePdfCode("Business report"))} filename={pdfFileName("business-report", shown.from, shown.to)} message={`Unique Futsal business report for ${periodLabel(shown)}. The full report is in the attached PDF.`} className="flex items-center gap-1.5 rounded-full bg-[#25D366] px-4 py-2 text-sm font-semibold text-white" />
-            <SendPdfButton mode="download" label="Download PDF" build={async () => businessReportPdf(shown, await issuePdfCode("Business report"))} filename={pdfFileName("business-report", shown.from, shown.to)} message="" className="flex items-center gap-1.5 rounded-full border border-line bg-surface px-4 py-2 text-sm font-semibold" />
+            <SendPdfButton label="Send on WhatsApp (PDF)" build={async () => businessReportPdf(shown, await getDetail(shown.from, shown.to), await issuePdfCode("Business report"))} filename={pdfFileName("business-report", shown.from, shown.to)} message={`Unique Futsal business report for ${periodLabel(shown)}. Every sale in this period is listed in the attached PDF.`} className="flex items-center gap-1.5 rounded-full bg-[#25D366] px-4 py-2 text-sm font-semibold text-white" />
+            <SendPdfButton mode="download" label="Download PDF" build={async () => businessReportPdf(shown, await getDetail(shown.from, shown.to), await issuePdfCode("Business report"))} filename={pdfFileName("business-report", shown.from, shown.to)} message="" className="flex items-center gap-1.5 rounded-full border border-line bg-surface px-4 py-2 text-sm font-semibold" />
           </div>
         )}
       </div>
@@ -101,7 +101,9 @@ export default function ReportsPage() {
 
           <div className="grid items-start gap-4 lg:grid-cols-3 lg:gap-5">
             <Card title="Sales by day" className="lg:col-span-2">
-              <Bars label="Sales by day" pick={shown.to} items={shown.byDay.map((x) => ({ key: x.date, value: x.total, label: shown.days > 14 ? shortDay(x.date).split(" ")[0] : shortDay(x.date) }))} unit="Rs. " />
+              <Bars label="Sales by day" pick={shown.to} items={shown.days > 62
+                ? Object.entries(shown.byDay.reduce<Record<string, number>>((m, x) => { m[x.date.slice(0, 7)] = (m[x.date.slice(0, 7)] ?? 0) + x.total; return m; }, {})).map(([k, v]) => ({ key: k, value: v, label: new Date(`${k}-01T00:00:00Z`).toLocaleDateString("en-GB", { month: "short", timeZone: "UTC" }) }))
+                : shown.byDay.map((x) => ({ key: x.date, value: x.total, label: shown.days > 14 ? shortDay(x.date).split(" ")[0] : shortDay(x.date) }))} unit="Rs. " />
               <details className="mt-3 text-sm"><summary className="cursor-pointer font-semibold text-brand">Show the numbers day by day</summary>
                 <div className="mt-2 overflow-x-auto"><table className="w-full min-w-[480px] text-left text-sm"><thead className="text-xs text-muted"><tr><th className="py-1.5 pr-3">Day</th><th className="pr-3 text-right">Cash</th><th className="pr-3 text-right">Fonepay</th><th className="text-right">Total</th></tr></thead>
                   <tbody className="divide-y divide-line">{[...shown.byDay].reverse().map((x) => <tr key={x.date}><td className="py-1.5 pr-3">{shortDay(x.date)}</td><td className="pr-3 text-right">{rs(x.cash)}</td><td className="pr-3 text-right">{rs(x.fonepay)}</td><td className="text-right font-semibold">{rs(x.total)}</td></tr>)}</tbody></table></div>

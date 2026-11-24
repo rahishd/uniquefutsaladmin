@@ -80,3 +80,16 @@ describe("Alerts that staff actions send to the customer's phone and watch", () 
     assert.equal(pushes.length, 1);
   });
 });
+
+describe("Collect payment (Fonepay) confirms a waiting booking", () => {
+  it("the customer is told the booking is confirmed, once, when staff collect it", async () => {
+    const owner = await staff("owner");
+    await customer("9802000007", "Fonepay Fan");
+    await device("9802000007");
+    const b = await booking("9802000007", "pending");
+    const r = await api.post("/bookings/collect-dues", owner.auth, { anchorId: b.id, bookingIds: [b.id], goodsDueIds: [], method: "fonepay" });
+    assert.equal(r.status, 200);
+    assert.equal(pushes.filter((p) => p.title === "Booking confirmed").length, 1);
+    assert.equal(await prisma.notification.count({ where: { userId: "9802000007", title: "Booking confirmed" } }), 1);
+  });
+});
