@@ -1,11 +1,11 @@
-// Sends a text from the admin server (mass messages and login details from the SMS page) and writes it to SmsLog.
+// Sends a text from the admin server (login details of a customer staff have just added) and writes it to SmsLog.
 // Same two senders as the customer backend (services/sms.service.ts there), chosen by SMS_PROVIDER:
 //   "android" : SMS Gateway for Android in cloud mode (a phone with the venue SIM sends the text)
 //   "sparrow" : Sparrow SMS bulk gateway (the default)
 // Use the same SMSGATE_* / SPARROW_* values in this server's environment as in the customer backend.
 import { prisma } from "../db";
 
-export type SmsKind = "mass" | "login_details" | "test";
+export type SmsKind = "login_details";
 
 const provider = () => ((process.env.SMS_PROVIDER || "sparrow").toLowerCase() === "android" ? "android" : "sparrow");
 
@@ -64,24 +64,17 @@ async function viaSparrow(phone: string, message: string): Promise<Outcome> {
 }
 
 /** Sends one text and writes the SmsLog row. Never throws: the result says what happened. */
-export async function sendSms(o: { phone: string; message: string; kind: SmsKind; name?: string | null }): Promise<Outcome> {
+export async function sendSms(o: { phone: string; message: string; kind: SmsKind; name?: string | null; logMessage?: string }): Promise<Outcome> {
   const out: Outcome = smsConfigured()
     ? provider() === "android" ? await viaAndroid(o.phone, o.message) : await viaSparrow(o.phone, o.message)
     : { ok: false, error: "The SMS gateway is not set up on this server (see SMS_PROVIDER and SMSGATE_* in its environment)" };
   try {
     await prisma.smsLog.create({
       data: {
-        phoneNumber: o.phone, recipientName: o.name ?? null, kind: o.kind, message: o.message.slice(0, 1000),
+        phoneNumber: o.phone, recipientName: o.name ?? null, kind: o.kind, message: (o.logMessage ?? o.message).slice(0, 1000),
         status: out.ok ? "queued" : "failed", provider: provider(), providerId: out.id ?? null, error: out.ok ? null : (out.error ?? "Unknown error").slice(0, 300),
       },
     });
   } catch { /* the log is a record, never a reason to fail a text */ }
   return out;
-}
-
-/** About how many SMS a text costs: 160 characters each, or 70 when it has Nepali or other non-Latin letters. */
-export function smsParts(text: string): number {
-  const unicode = /[^\u0000-\u007F -ÿ]/.test(text);
-  const per = unicode ? 70 : 160;
-  return Math.max(1, Math.ceil(text.length / per));
 }

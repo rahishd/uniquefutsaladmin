@@ -1,14 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Copy, RefreshCw, UserPlus, X } from "lucide-react";
+import { Check, Copy, MessageSquare, RefreshCw, UserPlus, X } from "lucide-react";
 import SendPdfButton from "../SendPdfButton";
 import { pdfFileName } from "@/lib/branded-pdf";
 import { customerLoginPdf } from "@/lib/share-pdfs";
 import Switch from "../Switch";
 import { guard } from "@/lib/access";
 import { ApiError } from "@/lib/api";
-import { addCustomer } from "@/lib/customers";
+import { addCustomer, sendLoginSms } from "@/lib/customers";
 import { copyText } from "@/lib/vip";
 
 const field = "w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
@@ -31,6 +31,8 @@ export default function AddCustomerSheet({ onClose, onAdded }: { onClose: () => 
   const [error, setError] = useState("");
   const [done, setDone] = useState<{ name: string; phone: string; password: string | null } | null>(null);
   const [copied, setCopied] = useState("");
+  const [sms, setSms] = useState<"idle" | "sending" | "sent">("idle");
+  const [smsError, setSmsError] = useState("");
 
   async function submit(ev: React.FormEvent) {
     ev.preventDefault();
@@ -50,6 +52,13 @@ export default function AddCustomerSheet({ onClose, onAdded }: { onClose: () => 
     } finally {
       setBusy(false);
     }
+  }
+
+  async function sendSmsNow() {
+    if (!done?.password || sms === "sending") return;
+    setSms("sending"); setSmsError("");
+    try { await sendLoginSms(done.phone, done.password); setSms("sent"); }
+    catch (e) { setSms("idle"); setSmsError(e instanceof ApiError ? e.message : "The text was not sent"); }
   }
 
   const copy = async (what: string, text: string) => { if (await copyText(text)) { setCopied(what); setTimeout(() => setCopied(""), 1500); } };
@@ -74,8 +83,11 @@ export default function AddCustomerSheet({ onClose, onAdded }: { onClose: () => 
                 <p className="text-xs text-muted">Give these to the customer so they can sign in to the app. The password is shown only now.</p>
                 <div className="flex flex-wrap gap-2">
                   <button type="button" onClick={() => copy("all", `Mobile: ${done.phone}\nPassword: ${done.password}`)} className="flex items-center gap-1.5 rounded-full bg-surface-2 px-4 py-2 text-sm font-semibold">{copied === "all" ? <Check size={14} /> : <Copy size={14} />} {copied === "all" ? "Copied" : "Copy details"}</button>
-                  <SendPdfButton wrapperClassName="inline-block" label="Send login details (PDF)" build={() => customerLoginPdf({ name: done.name, phone: done.phone, password: done.password! })} filename={pdfFileName("login-details", done.phone)} phone={done.phone} message={`Hello ${done.name.split(" ")[0]}! Your Unique Futsal login details are in the attached PDF.`} className="flex items-center gap-1.5 rounded-full bg-[#25D366] px-4 py-2 text-sm font-semibold text-white" />
+                  <button type="button" onClick={sendSmsNow} disabled={sms === "sending"} className="flex items-center gap-1.5 rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">{sms === "sent" ? <Check size={14} /> : <MessageSquare size={14} />} {sms === "sending" ? "Sending…" : sms === "sent" ? "Sent by SMS" : "Send by SMS"}</button>
+                  <SendPdfButton wrapperClassName="inline-block" label="Send on WhatsApp (PDF)" build={() => customerLoginPdf({ name: done.name, phone: done.phone, password: done.password! })} filename={pdfFileName("login-details", done.phone)} phone={done.phone} message={`Hello ${done.name.split(" ")[0]}! Your Unique Futsal login details are in the attached PDF.`} className="flex items-center gap-1.5 rounded-full bg-[#25D366] px-4 py-2 text-sm font-semibold text-white" />
                 </div>
+                {smsError && <p role="alert" className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600">{smsError}</p>}
+                <p className="text-xs text-muted">The text says only: mobile number, password and where to sign in (about 12 words).</p>
               </>
             ) : (
               <p className="rounded-xl bg-surface-2 p-3 text-xs text-muted">This customer cannot sign in to the app (no password was set). They exist as a record for bookings, billing and points.</p>

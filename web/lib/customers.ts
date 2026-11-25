@@ -94,6 +94,9 @@ export const setActive = (phone: string, active: boolean) => api(`/admin/custome
 export const addCustomer = (b: { name: string; phoneNumber: string; email?: string; password?: string }) =>
   api<{ phoneNumber: string; name: string | null; email: string | null; canSignIn: boolean }>("/admin/customers", { method: "POST", body: JSON.stringify(b) });
 
+// The login details of a customer just added, as a short SMS (under 30 words)
+export const sendLoginSms = (phone: string, password: string) => api<{ phone: string }>("/admin/customers/login-sms", { method: "POST", body: JSON.stringify({ phone, password }) });
+
 export const initials = (name: string | null, phone: string) =>
   (name ?? "").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("") || phone.slice(-2);
 

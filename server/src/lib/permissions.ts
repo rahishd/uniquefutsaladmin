@@ -154,11 +154,6 @@ export const SECTIONS: Section[] = [
     { key: "reminders.view", label: "View All Reminders" },
     { key: "reminders.manage", label: "Add / Edit / Delete Reminders" },
   ] },
-  { id: "sms", label: "SMS Messages", permissions: [
-    { key: "sms.view", label: "View Sent SMS Messages" },
-    { key: "sms.manage", label: "Edit the Wording of SMS Messages" },
-    { key: "sms.send", label: "Send Mass SMS and Login Details to Customers" },
-  ] },
   { id: "notices", label: "Notices", permissions: [{ key: "notifications.send", label: "Send Notices to Customers (with an optional link)" }] },
   { id: "reports", label: "Reports & Audit", permissions: [
     { key: "reports.view", label: "View Reports" },

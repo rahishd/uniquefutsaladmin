@@ -14,8 +14,15 @@ import { cancellationProfile, cancellationStreaks } from "./cancellations";
 import { CATEGORIES } from "./complaints";
 import { getPromoCodes } from "./settings-store";
 import { gzSplits } from "../lib/gz-pay";
+import { sendSms, smsConfigured } from "../lib/sms-send";
 
 export const customersRouter = Router();
+
+/** "Unique Futsal login. Mobile: 98XXXXXXXX Password: abc12345 Open uniquefutsal.com and sign in." About 12 words. */
+export function loginSmsText(phone: string, password: string): string {
+  const link = (process.env.CUSTOMER_APP_URL || "https://www.uniquefutsal.com").replace(/^https?:\/\//, "").replace(/\/+$/, "");
+  return `Unique Futsal login. Mobile: ${phone} Password: ${password} Sign in at ${link}`;
+}
 
 // Never send the password hash or Google ids.
 const pub = { phoneNumber: true, name: true, email: true, isActive: true, createdAt: true, freeMatchesAvailable: true, isVerified: true, avatar: true } as const;
@@ -309,6 +316,19 @@ customersRouter.post("/", requirePermission("customers.create"), handler(async (
   });
   await audit(req, "create-customer", "customer", u.phoneNumber, { name: u.name, email: u.email, signIn: !!b.password });
   send(res, { ...u, canSignIn: !!b.password }, "Customer added", 201);
+}));
+
+// The login details of a customer staff have just added, by SMS: short (under 30 words) so it is one text.
+customersRouter.post("/login-sms", requirePermission("customers.create"), handler(async (req, res) => {
+  const b = parse(z.object({ phone: z.string().regex(/^9\d{9}$/), password: z.string().min(6).max(72) }), req.body);
+  if (!smsConfigured()) throw new AppError(503, "The SMS gateway is not set up on the admin server yet. Use WhatsApp, or ask the developer to add the SMS settings.");
+  const u = await prisma.user.findUnique({ where: { phoneNumber: b.phone }, select: { phoneNumber: true, name: true, role: true } });
+  if (!u || u.role !== "user") throw new AppError(404, "Customer not found");
+  const message = loginSmsText(b.phone, b.password);
+  const r = await sendSms({ phone: u.phoneNumber, message, kind: "login_details", name: u.name, logMessage: loginSmsText(b.phone, "******") });
+  await audit(req, "customer.login-sms", "customer", u.phoneNumber, { ok: r.ok });
+  if (!r.ok) throw new AppError(502, `The text was not sent: ${r.error}`);
+  send(res, { phone: u.phoneNumber }, "Login details sent by SMS");
 }));
 
 customersRouter.patch("/:phone", requirePermission("customers.edit"), handler(async (req, res) => {

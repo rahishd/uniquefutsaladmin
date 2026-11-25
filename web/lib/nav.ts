@@ -320,19 +320,6 @@ export const modules: Module[] = [
     ],
   },
   {
-    slug: "sms", title: "SMS Messages", group: "Admin", icon: "message",
-    summary: "The texts sent to customers (booking requested, confirmed, cancelled, reminders and OTP codes), and the wording of each.",
-    clientFeatures: ["Texts about their bookings: requested, confirmed, cancelled, a reminder one hour before", "A 6-digit code by SMS to sign in or to verify a new mobile number"],
-    adminTasks: ["Send a message to many customers at once (wishes, offers, notices): pick a group (all, members, VIP, played recently, haven't played in a while, birthdays today, new this week, or typed numbers), write the text with {name}, send yourself a test, review the count, confirm, and watch it send with a Stop button", "New customers: share login details by SMS (mobile number, app address and how to sign in with a password or an OTP code; a password is never sent), and see who already got them", "See every text sent: who, which number, what type, the full message and whether the gateway took it", "Search by name, number, booking code or words, and filter by type, result and dates", "Change the wording of booking confirmation, cancelled booking, booking requested, game reminder and OTP messages, with placeholders like {name} and {time}", "See a live example of the text while typing, and go back to the standard wording any time", "One-time codes are never stored: the log shows them hidden"],
-    endpoints: [
-      e("GET", "/admin/sms/logs", "sent texts with filters, counts and pages"), e("GET", "/admin/sms/templates", "the wording of each message"),
-      e("PUT", "/admin/sms/templates/:key", "save new wording"), e("DELETE", "/admin/sms/templates/:key", "back to the standard wording"),
-      e("GET", "/admin/sms/audiences", "the groups of customers and how many are in each"), e("POST", "/admin/sms/campaigns/preview", "how many people a group is"),
-      e("POST", "/admin/sms/campaigns", "start a mass message"), e("GET", "/admin/sms/campaigns", "recent mass messages and their progress"), e("POST", "/admin/sms/campaigns/:id/stop", "stop one that is sending"), e("POST", "/admin/sms/campaigns/test", "a test text to one number"),
-      e("GET", "/admin/sms/new-customers", "recent registrations and whether login details were sent"), e("POST", "/admin/sms/login-details", "text login details to chosen new customers"),
-    ],
-  },
-  {
     slug: "verify", title: "Verify Document", group: "Communication", icon: "shield",
     summary: "Verification codes for bills and for documents you give to schools, banks and colleges. Anyone can check a code on the customer site.",
     clientFeatures: ["Verify Documents in Quick Access: type a 5-character code (like 1234A) to see if a bill or document is genuine", "A verification code on every receipt in Payment history and its PDF", "Genuine: the bill or document details; not genuine: a clear warning"],
