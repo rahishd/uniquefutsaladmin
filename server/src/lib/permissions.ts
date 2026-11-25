@@ -164,6 +164,10 @@ export const SECTIONS: Section[] = [
     { key: "reports.view", label: "View Reports" },
     { key: "audit.view", label: "View Audit Log" },
   ] },
+  { id: "payroll", label: "Payroll", permissions: [
+    { key: "payroll.view", label: "View Payroll: Salaries, What Was Paid and What Is Owed" },
+    { key: "payroll.manage", label: "Set Salaries and Pay Staff" },
+  ] },
   { id: "settings", label: "Settings", permissions: [
     { key: "settings.view", label: "View Venue Settings & Integrations" },
     { key: "settings.edit", label: "Change Venue Details, Wi-Fi & Booking Deposit" },

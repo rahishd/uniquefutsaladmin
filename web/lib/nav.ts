@@ -376,6 +376,17 @@ export const modules: Module[] = [
     ],
   },
   {
+    slug: "payroll", title: "Payroll", group: "Admin", icon: "wallet",
+    summary: "Each staff member's monthly salary, what has been paid and what is still owed, a month at a time.",
+    clientFeatures: [],
+    adminTasks: ["Switch months with the arrows", "Set a person's monthly salary (it applies from the month you are looking at; earlier months keep theirs)", "Pay any amount, any time: whatever is left unpaid carries over to the next month", "See who is owed with one tap", "Click a row for the month-by-month history and the payments made, and to undo a payment entered by mistake"],
+    endpoints: [
+      e("GET", "/admin/payroll", "a month: totals and every person's salary, previous dues, paid and remaining"),
+      e("PUT", "/admin/payroll/staff/:id/salary", "set the salary from a month on"), e("POST", "/admin/payroll/staff/:id/pay", "record a payment toward a month"),
+      e("GET", "/admin/payroll/staff/:id/history", "month by month and the payments"), e("DELETE", "/admin/payroll/payments/:pid", "remove a payment entered by mistake"),
+    ],
+  },
+  {
     slug: "audit", title: "Audit Log", group: "Admin", icon: "list",
     summary: "Who changed what and when.",
     clientFeatures: [],

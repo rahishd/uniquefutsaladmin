@@ -45,6 +45,7 @@ import { ludoRouter } from "./modules/ludo";
 import { serviceFundsRouter } from "./modules/service-funds";
 import { giftsRouter } from "./modules/gifts";
 import { remindersRouter } from "./modules/reminders";
+import { payrollRouter } from "./modules/payroll";
 import { smsRouter } from "./modules/sms";
 import { smsMassRouter } from "./modules/sms-mass";
 import { dayCheckRouter } from "./modules/day-check";
@@ -116,6 +117,7 @@ admin.use("/ludo", ludoRouter); // Unique Ludo replaced Goal Rush in the custome
 admin.use("/service-funds", serviceFundsRouter);
 admin.use("/gifts", giftsRouter);
 admin.use("/reminders", remindersRouter);
+admin.use("/payroll", payrollRouter);
 admin.use("/sms", smsRouter);
 admin.use("/sms", smsMassRouter);
 admin.use("/day-check", dayCheckRouter);

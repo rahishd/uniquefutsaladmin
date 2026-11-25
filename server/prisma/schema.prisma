@@ -1732,3 +1732,31 @@ model LudoDailyUsage {
 
   @@id([userId, day, mode])
 }
+
+// Payroll: a staff member's monthly salary from a month on (the latest row at or before a month applies to it) ...
+model StaffSalary {
+  id        String   @id @default(cuid())
+  staffId   String
+  month     String // YYYY-MM: the salary applies from this month on
+  amount    Decimal  @db.Decimal(12, 2)
+  setById   String
+  setByName String
+  createdAt DateTime @default(now())
+
+  @@unique([staffId, month])
+  @@index([staffId])
+}
+
+// ... and the money given to them, counted toward a payroll month. Unpaid salary carries over to the following months.
+model StaffPayment {
+  id         String   @id @default(cuid())
+  staffId    String
+  month      String // YYYY-MM: the payroll month this payment counts toward
+  amount     Decimal  @db.Decimal(12, 2)
+  note       String?
+  paidById   String
+  paidByName String
+  createdAt  DateTime @default(now())
+
+  @@index([staffId, month])
+}
