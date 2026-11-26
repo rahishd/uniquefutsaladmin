@@ -134,7 +134,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[264px_minmax(0,1fr)]">
-        <header className="sticky top-0 z-30 flex h-auto min-h-16 min-w-0 flex-wrap items-center md:flex-nowrap pb-2 pt-[max(calc(env(safe-area-inset-top)_-_0.625rem),0.5rem)] md:h-16 md:pb-0 md:pt-0 justify-between gap-3 bg-(--nav-wash) pl-2 pr-4 text-(--nav-ink) lg:col-span-2 lg:pl-3 lg:pr-8">
+        <header className="sticky top-0 z-30 flex h-auto min-h-16 min-w-0 flex-wrap items-center md:flex-nowrap pb-0.5 pt-[max(calc(env(safe-area-inset-top)_-_0.75rem),0.625rem)] md:h-16 md:pb-0 md:pt-0 justify-between gap-3 bg-(--nav-wash) pl-2 pr-4 text-(--nav-ink) lg:col-span-2 lg:pl-3 lg:pr-8">
           {/* the logo and name reload the portal from its home page (a plain link, not a client-side one, so it is a real restart) */}
           <a href={withBase("/")} aria-label="Unique Futsal, reload the portal" className="flex shrink-0 items-center gap-3 pr-2 text-(--nav-ink) no-underline">
             {/* the player alone, turned white for the navy bar */}
@@ -147,7 +147,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           {/* the frequent pages as icons, on every page, for quick switching (the name shows on hover or long press) */}
           {/* the Dashboard is the page of shortcuts itself, so the icon row is not shown there */}
           {!pathname.startsWith("/dashboard") && (
-            <nav aria-label="Frequent pages" className="order-last mx-0 flex min-w-0 basis-full md:order-none md:flex-1 md:basis-auto items-center justify-between gap-1.5 overflow-x-auto py-2 max-md:-mr-2 md:mx-3 md:justify-center md:gap-2.5 md:[mask-image:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <nav aria-label="Frequent pages" className="order-last mx-0 flex min-w-0 basis-full md:order-none md:flex-1 md:basis-auto items-center justify-between gap-1.5 overflow-x-auto pb-0.5 pt-1.5 max-md:-mr-2 md:mx-3 md:justify-center md:gap-2.5 md:[mask-image:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {visible.filter((f) => !f.notInTopBar).map((f) => {
                 const on = isActive(f.href);
                 const n = live.unseenFor(f.href).length;
@@ -166,7 +166,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
                     className={`relative ${f.deskOnly ? "max-md:hidden " : ""}grid h-9 w-9 shrink-0 place-items-center rounded-xl md:h-11 md:w-11 md:rounded-2xl transition ${on ? "bg-[#f5822a] text-white shadow-lg ring-[#f5822a]" : "text-(--nav-ink) hover:bg-(--nav-ink)/5"}`}
                   >
                     <f.icon size={18} className="md:h-[22px] md:w-[22px]" />
-                    {n > 0 && <span className="absolute -right-1.5 -top-1.5 grid min-w-[20px] place-items-center rounded-full bg-red-600 px-1 text-[11px] font-bold leading-5 text-white ring-2 ring-white">{n > 9 ? "9+" : n}</span>}
+                    {n > 0 && <span className="absolute -right-1 -top-1 grid min-w-[20px] place-items-center rounded-full bg-red-600 px-1 text-[11px] font-bold leading-5 text-white ring-2 ring-white">{n > 9 ? "9+" : n}</span>}
                   </Link>
                 );
               })}

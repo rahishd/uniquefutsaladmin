@@ -29,8 +29,9 @@ export default function TournamentsPage() {
     return () => { live = false; clearInterval(t); };
   }, []);
 
-  const hosted = items?.filter((t) => t.hostedEvent) ?? [];
-  const upcoming = items?.filter((t) => !t.hostedEvent && t.state !== "completed") ?? [];
+  // Upcoming: anything that has not started yet (hosted events too). Hosted: the events the venue hosts that are running or finished.
+  const upcoming = items?.filter((t) => t.state === "upcoming") ?? [];
+  const hosted = items?.filter((t) => t.hostedEvent && t.state !== "upcoming") ?? [];
   const shown = tab === "hosted" ? hosted : upcoming;
 
   return (
@@ -40,7 +41,7 @@ export default function TournamentsPage() {
         <h1 className="flex items-center gap-2 text-2xl font-bold"><Trophy className="text-amber-500" /> Tournaments</h1>
         <p className="text-sm text-muted">Open a tournament to edit its tie-sheet, score goals live and share a private link with the match-day host. Customers see every change in the app.</p>
        </div>
-       <div className="flex flex-wrap items-center gap-2">
+       <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center max-sm:[&>*]:w-full max-sm:[&>*]:justify-center">
         <ExportContactsButton label="Export contacts" title="Export every tournament's captains and hosts, and all customers, to Excel" />
         <button onClick={() => guard("tournaments.create") && setRegistering(true)} className="flex shrink-0 items-center gap-1.5 rounded-full bg-brand px-4 py-2.5 text-sm font-semibold text-white"><Plus size={16} /> Register tournament</button>
        </div>
@@ -49,14 +50,14 @@ export default function TournamentsPage() {
       {error && <p role="alert" className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600">{error}</p>}
       {!items && !error && <p className="py-10 text-center text-sm text-muted">Loading…</p>}
       {items && (
-        <div role="tablist" aria-label="Tournaments" className="flex gap-2">
+        <div role="tablist" aria-label="Tournaments" className="grid grid-cols-2 gap-2 sm:flex">
           {([["hosted", "Hosted", hosted.length], ["upcoming", "Upcoming", upcoming.length]] as const).map(([id, label, n]) => (
-            <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={`rounded-full px-5 py-2 text-sm font-semibold transition ${tab === id ? "bg-brand text-white" : "bg-surface text-foreground shadow-sm"}`}>{label} <span className="opacity-70">{n}</span></button>
+            <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={`rounded-full px-5 py-2 text-center text-sm font-semibold transition ${tab === id ? "bg-brand text-white" : "bg-surface text-foreground shadow-sm"}`}>{label} <span className="opacity-70">{n}</span></button>
           ))}
         </div>
       )}
       {items && shown.length === 0 && (
-        <div className="grid place-items-center gap-3 rounded-2xl bg-surface py-14 text-center text-muted shadow-sm"><Trophy size={34} strokeWidth={1.5} /><p>{tab === "hosted" ? "No hosted tournaments yet." : "No upcoming tournaments."}</p></div>
+        <div className="grid place-items-center gap-3 rounded-2xl bg-surface py-14 text-center text-muted shadow-sm"><Trophy size={34} strokeWidth={1.5} /><p>{tab === "hosted" ? "No running or finished hosted tournaments." : "No upcoming tournaments."}</p></div>
       )}
 
       <ul className="grid grid-cols-[minmax(0,1fr)] items-start gap-3 xl:grid-cols-2">

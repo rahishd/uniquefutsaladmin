@@ -145,10 +145,10 @@ export default function NotificationBell() {
 
   return (
     <div ref={box} className="relative">
-      <button type="button" onClick={toggle} aria-label={badge ? `Notifications, ${badge} new or needing attention` : "Notifications"} aria-expanded={open} className="relative grid h-11 w-11 place-items-center rounded-2xl bg-red-600 text-white shadow-md transition hover:bg-red-700">
+      <button type="button" onClick={toggle} aria-label={badge ? `Notifications, ${badge} new or needing attention` : "Notifications"} aria-expanded={open} className="relative grid h-10 w-10 place-items-center rounded-2xl bg-red-600 md:h-11 md:w-11 text-white shadow-md transition hover:bg-red-700">
         <style>{`@keyframes uf-ring{0%,60%,100%{transform:rotate(0)}5%{transform:rotate(18deg)}10%{transform:rotate(-16deg)}15%{transform:rotate(14deg)}20%{transform:rotate(-12deg)}25%{transform:rotate(8deg)}30%{transform:rotate(-6deg)}35%{transform:rotate(0)}}.uf-ring{transform-origin:50% 12%;animation:uf-ring 2.6s ease-in-out infinite}@media (prefers-reduced-motion:reduce){.uf-ring{animation:none}}`}</style>
         <Bell size={24} className={badge > 0 ? "uf-ring" : ""} />
-        {badge > 0 && <span className="absolute -right-1.5 -top-1.5 grid min-w-[20px] place-items-center rounded-full bg-white px-1 text-[11px] font-bold leading-5 text-red-600 shadow ring-2 ring-red-600">{badge > 9 ? "9+" : badge}</span>}
+        {badge > 0 && <span className="absolute -right-2 -top-2 grid min-w-[22px] place-items-center rounded-full bg-white px-1 text-xs font-bold leading-[22px] text-red-600 shadow ring-2 ring-red-600">{badge > 9 ? "9+" : badge}</span>}
       </button>
 
       {toast && !open && (

@@ -8,7 +8,7 @@ import NamasteBoy from "@/components/NamasteBoy";
 
 // Split screen: a blue welcome panel on the left, a white sign-in form on the right (stacked on a phone).
 // Fields are underlined; the form side stays light in dark mode too.
-const field = "flex items-center gap-3 border-b border-slate-300 py-3 transition focus-within:border-[#2b2bc0]";
+const field = "flex items-center gap-3 border-b border-slate-300 py-2 transition lg:py-3 focus-within:border-[#2b2bc0]";
 const inputCls = "w-full bg-transparent text-[15px] text-slate-900 outline-none placeholder:text-slate-400";
 
 export default function LoginPage() {
@@ -38,10 +38,11 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="grid min-h-screen bg-white text-slate-900 lg:grid-cols-2">
+    <main className="flex h-dvh flex-col overflow-hidden bg-white text-slate-900 lg:grid lg:h-auto lg:min-h-screen lg:grid-cols-2 lg:overflow-visible">
       {/* welcome panel */}
-      <section className="relative flex flex-col justify-between overflow-hidden bg-[linear-gradient(160deg,#0c0b5d_0%,#090851_55%,#06053a_100%)] px-8 py-8 text-white sm:px-14 sm:py-10 lg:min-h-screen lg:px-20 lg:py-16">
+      <section className="relative hidden flex-col justify-between overflow-hidden bg-[linear-gradient(160deg,#0c0b5d_0%,#090851_55%,#06053a_100%)] px-5 py-3 text-white sm:px-14 sm:py-5 lg:flex lg:min-h-screen lg:px-20 lg:py-16">
 
+        {/* desktop: the large welcome panel */}
         <div className="relative">
           {/* the player alone, no tile; the navy mark is turned white so it reads on the blue panel */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -60,15 +61,28 @@ export default function LoginPage() {
       </section>
 
       {/* sign-in form */}
-      <section className="relative flex flex-col justify-start px-8 pb-24 pt-12 sm:px-14 lg:px-24 lg:pt-16">
-        <div className="mx-auto w-full max-w-sm">
-          <header className="mt-10 lg:mt-0">
-            <NamasteBoy className="-ml-2 mb-2" />
-            <h1 className="text-[34px] font-extrabold tracking-tight">Welcome Back!</h1>
-            <p className="mt-2 text-sm text-slate-500">Sign in with your staff email and password.</p>
+      <section className="relative flex min-h-0 flex-1 flex-col justify-start px-8 pb-3 pt-2 sm:px-14 lg:flex-none lg:justify-start lg:px-24 lg:pb-24 lg:pt-16">
+        {/* phone: no blue box. The name on the left, only the logo at the top right, "Admin Portal" big below */}
+        <div className="shrink-0 pb-2 pt-[max(env(safe-area-inset-top),1.5rem)] lg:hidden">
+          {/* the name sits just above "Admin Portal"; the bigger logo stands at the right and its feet line up with the text's baseline */}
+          <div className="flex items-end justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-base font-extrabold leading-none tracking-tight text-[#0c0b5d]">Unique Futsal</p>
+              <h2 className="mt-2 text-4xl font-extrabold leading-none tracking-tight text-[#0c0b5d]">Admin Portal</h2>
+            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo-mark.png" alt="Unique Futsal" className="mb-[8px] h-[4.5rem] w-auto shrink-0" />
+          </div>
+        </div>
+
+        <div className="mx-auto w-full max-w-sm max-lg:my-auto">
+          <header className="lg:mt-0">
+            <NamasteBoy className="-ml-2 mb-1 max-lg:[&_svg]:!h-24" />
+            <h1 className="text-2xl font-extrabold tracking-tight lg:text-[34px]">Welcome Back!</h1>
+            <p className="mt-1 text-sm text-slate-500 lg:mt-2">Sign in with your staff email and password.</p>
           </header>
 
-          <form onSubmit={submit} className="mt-8 space-y-5" noValidate>
+          <form onSubmit={submit} className="mt-3 space-y-3 lg:mt-8 lg:space-y-5" noValidate>
             <div>
               <label className={`${field} ${emailBad ? "!border-red-400" : ""}`}>
                 <Mail size={18} className={emailBad ? "text-red-400" : "text-slate-400"} />
@@ -95,7 +109,7 @@ export default function LoginPage() {
 
             <button
               disabled={busy || !email.trim() || !password}
-              className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-[#0c0b5d] py-3.5 text-[15px] font-semibold text-white transition hover:bg-[#090851] disabled:opacity-50"
+              className="mt-1 flex w-full items-center justify-center gap-2 rounded-lg bg-[#0c0b5d] py-3 lg:mt-2 lg:py-3.5 text-[15px] font-semibold text-white transition hover:bg-[#090851] disabled:opacity-50"
             >
               {busy ? <><Loader2 size={18} className="animate-spin" /> Signing in…</> : "Login Now"}
             </button>
@@ -106,7 +120,7 @@ export default function LoginPage() {
             </p>
           </form>
         </div>
-        <p className="absolute inset-x-0 bottom-5 text-center text-sm font-bold text-[#0c0b5d]">Designed &amp; developed by Rahish Dumre</p>
+        <p className="mt-3 text-center text-xs font-bold lg:absolute lg:inset-x-0 lg:bottom-5 lg:mt-0 lg:text-sm text-[#0c0b5d]">Designed &amp; developed by Rahish Dumre</p>
       </section>
     </main>
   );
