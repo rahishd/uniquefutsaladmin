@@ -39,17 +39,16 @@ function Sheet({ title, sub, onClose, children }: { title: string; sub?: React.R
 
 type OfferDraft = { title: string; code: string; discountText: string; pointsCost: string; maxPerCustomer: string };
 const blankOffer = (): OfferDraft => ({ title: "", code: "", discountText: "", pointsCost: "", maxPerCustomer: "" });
-const toOffer = (d: OfferDraft): OfferInput => ({ title: d.title.trim(), code: d.code.trim().toUpperCase(), discountText: d.discountText.trim(), pointsCost: Number(d.pointsCost), maxPerCustomer: d.maxPerCustomer.trim() ? Number(d.maxPerCustomer) : null });
+const toOffer = (d: OfferDraft): OfferInput => ({ title: d.title.trim(), code: d.code.trim() ? d.code.trim().toUpperCase() : undefined, discountText: d.discountText.trim(), pointsCost: Number(d.pointsCost), maxPerCustomer: d.maxPerCustomer.trim() ? Number(d.maxPerCustomer) : null });
 const offerProblem = (d: OfferDraft) =>
-  d.title.trim().length < 2 ? "Give the offer a title." : !/^[A-Za-z0-9-]{3,20}$/.test(d.code.trim()) ? "The discount code is 3 to 20 letters, digits or dashes." : d.discountText.trim().length < 2 ? "Say what the customer gets, for example 10% off the bill."
+  d.title.trim().length < 2 ? "Say what the discount is given on, for example All bags." : d.discountText.trim().length < 2 ? "Enter the discount amount, for example 10% or Rs. 200."
     : !(Number(d.pointsCost) >= 0.5) ? "Enter how many loyalty points this discount costs." : "";
 
 function OfferFields({ d, set }: { d: OfferDraft; set: (p: Partial<OfferDraft>) => void }) {
   return (
     <div className="grid gap-2 sm:grid-cols-2">
-      <input aria-label="Offer title" placeholder="Title, e.g. 10% off the bill" value={d.title} maxLength={60} onChange={(e) => set({ title: e.target.value })} className={field} />
-      <input aria-label="Discount code" placeholder="Discount code, e.g. UF10" value={d.code} maxLength={20} onChange={(e) => set({ code: e.target.value.toUpperCase() })} className={`${field} font-mono`} />
-      <input aria-label="What the customer gets" placeholder="What they get, e.g. 10% off your bill" value={d.discountText} maxLength={80} onChange={(e) => set({ discountText: e.target.value })} className={`${field} sm:col-span-2`} />
+      <label className="block text-xs text-muted">Title (discount to be given on)<input aria-label="Offer title" placeholder="e.g. All bags, Food and drinks" value={d.title} maxLength={60} onChange={(e) => set({ title: e.target.value })} className={`${field} mt-1 w-full`} /></label>
+      <label className="block text-xs text-muted">Discount amount<input aria-label="Discount amount" placeholder="e.g. 10% or Rs. 200" value={d.discountText} maxLength={80} onChange={(e) => set({ discountText: e.target.value })} className={`${field} mt-1 w-full`} /></label>
       <label className="flex items-center gap-2 text-xs text-muted">Loyalty points <input inputMode="decimal" aria-label="Loyalty points this discount costs" placeholder="20" value={d.pointsCost} onChange={(e) => set({ pointsCost: e.target.value.replace(/[^\d.]/g, "").slice(0, 7) })} className={field} /></label>
       <label className="flex items-center gap-2 text-xs text-muted">Max per customer <input inputMode="numeric" aria-label="Most times one customer can use it" placeholder="no limit" value={d.maxPerCustomer} onChange={(e) => set({ maxPerCustomer: e.target.value.replace(/\D/g, "").slice(0, 3) })} className={field} /></label>
     </div>
@@ -58,7 +57,7 @@ function OfferFields({ d, set }: { d: OfferDraft; set: (p: Partial<OfferDraft>) 
 
 /* ---------------- register a new partner ---------------- */
 function RegisterSheet({ categories, onClose, onCreated }: { categories: string[]; onClose: () => void; onCreated: (p: Partner) => void }) {
-  const [f, setF] = useState({ name: "", category: "Cafe", contactName: "", contactPhone: "", about: "", agreementStart: today(), agreementEnd: plusYear(today()) });
+  const [f, setF] = useState({ name: "", category: "Cafe", registrationNo: "", contactName: "", contactPhone: "", about: "", agreementStart: today(), agreementEnd: plusYear(today()) });
   const [image, setImage] = useState<string | null>(null);
   const [offers, setOffers] = useState<OfferDraft[]>([blankOffer()]);
   const [busy, setBusy] = useState(false);
@@ -76,7 +75,7 @@ function RegisterSheet({ categories, onClose, onCreated }: { categories: string[
     for (const o of used) { const p = offerProblem(o); if (p) return setErr(p); }
     setBusy(true); setErr("");
     try {
-      const body: PartnerInput & { offers: OfferInput[] } = { ...f, contactName: f.contactName.trim() || null, contactPhone: f.contactPhone.trim() || null, about: f.about.trim() || null, image, offers: used.map(toOffer) };
+      const body: PartnerInput & { offers: OfferInput[] } = { ...f, registrationNo: f.registrationNo.trim() || null, contactName: f.contactName.trim() || null, contactPhone: f.contactPhone.trim() || null, about: f.about.trim() || null, image, offers: used.map(toOffer) };
       onCreated(await createPartner(body));
     } catch (e) { setErr(msg(e)); } finally { setBusy(false); }
   }
@@ -87,8 +86,9 @@ function RegisterSheet({ categories, onClose, onCreated }: { categories: string[
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block text-sm font-medium">Business name<input value={f.name} maxLength={80} onChange={(e) => up({ name: e.target.value })} placeholder="Himalayan Cafe" className={`${field} mt-1`} /></label>
           <label className="block text-sm font-medium">Category<input list="partner-cats" value={f.category} maxLength={40} onChange={(e) => up({ category: e.target.value })} className={`${field} mt-1`} /><datalist id="partner-cats">{categories.map((c) => <option key={c} value={c} />)}</datalist></label>
+          <label className="block text-sm font-medium sm:col-span-2">Company registration no. (optional)<input value={f.registrationNo} maxLength={40} onChange={(e) => up({ registrationNo: e.target.value })} placeholder="e.g. 123456/078/079" className={`${field} mt-1`} /></label>
           <label className="block text-sm font-medium">Contact person<input value={f.contactName} maxLength={60} onChange={(e) => up({ contactName: e.target.value })} className={`${field} mt-1`} /></label>
-          <label className="block text-sm font-medium">Their phone<input inputMode="tel" value={f.contactPhone} maxLength={20} onChange={(e) => up({ contactPhone: e.target.value.replace(/[^\d+\s-]/g, "") })} className={`${field} mt-1`} /></label>
+          <label className="block text-sm font-medium">Their phone<input inputMode="numeric" value={f.contactPhone} maxLength={10} onChange={(e) => up({ contactPhone: e.target.value.replace(/\D/g, "").slice(0, 10) })} className={`${field} mt-1`} /></label>
         </div>
         <label className="block text-sm font-medium">About them (shown to customers, optional)<textarea value={f.about} rows={2} maxLength={400} onChange={(e) => up({ about: e.target.value })} className={`${field} mt-1`} /></label>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -99,7 +99,7 @@ function RegisterSheet({ categories, onClose, onCreated }: { categories: string[
         <div>
           <p className="mb-1 text-sm font-medium">Banner (optional)</p>
           <button type="button" onClick={() => pick.current?.click()} className="grid aspect-[16/7] w-full place-items-center overflow-hidden rounded-xl border border-dashed border-line bg-surface-2 text-sm text-muted">
-            {image ? <img src={image} alt="Banner preview" className="h-full w-full object-cover" /> : <span className="flex items-center gap-2"><ImagePlus size={18} /> Choose a picture, 1280 x 560 px works best</span>}
+            {image ? <img src={image} alt="Banner preview" className="h-full w-full object-cover" /> : <span className="flex items-center gap-2"><ImagePlus size={18} /> Choose a picture, 1280 x 560 px (16:7) works best</span>}
           </button>
           <input ref={pick} type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" aria-label="Choose the banner picture" onChange={async (e) => { const file = e.target.files?.[0]; e.target.value = ""; if (file) { try { setImage(await fileToDataUrl(file)); } catch (x) { setErr(msg(x)); } } }} />
         </div>
@@ -225,7 +225,7 @@ function OfferRow({ pid, o, onPartner }: { pid: string; o: Offer; onPartner: (p:
 
 function ManageSheet({ partner, categories, onClose, onChange, onDeleted }: { partner: Partner; categories: string[]; onClose: () => void; onChange: (p: Partner) => void; onDeleted: () => void }) {
   const p = partner;
-  const [f, setF] = useState({ name: p.name, category: p.category, contactName: p.contactName ?? "", contactPhone: p.contactPhone ?? "", about: p.about ?? "", agreementStart: p.agreementStart, agreementEnd: p.agreementEnd });
+  const [f, setF] = useState({ name: p.name, category: p.category, registrationNo: p.registrationNo ?? "", contactName: p.contactName ?? "", contactPhone: p.contactPhone ?? "", about: p.about ?? "", agreementStart: p.agreementStart, agreementEnd: p.agreementEnd });
   const [add, setAdd] = useState<OfferDraft | null>(null);
   const [cards, setCards] = useState<Redemption[] | null>(null);
   const [busy, setBusy] = useState("");
@@ -242,7 +242,7 @@ function ManageSheet({ partner, categories, onClose, onChange, onDeleted }: { pa
     { id: "link", label: "Dashboard Link", hint: p.link.active ? "On" : "Off", Icon: Link2 },
   ] as const;
   const on = (id: string) => view === id || (id === "banners" && view === "banner");
-  const dirty = f.name !== p.name || f.category !== p.category || f.contactName !== (p.contactName ?? "") || f.contactPhone !== (p.contactPhone ?? "") || f.about !== (p.about ?? "") || f.agreementStart !== p.agreementStart || f.agreementEnd !== p.agreementEnd;
+  const dirty = f.name !== p.name || f.category !== p.category || f.registrationNo !== (p.registrationNo ?? "") || f.contactName !== (p.contactName ?? "") || f.contactPhone !== (p.contactPhone ?? "") || f.about !== (p.about ?? "") || f.agreementStart !== p.agreementStart || f.agreementEnd !== p.agreementEnd;
 
   const loadCards = useCallback(() => { listRedemptions(p.id).then(setCards).catch(() => setCards([])); }, [p.id]);
   useEffect(() => { const t = setTimeout(loadCards, 0); return () => clearTimeout(t); }, [loadCards]);
@@ -252,7 +252,7 @@ function ManageSheet({ partner, categories, onClose, onChange, onDeleted }: { pa
     setBusy(key); setErr(""); setOk("");
     try { onChange(await job()); setOk(done); } catch (e) { setErr(msg(e)); } finally { setBusy(""); }
   }
-  const saveDetails = () => run("details", () => editPartner(p.id, { ...f, contactName: f.contactName.trim() || null, contactPhone: f.contactPhone.trim() || null, about: f.about.trim() || null }));
+  const saveDetails = () => run("details", () => editPartner(p.id, { ...f, registrationNo: f.registrationNo.trim() || null, contactName: f.contactName.trim() || null, contactPhone: f.contactPhone.trim() || null, about: f.about.trim() || null }));
   async function banner(file?: File) { if (!file) return; await run("banner", async () => editPartner(p.id, { image: await fileToDataUrl(file) }), "Banner updated."); }
   async function addNew() {
     if (!add) return;
@@ -292,8 +292,9 @@ function ManageSheet({ partner, categories, onClose, onChange, onDeleted }: { pa
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block text-xs text-muted">Business name<input value={f.name} maxLength={80} onChange={(e) => setF({ ...f, name: e.target.value })} className={`${field} mt-1`} /></label>
           <label className="block text-xs text-muted">Category<input list="partner-cats2" value={f.category} maxLength={40} onChange={(e) => setF({ ...f, category: e.target.value })} className={`${field} mt-1`} /><datalist id="partner-cats2">{categories.map((c) => <option key={c} value={c} />)}</datalist></label>
+          <label className="block text-xs text-muted sm:col-span-2">Company registration no.<input value={f.registrationNo} maxLength={40} onChange={(e) => setF({ ...f, registrationNo: e.target.value })} className={`${field} mt-1`} /></label>
           <label className="block text-xs text-muted">Contact person<input value={f.contactName} maxLength={60} onChange={(e) => setF({ ...f, contactName: e.target.value })} className={`${field} mt-1`} /></label>
-          <label className="block text-xs text-muted">Their phone<input inputMode="tel" value={f.contactPhone} maxLength={20} onChange={(e) => setF({ ...f, contactPhone: e.target.value.replace(/[^\d+\s-]/g, "") })} className={`${field} mt-1`} /></label>
+          <label className="block text-xs text-muted">Their phone<input inputMode="numeric" value={f.contactPhone} maxLength={10} onChange={(e) => setF({ ...f, contactPhone: e.target.value.replace(/\D/g, "").slice(0, 10) })} className={`${field} mt-1`} /></label>
           <label className="block text-xs text-muted">Agreement starts<input type="date" value={f.agreementStart} onChange={(e) => setF({ ...f, agreementStart: e.target.value })} className={`${field} mt-1`} /></label>
           <label className="block text-xs text-muted">Agreement ends<input type="date" value={f.agreementEnd} min={f.agreementStart} onChange={(e) => setF({ ...f, agreementEnd: e.target.value })} className={`${field} mt-1`} /></label>
         </div>
@@ -303,6 +304,7 @@ function ManageSheet({ partner, categories, onClose, onChange, onDeleted }: { pa
 
       <section className={view === "banners" ? "space-y-3" : "hidden"}>
         <h3 className="text-sm font-bold">Banners</h3>
+        {p.bannerUrl && <p className="text-xs text-muted">Banner size: 1280 x 560 px (wide, 16:7). PNG, JPG or WebP.</p>}
         {p.bannerUrl ? (
           <button type="button" onClick={() => setView("banner")} className="flex w-full items-center gap-3 rounded-2xl border border-line bg-surface p-2 text-left transition hover:shadow-md">
             <img src={picUrl(p.bannerUrl)} alt={`${p.name} banner`} className="aspect-[16/7] w-32 shrink-0 rounded-xl object-cover sm:w-44" />
@@ -316,6 +318,7 @@ function ManageSheet({ partner, categories, onClose, onChange, onDeleted }: { pa
         ) : (
           <div className="grid place-items-center gap-2 rounded-2xl bg-surface-2 p-8 text-center text-sm text-muted">
             <ImagePlus size={26} /><p>No banner yet. Upload one here, or the partner can upload it from its dashboard.</p>
+            <p className="text-xs font-semibold text-foreground">Banner size: 1280 x 560 px (wide, 16:7). PNG, JPG or WebP.</p>
             <button type="button" disabled={busy === "banner"} onClick={() => pick.current?.click()} className="flex items-center gap-1.5 rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white">{busy === "banner" ? <Loader2 size={14} className="animate-spin" /> : <Plus size={15} />} Upload a banner</button>
           </div>
         )}
@@ -323,7 +326,7 @@ function ManageSheet({ partner, categories, onClose, onChange, onDeleted }: { pa
 
       <section className={view === "banner" ? "space-y-2" : "hidden"}>
         <button type="button" onClick={() => setView("banners")} className="flex items-center gap-1 text-xs font-semibold text-brand"><ArrowLeft size={14} /> All banners</button>
-        <h3 className="text-sm font-bold">Banner</h3>
+        <h3 className="text-sm font-bold">Banner <span className="font-normal text-muted">· 1280 x 560 px (16:7), PNG, JPG or WebP</span></h3>
         <div className="grid aspect-[16/7] w-full place-items-center overflow-hidden rounded-xl bg-surface-2 text-sm text-muted">
           {p.bannerUrl ? <img src={picUrl(p.bannerUrl)} alt={`${p.name} banner`} className="h-full w-full object-cover" /> : "No banner yet. The partner can upload one from its dashboard."}
         </div>

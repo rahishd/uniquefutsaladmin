@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { findCustomer } from "@/lib/slots";
+import { findCustomer, findHost } from "@/lib/slots";
 
-export type Picked = { phoneNumber: string; name: string | null };
+export type Picked = { phoneNumber: string; name: string | null; host?: boolean };
 
-// A text box that suggests registered customers while staff type their mobile number (or name). Choosing one fills the mobile number
+// A text box that suggests registered customers and tournament hosts while staff type their mobile number (or name). Choosing one fills the mobile number
 // and the name in the form (onPick); typing freely still works for guests.
 export default function CustomerSuggest({ value, onChange, onPick, by, className, placeholder, autoFocus }: {
   value: string; onChange: (v: string) => void; onPick: (c: Picked) => void; by: "phone" | "name"; className?: string; placeholder?: string; autoFocus?: boolean;
@@ -19,7 +19,11 @@ export default function CustomerSuggest({ value, onChange, onPick, by, className
     if (!typed.current || q.length < (by === "phone" ? 3 : 2)) { setItems([]); return; }
     let live = true;
     const t = setTimeout(() => {
-      findCustomer(q, 6).then((r) => { if (live) { setItems(r.items.slice(0, 6)); setOpen(true); } }).catch(() => live && setItems([]));
+      Promise.all([findCustomer(q, 6), findHost(q).catch(() => ({ items: [] as Picked[] }))]).then(([c, h]) => {
+        if (!live) return;
+        const have = new Set(c.items.map((x) => x.phoneNumber));
+        setItems([...c.items, ...h.items.filter((x) => !have.has(x.phoneNumber))].slice(0, 6)); setOpen(true);
+      }).catch(() => live && setItems([]));
     }, 250);
     return () => { live = false; clearTimeout(t); };
   }, [value, by]);
@@ -36,7 +40,7 @@ export default function CustomerSuggest({ value, onChange, onPick, by, className
               <button type="button" role="option" aria-selected={false} onMouseDown={(e) => e.preventDefault()}
                 onClick={() => { typed.current = false; setItems([]); setOpen(false); onPick({ phoneNumber: c.phoneNumber, name: c.name }); }}
                 className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-surface-2">
-                <span className="truncate font-medium">{c.name ?? "Registered customer"}</span>
+                <span className="truncate font-medium">{c.name ?? "Registered customer"}{c.host ? <span className="ml-1.5 text-xs font-normal text-brand">Tournament host</span> : null}</span>
                 <span className="shrink-0 text-xs text-muted">{c.phoneNumber}</span>
               </button>
             </li>

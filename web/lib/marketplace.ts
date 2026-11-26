@@ -4,7 +4,7 @@ import { withBase } from "./base";
 // Partner Marketplace: businesses (cafes, swimming pools ...) that give our customers a discount for loyalty points.
 export type PartnerStatus = "active" | "waiting" | "ended" | "paused";
 export type Offer = { id: string; title: string; code: string; discountText: string; pointsCost: number; maxPerCustomer: number | null; active: boolean };
-export type OfferInput = { title: string; code: string; discountText: string; pointsCost: number; maxPerCustomer?: number | null; active?: boolean };
+export type OfferInput = { title: string; code?: string; discountText: string; pointsCost: number; maxPerCustomer?: number | null; active?: boolean };
 // when and how long the banner shows (the same controls as an ad)
 export type BannerSettings = { seconds: number; priority: number; on: boolean; startDate: string | null; endDate: string | null; dailyStart: string | null; dailyEnd: string | null; days: number[]; status: "live" | "paused" | "scheduled" | "ended" | "waiting" };
 export type BannerInput = { bannerSeconds: number; bannerPriority: number; bannerOn: boolean; bannerStart: string | null; bannerEnd: string | null; bannerDailyStart: string | null; bannerDailyEnd: string | null; bannerDays: number[] };
@@ -16,16 +16,16 @@ export const BANNER_STATUS: Record<BannerSettings["status"], { label: string; to
   paused: { label: "Off", tone: "bg-slate-500/15 text-slate-600" },
 };
 export type Partner = {
-  id: string; name: string; category: string; contactName: string | null; contactPhone: string | null; about: string | null;
+  id: string; name: string; category: string; registrationNo: string | null; contactName: string | null; contactPhone: string | null; about: string | null;
   agreementStart: string; agreementEnd: string; active: boolean; status: PartnerStatus; bannerUrl: string | null; banner: BannerSettings;
   link: { token: string; active: boolean; lastSeenAt: string | null }; offers: Offer[];
   stats: { active: number; used: number; cancelled: number };
 };
 export type PartnerInput = {
-  name: string; category: string; contactName?: string | null; contactPhone?: string | null; about?: string | null;
+  name: string; category: string; registrationNo?: string | null; contactName?: string | null; contactPhone?: string | null; about?: string | null;
   agreementStart: string; agreementEnd: string; active?: boolean; image?: string | null; removeBanner?: boolean;
 } & Partial<BannerInput>;
-export type Redemption = { id: string; code: string; customerName: string | null; phone: string; offerTitle: string; discountText: string; discountCode: string; points: number; status: "active" | "used" | "cancelled"; createdAt: string; usedAt: string | null };
+export type Redemption = { id: string; code: string; customerName: string | null; phone: string; offerTitle: string; discountText: string; discountCode: string; points: number; status: "active" | "used" | "cancelled" | "expired"; createdAt: string; usedAt: string | null };
 
 export const STATUS: Record<PartnerStatus, { label: string; tone: string }> = {
   active: { label: "Active", tone: "bg-emerald-500/15 text-emerald-700" },
@@ -37,6 +37,7 @@ export const CARD_STATUS: Record<Redemption["status"], { label: string; tone: st
   active: { label: "Not used yet", tone: "bg-blue-500/15 text-blue-700" },
   used: { label: "Used", tone: "bg-emerald-500/15 text-emerald-700" },
   cancelled: { label: "Cancelled", tone: "bg-slate-500/15 text-slate-600" },
+  expired: { label: "Expired - Unused", tone: "bg-amber-500/15 text-amber-700" },
 };
 
 const json = (b: unknown) => ({ body: JSON.stringify(b) });
@@ -67,7 +68,7 @@ async function partnerCall<T>(token: string, path: string, init: RequestInit = {
   return (body?.data ?? body) as T;
 }
 export const partnerView = (token: string) => partnerCall<PartnerDash>(token, "");
-export const partnerVerify = (token: string, code: string) => partnerCall<Redemption>(token, "/verify", { method: "POST", ...json({ code }) });
+export const partnerVerify = (token: string, code: string) => partnerCall<Redemption[]>(token, "/verify", { method: "POST", ...json({ code }) });
 export const partnerMarkUsed = (token: string, rid: string) => partnerCall<PartnerDash>(token, `/redemptions/${rid}/used`, { method: "POST", ...json({}) });
 export type PartnerOfferInput = { title: string; discountText: string; maxPerCustomer?: number | null };
 export const partnerAddOffer = (token: string, b: PartnerOfferInput) => partnerCall<PartnerDash>(token, "/offers", { method: "POST", ...json(b) });

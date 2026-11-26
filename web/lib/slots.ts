@@ -54,6 +54,10 @@ export const rejectBooking = (id: string) => api(`/admin/bookings/${encodeURICom
 export const findCustomer = (phone: string, limit = 1) =>
   api<{ items: { phoneNumber: string; name: string | null; vip?: { code: string; active: boolean } | null }[] }>(`/admin/customers?q=${encodeURIComponent(phone)}&limit=${limit}`);
 
+// Tournament hosts matching a mobile number or name (they may have no app account)
+export const findHost = (q: string) =>
+  api<{ items: { phoneNumber: string; name: string | null; host: true }[] }>(`/admin/customers/hosts?q=${encodeURIComponent(q)}`);
+
 // ---- date and time helpers (Nepal time, whatever the browser's time zone) ----
 const nepalDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kathmandu", year: "numeric", month: "2-digit", day: "2-digit" });
 const nepalHour = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kathmandu", hour: "2-digit", hourCycle: "h23" });

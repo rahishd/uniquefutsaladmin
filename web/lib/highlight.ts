@@ -1,14 +1,23 @@
 // Highlights the record a live notification pointed at: the page marks rows with data-hl="<record key>", and a link with
 // ?hl=<key> scrolls to that row and pulses it for 5 seconds, or until the next click anywhere. The page may still be loading,
-// so it looks for the row for a few seconds before giving up.
-import { useEffect } from "react";
+// so it looks for the row for a few seconds before giving up. When the notification is opened while staff are already on that
+// page (nothing remounts), nudgeHighlight() tells the page to look again.
+import { useEffect, useState } from "react";
+
+const NUDGE = "uf-highlight-nudge";
+export const nudgeHighlight = () => { if (typeof window !== "undefined") window.dispatchEvent(new Event(NUDGE)); };
 
 export function useHighlight(ready = true) {
+  const [nudged, setNudged] = useState(0);
+  useEffect(() => {
+    const on = () => setNudged((n) => n + 1);
+    window.addEventListener(NUDGE, on);
+    return () => window.removeEventListener(NUDGE, on);
+  }, []);
+
   useEffect(() => {
     if (!ready || typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    const id = params.get("hl");
-    if (!id) return;
+    if (nudged === 0 && !new URLSearchParams(window.location.search).get("hl")) return;
     let el: HTMLElement | null = null;
     let t: ReturnType<typeof setTimeout> | undefined;
     let arm: ReturnType<typeof setTimeout> | undefined;
@@ -19,6 +28,10 @@ export function useHighlight(ready = true) {
     };
     const started = Date.now();
     const look = setInterval(() => {
+      const params = new URLSearchParams(window.location.search);
+      const id = params.get("hl");
+      // after a nudge the address may take a moment to change
+      if (!id) { if (Date.now() - started > 2000) clearInterval(look); return; }
       el = document.querySelector<HTMLElement>(`[data-hl="${CSS.escape(id)}"]`);
       if (!el && Date.now() - started < 6000) return;
       clearInterval(look);
@@ -34,5 +47,5 @@ export function useHighlight(ready = true) {
       arm = setTimeout(() => document.addEventListener("pointerdown", off), 300);
     }, 250);
     return () => { clearInterval(look); clearTimeout(arm); off(); };
-  }, [ready]);
+  }, [ready, nudged]);
 }

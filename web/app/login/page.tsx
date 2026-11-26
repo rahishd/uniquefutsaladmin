@@ -41,12 +41,6 @@ export default function LoginPage() {
     <main className="grid min-h-screen bg-white text-slate-900 lg:grid-cols-2">
       {/* welcome panel */}
       <section className="relative flex flex-col justify-between overflow-hidden bg-[linear-gradient(160deg,#0c0b5d_0%,#090851_55%,#06053a_100%)] px-8 py-8 text-white sm:px-14 sm:py-10 lg:min-h-screen lg:px-20 lg:py-16">
-        {/* faint arcs, like the reference */}
-        <svg aria-hidden className="pointer-events-none absolute inset-0 h-full w-full opacity-[0.14]" viewBox="0 0 400 600" preserveAspectRatio="xMidYMax slice" fill="none" stroke="#fff" strokeWidth="1">
-          {[0, 1, 2, 3, 4].map((i) => (
-            <path key={i} d={`M ${-40 + i * 26} 640 Q ${120 + i * 40} ${150 + i * 25} ${330 + i * 22} -20`} />
-          ))}
-        </svg>
 
         <div className="relative">
           {/* the player alone, no tile; the navy mark is turned white so it reads on the blue panel */}

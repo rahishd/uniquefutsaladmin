@@ -101,7 +101,7 @@ export default function CustomLetterPage() {
             <span className={`mt-1 block text-right text-xs ${words >= MAX_WORDS ? "font-semibold text-amber-700" : "text-muted"}`}>{words} / {MAX_WORDS} words{words >= MAX_WORDS ? " (the limit)" : ""}</span>
           </label>
           {lost && <p className="text-xs font-medium text-amber-700">Nepali letters cannot be printed in the PDF and will be left out. Please write in English.</p>}
-          <label className="block text-sm font-medium">WhatsApp number (optional)<input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" maxLength={20} placeholder="98XXXXXXXX" className={`${field} mt-1`} /></label>
+          <label className="block text-sm font-medium">WhatsApp number (optional)<input value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))} inputMode="numeric" maxLength={10} placeholder="98XXXXXXXX" className={`${field} mt-1`} /></label>
           <div className="grid gap-2 sm:grid-cols-2">
             <button type="button" onClick={() => make("whatsapp")} disabled={!ready || !!busy} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">
               {busy === "whatsapp" ? <Loader2 size={16} className="animate-spin" /> : <MessageCircle size={16} />} Send to WhatsApp

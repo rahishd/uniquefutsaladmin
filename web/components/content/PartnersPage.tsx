@@ -127,6 +127,7 @@ function AddForm({ onAdded, onError }: { onAdded: (name: string) => void; onErro
   return (
     <section className="rounded-2xl bg-surface p-4 shadow-sm">
       <h2 className="text-base font-bold">Add a logo</h2>
+      <p className="text-xs text-muted">Logo size: 500 x 300 px (5:3), on a plain or transparent background.</p>
       <div className="mt-3 grid gap-3 sm:grid-cols-[10rem_1fr]">
         <button type="button" onClick={() => picker.current?.click()} aria-label="Choose a logo picture" className="grid aspect-[5/3] place-items-center overflow-hidden rounded-xl border border-dashed border-line bg-white text-muted hover:border-brand">
           {preview ? (

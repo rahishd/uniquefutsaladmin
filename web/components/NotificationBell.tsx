@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { canDo } from "@/lib/access";
+import { nudgeHighlight } from "@/lib/highlight";
 import { isSirenMuted, startSiren, stopSiren, unlockSirenOnFirstTouch } from "@/lib/siren";
 
 type Counts = { pendingPayments: number; disputes: number; refundsDue: number; arrivalsToday: number };
@@ -151,7 +152,7 @@ export default function NotificationBell() {
       </button>
 
       {toast && !open && (
-        <Link href={withHl(toast)} onClick={() => { const next = [...read, toast.id]; setRead(next); saveIds(next); setToast(null); }} className={`fixed bottom-24 left-4 right-4 z-[60] flex items-start gap-3 rounded-2xl border p-3 shadow-xl sm:left-auto sm:right-6 sm:w-96 lg:bottom-6 ${toast.type === "order" ? "animate-pulse border-red-700 bg-red-600 text-white" : "border-line bg-surface text-foreground"}`} role={toast.type === "order" ? "alert" : "status"}>
+        <Link href={withHl(toast)} onClick={() => { const next = [...read, toast.id]; setRead(next); saveIds(next); setToast(null); nudgeHighlight(); }} className={`fixed bottom-24 left-4 right-4 z-[60] flex items-start gap-3 rounded-2xl border p-3 shadow-xl sm:left-auto sm:right-6 sm:w-96 lg:bottom-6 ${toast.type === "order" ? "animate-pulse border-red-700 bg-red-600 text-white" : "border-line bg-surface text-foreground"}`} role={toast.type === "order" ? "alert" : "status"}>
           <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${toast.type === "order" ? "bg-white text-red-600" : "bg-brand/10 text-brand"}`}>{(() => { const I = ICON[toast.type] ?? Bell; return <I size={18} />; })()}</span>
           <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{toast.title}</span><span className={`block text-xs ${toast.type === "order" ? "text-white/90" : "truncate text-muted"}`}>{toast.text}</span></span>
           <button type="button" aria-label="Dismiss" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setToast(null); }} className={toast.type === "order" ? "text-white" : "text-muted"}><X size={16} /></button>
@@ -175,7 +176,7 @@ export default function NotificationBell() {
                 const unread = isNew(i);
                 return (
                   <li key={i.id}>
-                    <Link href={withHl(i)} onClick={() => { setOpen(false); const next = [...read, i.id]; setRead(next); saveIds(next); }} className={`flex items-start gap-3 px-4 py-2.5 text-sm hover:bg-surface-2 ${unread ? "bg-brand/5" : ""}`}>
+                    <Link href={withHl(i)} onClick={() => { setOpen(false); const next = [...read, i.id]; setRead(next); saveIds(next); nudgeHighlight(); }} className={`flex items-start gap-3 px-4 py-2.5 text-sm hover:bg-surface-2 ${unread ? "bg-brand/5" : ""}`}>
                       <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-brand/10 text-brand"><I size={16} /></span>
                       <span className="min-w-0 flex-1"><span className="flex items-center gap-2 font-semibold">{i.title}{unread && <span className="h-2 w-2 rounded-full bg-red-500" aria-label="new" />}</span><span className="block truncate text-xs text-muted">{i.text}</span></span>
                       <span className="shrink-0 text-[11px] text-muted">{ago(i.at)}</span>

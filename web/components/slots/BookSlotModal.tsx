@@ -4,7 +4,7 @@ import CustomerSuggest from "../CustomerSuggest";
 import { useEffect, useState } from "react";
 import { Droplets, X } from "lucide-react";
 import Switch from "../Switch";
-import { Hour, WalkInInput, bookManually, findCustomer, hhmm, hourLabel, longDate } from "@/lib/slots";
+import { Hour, WalkInInput, bookManually, findCustomer, findHost, hhmm, hourLabel, longDate } from "@/lib/slots";
 import { rs } from "@/lib/bookings";
 import { ApiError } from "@/lib/api";
 
@@ -21,6 +21,7 @@ export default function BookSlotModal({ date, hours, hour, past, onClose, onBook
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [found, setFound] = useState<{ phone: string; name: string; vip: boolean } | null>(null); // result of the last lookup
+  const [host, setHost] = useState<{ phone: string; name: string } | null>(null); // a tournament host with this number
   const [water, setWater] = useState(true);
   const [price, setPrice] = useState<string | null>(null); // null = use the court price
   const [notes, setNotes] = useState("");
@@ -30,6 +31,7 @@ export default function BookSlotModal({ date, hours, hour, past, onClose, onBook
   const standard = Array.from({ length: duration }, (_, i) => hours.find((h) => h.hour === hour + i)?.price ?? 0).reduce((a, b) => a + b, 0);
   const phoneOk = /^9\d{9}$/.test(phone);
   const registered = phoneOk && found?.phone === phone ? found.name : null;
+  const hostName = phoneOk && host?.phone === phone ? host.name : null;
   const isVip = phoneOk && found?.phone === phone && found.vip; // VIP customers never get complimentary water
 
   // A registered customer's name is filled in from their account.
@@ -41,6 +43,12 @@ export default function BookSlotModal({ date, hours, hour, past, onClose, onBook
       if (!live || !c) return;
       setFound({ phone, name: c.name ?? "Registered customer", vip: !!c.vip?.active });
       if (c.name) setName((n) => n || c.name!);
+    }).catch(() => {});
+    findHost(phone).then((r) => {
+      const h = r.items.find((x) => x.phoneNumber === phone);
+      if (!live || !h) return;
+      setHost({ phone, name: h.name ?? "Tournament host" });
+      if (h.name) setName((n) => n || h.name!);
     }).catch(() => {});
     return () => { live = false; };
   }, [phone, phoneOk]);
@@ -79,7 +87,8 @@ export default function BookSlotModal({ date, hours, hour, past, onClose, onBook
         <label className="block text-sm font-medium">Mobile number <span className="font-normal text-muted">(optional)</span>
           <CustomerSuggest by="phone" className={`${input} mt-1`} value={phone} onChange={setPhone} onPick={(c) => { setPhone(c.phoneNumber); if (c.name) setName(c.name); }} placeholder="98XXXXXXXX" />
           {registered && <span className="mt-1 block text-xs font-normal text-brand">Registered customer: {registered}. Points are added to their account.</span>}
-          {phoneOk && !registered && found?.phone !== phone && <span className="mt-1 block text-xs font-normal text-muted">Not registered: booked as a guest.</span>}
+          {hostName && !registered && <span className="mt-1 block text-xs font-normal text-brand">Tournament host: {hostName}.</span>}
+          {phoneOk && !registered && !hostName && found?.phone !== phone && <span className="mt-1 block text-xs font-normal text-muted">Not registered: booked as a guest.</span>}
         </label>
 
         <label className="block text-sm font-medium">Customer name

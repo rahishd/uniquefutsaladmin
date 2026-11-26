@@ -60,6 +60,11 @@ export default function BookingsPage() {
   const [error, setError] = useState("");
   const [open, setOpen] = useState<Booking | null>(null);
   const [reload, setReload] = useState(0);
+  // a notification link can open one day: ?date=YYYY-MM-DD
+  useEffect(() => {
+    const t = setTimeout(() => { const d = new URLSearchParams(window.location.search).get("date"); if (d && /^d{4}-d{2}-d{2}$/.test(d)) { setDay(d); setCustom(true); setPageNo(1); } }, 0);
+    return () => clearTimeout(t);
+  }, []);
 
   useEffect(() => {
     const t = setTimeout(() => { setQ(search); setPageNo(1); }, 300);

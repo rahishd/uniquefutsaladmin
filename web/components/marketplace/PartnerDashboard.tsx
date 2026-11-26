@@ -23,7 +23,7 @@ export default function PartnerDashboard({ token }: { token: string }) {
   const [err, setErr] = useState("");
   const [ok, setOk] = useState("");
   const [code, setCode] = useState("");
-  const [found, setFound] = useState<Redemption | null>(null);
+  const [found, setFound] = useState<Redemption[] | null>(null);
   const [busy, setBusy] = useState("");
   const [draft, setDraft] = useState<Draft | null>(null);
   const pick = useRef<HTMLInputElement>(null);
@@ -46,7 +46,7 @@ export default function PartnerDashboard({ token }: { token: string }) {
     try { setFound(await partnerVerify(token, code)); } catch (e) { setErr(msg(e)); } finally { setBusy(""); }
   }
   async function used(r: Redemption) {
-    if (await run("u" + r.id, () => partnerMarkUsed(token, r.id), "Marked as used.")) setFound((f) => (f && f.id === r.id ? { ...f, status: "used" } : f));
+    if (await run("u" + r.id, () => partnerMarkUsed(token, r.id), "Marked as used.")) setFound((f) => f && f.map((x) => (x.id === r.id ? { ...x, status: "used" } : x)));
   }
   async function banner(file?: File) {
     if (!file) return;
@@ -96,19 +96,19 @@ export default function PartnerDashboard({ token }: { token: string }) {
 
       <form onSubmit={verify} className={card}>
         <h2 className="flex items-center gap-2 text-sm font-bold"><ScanSearch size={16} /> Check a customer&apos;s card</h2>
-        <p className="text-xs text-muted">The customer shows a code like UFM-AB12CD on their phone. Type it here to see who it belongs to and what discount they get.</p>
+        <p className="text-xs text-muted">Type the customer&apos;s mobile number, or the card code they show on their phone (like UFM01), to see their discount.</p>
         <div className="flex gap-2">
-          <input value={code} onChange={(e) => { setCode(e.target.value.toUpperCase()); setFound(null); }} placeholder="UFM-XXXXXX" aria-label="Card code" maxLength={30} className={`${field} font-mono`} />
+          <input value={code} onChange={(e) => { setCode(e.target.value.toUpperCase()); setFound(null); }} placeholder="Mobile number or card code (UFM01)" aria-label="Customer mobile number or card code" maxLength={30} className={`${field} font-mono`} />
           <button type="submit" disabled={busy === "verify" || code.trim().length < 3} className="flex shrink-0 items-center gap-1.5 rounded-xl bg-brand px-4 text-sm font-semibold text-white disabled:opacity-60">{busy === "verify" && <Loader2 size={14} className="animate-spin" />} Check</button>
         </div>
-        {found && (
-          <div className="space-y-2 rounded-xl bg-surface-2 p-3 text-sm">
-            <p className="font-bold">{found.customerName ?? "Customer"} <span className="font-normal text-muted">{found.phone}</span></p>
-            <p>{found.discountText} <span className="text-muted">({found.offerTitle}, code {found.discountCode})</span></p>
-            <div className="flex items-center gap-2"><span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${CARD_STATUS[found.status].tone}`}>{CARD_STATUS[found.status].label}</span>
-              {found.status === "active" && <button type="button" disabled={busy === "u" + found.id} onClick={() => used(found)} className="flex items-center gap-1 rounded-full bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white"><Check size={13} /> Give the discount, mark used</button>}</div>
+        {found?.map((f) => (
+          <div key={f.id} className="space-y-2 rounded-xl bg-surface-2 p-3 text-sm">
+            <p className="font-bold">{f.customerName ?? "Customer"} <span className="font-normal text-muted">{f.phone}</span></p>
+            <p>{f.discountText} <span className="text-muted">({f.offerTitle}, card {f.code})</span></p>
+            <div className="flex items-center gap-2"><span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${CARD_STATUS[f.status].tone}`}>{CARD_STATUS[f.status].label}</span>
+              {f.status === "active" && <button type="button" disabled={busy === "u" + f.id} onClick={() => used(f)} className="flex items-center gap-1 rounded-full bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white"><Check size={13} /> Give the discount, mark used</button>}</div>
           </div>
-        )}
+        ))}
       </form>
 
       <section className={card}>
@@ -154,7 +154,7 @@ export default function PartnerDashboard({ token }: { token: string }) {
       </section>
 
       <section className={card}>
-        <h2 className="text-sm font-bold">Your banner</h2>
+        <h2 className="text-sm font-bold">Your banner <span className="font-normal text-muted">· 1280 x 560 px (16:7), PNG, JPG or WebP</span></h2>
         <div className="grid aspect-[16/7] w-full place-items-center overflow-hidden rounded-xl bg-surface-2 text-sm text-muted">
           {p.bannerUrl ? <img src={picUrl(p.bannerUrl)} alt="Your banner" className="h-full w-full object-cover" /> : "No banner yet"}
         </div>

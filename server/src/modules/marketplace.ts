@@ -12,6 +12,7 @@ import { prisma } from "../db";
 import { audit } from "../lib/audit";
 import { todayKey } from "../lib/dates";
 import { AppError, dateStr, handler, param, parse, send } from "../lib/http";
+import { pushToUsers } from "../lib/push";
 import { requirePermission } from "../middleware/auth";
 import { adStatus, saveMedia } from "./content";
 
@@ -32,7 +33,8 @@ const mask = (phone: string) => (phone.length >= 6 ? `${phone.slice(0, 2)}****${
 
 const offerBody = z.object({
   title: z.string().trim().min(2, "Give the offer a title").max(60),
-  code: z.string().trim().toUpperCase().regex(/^[A-Z0-9-]{3,20}$/, "The discount code is 3 to 20 letters, digits or dashes"),
+  // optional: when staff leave it out the server makes one
+  code: z.preprocess((v) => (v === "" || v == null ? undefined : v), z.string().trim().toUpperCase().regex(/^[A-Z0-9-]{3,20}$/, "The discount code is 3 to 20 letters, digits or dashes").optional()),
   discountText: z.string().trim().min(2, "Say what the customer gets, for example 10% off the bill").max(80),
   pointsCost: z.number().min(0.5, "At least half a point").max(100000).transform((n) => Math.round(n * 10) / 10),
   maxPerCustomer: z.number().int().min(1).max(100).nullish().transform((v) => v ?? null),
@@ -41,6 +43,7 @@ const offerBody = z.object({
 const partnerBody = z.object({
   name: z.string().trim().min(2, "Enter the business name").max(80),
   category: z.string().trim().min(2, "Choose or type a category").max(40),
+  registrationNo: z.string().trim().max(40, "The registration number is too long").nullish().transform((v) => v || null),
   contactName: z.string().trim().max(60).nullish().transform((v) => v || null),
   contactPhone: z.string().trim().max(20).nullish().transform((v) => v || null),
   about: z.string().trim().max(400).nullish().transform((v) => v || null),
@@ -66,7 +69,7 @@ async function view(p: PartnerRow) {
   ]);
   const count = (s: string) => red.find((r) => r.status === s)?._count._all ?? 0;
   return {
-    id: p.id, name: p.name, category: p.category, contactName: p.contactName, contactPhone: p.contactPhone, about: p.about,
+    id: p.id, name: p.name, category: p.category, registrationNo: p.registrationNo, contactName: p.contactName, contactPhone: p.contactPhone, about: p.about,
     agreementStart: p.agreementStart, agreementEnd: p.agreementEnd, active: p.active, status: statusOf(p),
     bannerUrl: p.bannerMediaId ? mediaPath(p.bannerMediaId) : null,
     banner: {
@@ -94,14 +97,15 @@ marketplaceRouter.get("/", requirePermission("marketplace.view"), handler(async 
 
 marketplaceRouter.post("/", requirePermission("marketplace.manage"), handler(async (req, res) => {
   const b = parse(partnerBody.and(z.object({ offers: z.array(offerBody).max(20).default([]) })), req.body);
-  const codes = b.offers.map((o) => o.code);
+  const offers = b.offers.map((o) => ({ ...o, code: o.code ?? newCode() }));
+  const codes = offers.map((o) => o.code);
   if (new Set(codes).size !== codes.length) throw new AppError(409, "Two offers use the same discount code");
   const media = b.image ? (await saveMedia(b.image, req.staff!.id)).media : null;
   const p = await prisma.marketplacePartner.create({
     data: {
-      name: b.name, category: b.category, contactName: b.contactName, contactPhone: b.contactPhone, about: b.about, agreementStart: b.agreementStart, agreementEnd: b.agreementEnd,
+      name: b.name, category: b.category, registrationNo: b.registrationNo, contactName: b.contactName, contactPhone: b.contactPhone, about: b.about, agreementStart: b.agreementStart, agreementEnd: b.agreementEnd,
       active: b.active, bannerMediaId: media?.id ?? null, token: newToken(), createdBy: req.staff!.id,
-      offers: { create: b.offers.map((o) => ({ title: o.title, code: o.code, discountText: o.discountText, pointsCost: o.pointsCost, maxPerCustomer: o.maxPerCustomer, active: o.active })) },
+      offers: { create: offers.map((o) => ({ title: o.title, code: o.code, discountText: o.discountText, pointsCost: o.pointsCost, maxPerCustomer: o.maxPerCustomer, active: o.active })) },
     },
   });
   await audit(req, "create", "marketplace_partner", p.id, { name: p.name, category: p.category, offers: b.offers.length });
@@ -128,6 +132,7 @@ marketplaceRouter.patch("/:id", requirePermission("marketplace.manage"), handler
     where: { id: p.id },
     data: {
       ...(b.name !== undefined ? { name: b.name } : {}), ...(b.category !== undefined ? { category: b.category } : {}), ...(b.contactName !== undefined ? { contactName: b.contactName } : {}),
+      ...(b.registrationNo !== undefined ? { registrationNo: b.registrationNo } : {}),
       ...(b.contactPhone !== undefined ? { contactPhone: b.contactPhone } : {}), ...(b.about !== undefined ? { about: b.about } : {}), agreementStart: start, agreementEnd: end,
       ...(b.active !== undefined ? { active: b.active } : {}), bannerMediaId,
       ...(b.bannerSeconds !== undefined ? { bannerSeconds: b.bannerSeconds } : {}), ...(b.bannerPriority !== undefined ? { bannerPriority: b.bannerPriority } : {}), ...(b.bannerOn !== undefined ? { bannerOn: b.bannerOn } : {}),
@@ -158,8 +163,9 @@ marketplaceRouter.delete("/:id/link", requirePermission("marketplace.manage"), h
 // offers: the discount codes and what each costs in loyalty points
 marketplaceRouter.post("/:id/offers", requirePermission("marketplace.manage"), handler(async (req, res) => {
   const p = await find(param(req, "id"));
-  const b = parse(offerBody, req.body);
-  if (await prisma.marketplaceOffer.findUnique({ where: { partnerId_code: { partnerId: p.id, code: b.code } } })) throw new AppError(409, "This partner already has an offer with that code");
+  const b0 = parse(offerBody, req.body);
+  const b = { ...b0, code: b0.code ?? newCode() };
+  if (await prisma.marketplaceOffer.findUnique({ where: { partnerId_code: { partnerId: p.id, code: b.code } } })) throw new AppError(409, b0.code ? "This partner already has an offer with that code" : "Could not make a code, please try again");
   await prisma.marketplaceOffer.create({ data: { partnerId: p.id, title: b.title, code: b.code, discountText: b.discountText, pointsCost: b.pointsCost, maxPerCustomer: b.maxPerCustomer, active: b.active } });
   await audit(req, "offer-add", "marketplace_partner", p.id, { code: b.code, pointsCost: b.pointsCost });
   send(res, await view(p), "Offer added", 201);
@@ -191,9 +197,13 @@ marketplaceRouter.delete("/:id/offers/:oid", requirePermission("marketplace.mana
 }));
 
 // the customers who redeemed points at this partner
+// A card is good for 7 days from the day it was made; a still-waiting card older than that is "expired" (unused).
+const CARD_DAYS = 7;
+const cardLive = (r: { status: string; createdAt: Date }) => r.status === "active" && r.createdAt.getTime() + CARD_DAYS * 86_400_000 > Date.now();
+const cardStatusOf = (r: { status: string; createdAt: Date }) => (r.status === "active" && !cardLive(r) ? "expired" : r.status);
 const redView = (r: Prisma.MarketplaceRedemptionGetPayload<{ include: { offer: true } }>, full: boolean) => ({
-  id: r.id, code: r.code, customerName: r.customerName, phone: full ? r.userId : mask(r.userId), offerTitle: r.offer.title, discountText: r.offer.discountText, discountCode: r.offer.code,
-  points: num(r.points), status: r.status, createdAt: r.createdAt, usedAt: r.usedAt,
+  id: r.id, code: r.shortCode ?? r.code, customerName: r.customerName, phone: full ? r.userId : mask(r.userId), offerTitle: r.offer.title, discountText: r.offer.discountText, discountCode: r.offer.code,
+  points: num(r.points), status: cardStatusOf(r), createdAt: r.createdAt, usedAt: r.usedAt,
 });
 marketplaceRouter.get("/:id/redemptions", requirePermission("marketplace.view"), handler(async (req, res) => {
   const p = await find(param(req, "id"));
@@ -207,6 +217,7 @@ marketplaceRouter.post("/redemptions/:rid/cancel", requirePermission("marketplac
   const r = await prisma.marketplaceRedemption.findUnique({ where: { id: rid }, include: { offer: true, partner: true } });
   if (!r) throw new AppError(404, "Card not found");
   if (r.status !== "active") throw new AppError(409, `This card is already ${r.status}`);
+  if (!cardLive(r)) throw new AppError(409, "This card has expired (cards are valid for 7 days), so its points are not returned.");
   const today = todayKey();
   const parts: { expiresOn: string | null; points: number }[] = r.spent ? JSON.parse(r.spent) : [{ expiresOn: null, points: num(r.points) }];
   await prisma.$transaction(async (tx) => {
@@ -241,32 +252,58 @@ async function partnerOr404(req: Request) {
 async function dash(p: PartnerRow) {
   const [offers, rows] = await Promise.all([
     prisma.marketplaceOffer.findMany({ where: { partnerId: p.id }, orderBy: { createdAt: "asc" } }),
-    prisma.marketplaceRedemption.findMany({ where: { partnerId: p.id }, include: { offer: true }, orderBy: { createdAt: "desc" }, take: 300 }),
+    prisma.marketplaceRedemption.findMany({ where: { partnerId: p.id, OR: [{ status: { not: "active" } }, { createdAt: { gt: new Date(Date.now() - CARD_DAYS * 86_400_000) } }] }, include: { offer: true }, orderBy: { createdAt: "desc" }, take: 300 }), // expired cards are left out so the list stays clean
   ]);
   return {
     partner: { name: p.name, category: p.category, about: p.about, agreementStart: p.agreementStart, agreementEnd: p.agreementEnd, status: statusOf(p), bannerUrl: p.bannerMediaId ? mediaPath(p.bannerMediaId) : null },
     offers: offers.map(offerView),
-    stats: { total: rows.length, active: rows.filter((r) => r.status === "active").length, used: rows.filter((r) => r.status === "used").length },
+    stats: { total: rows.length, active: rows.filter(cardLive).length, used: rows.filter((r) => r.status === "used").length },
     redemptions: rows.map((r) => redView(r, false)),
   };
 }
 
 partnerDashboardRouter.get("/:token", handler(async (req, res) => send(res, await dash(await partnerOr404(req)))));
 
-// check a card code a customer shows; nothing changes
-partnerDashboardRouter.post("/:token/verify", handler(async (req, res) => {
+// Check a customer's card; nothing changes. The partner types the card code the customer shows, or the customer's mobile number
+// (then every card that customer has at THIS business, waiting ones first). A few tries a minute, so numbers cannot be guessed in bulk.
+const verifyLimit = rateLimit({ windowMs: 60_000, limit: 20, standardHeaders: true, legacyHeaders: false, message: { success: false, message: "Too many checks. Wait a minute." } });
+partnerDashboardRouter.post("/:token/verify", verifyLimit, handler(async (req, res) => {
   const p = await partnerOr404(req);
   const { code } = parse(z.object({ code: z.string().trim().toUpperCase().min(3).max(30) }), req.body);
-  const r = await prisma.marketplaceRedemption.findFirst({ where: { code, partnerId: p.id }, include: { offer: true } });
+  const digits = code.replace(/[\s-]/g, "");
+  if (/^\d{10}$/.test(digits)) {
+    const rows = (await prisma.marketplaceRedemption.findMany({ where: { userId: digits, partnerId: p.id }, include: { offer: true }, orderBy: { createdAt: "desc" }, take: 20 })).filter((x) => cardStatusOf(x) !== "expired");
+    if (rows.length === 0) throw new AppError(404, "No valid card from this mobile number at your business.");
+    rows.sort((a, b) => Number(cardLive(b)) - Number(cardLive(a))); // stable: waiting cards first, newest first
+    return send(res, rows.map((r) => redView(r, false)));
+  }
+  // the 4-digit code (a card still waiting wins over an old used one with the same digits), or an older card's long code
+  const plain = code.replace(/[\s-]/g, "");
+  const found = await prisma.marketplaceRedemption.findMany({ where: { partnerId: p.id, OR: [{ shortCode: plain }, { shortCode: code }, { code }] }, include: { offer: true }, orderBy: { createdAt: "desc" }, take: 20 });
+  const r = found.find(cardLive) ?? found[0];
   if (!r) throw new AppError(404, "No card with this code for your business.");
-  send(res, redView(r, false));
+  if (cardStatusOf(r) === "expired") throw new AppError(410, "This card has expired (cards are valid for 7 days).");
+  send(res, [redView(r, false)]);
 }));
+
+// Tells the customer their card was used at the partner (bell notice plus a push to their phone). Never fails the request.
+async function tellCustomerCardUsed(rid: string, partnerName: string) {
+  try {
+    const r = await prisma.marketplaceRedemption.findUnique({ where: { id: rid }, include: { offer: true } });
+    if (!r) return;
+    const title = `Your ${partnerName} card was used`;
+    const message = `${r.offer.discountText} at ${partnerName} (card ${r.shortCode ?? r.code}). Thank you for using your points!`;
+    await prisma.notification.createMany({ data: [{ userId: r.userId, type: "points", title, message, href: "/marketplace", dedupeKey: `partner-used-${r.id}` }], skipDuplicates: true });
+    await pushToUsers([r.userId], { title, body: message, href: "/marketplace", tag: `partner-used-${r.id}` });
+  } catch { /* a courtesy notice: the card is already marked used */ }
+}
 
 // the customer got the discount: mark the card used
 partnerDashboardRouter.post("/:token/redemptions/:rid/used", handler(async (req, res) => {
   const p = await partnerOr404(req);
-  const done = await prisma.marketplaceRedemption.updateMany({ where: { id: param(req, "rid"), partnerId: p.id, status: "active" }, data: { status: "used", usedAt: new Date() } });
-  if (done.count !== 1) throw new AppError(409, "This card is already used or was cancelled.");
+  const done = await prisma.marketplaceRedemption.updateMany({ where: { id: param(req, "rid"), partnerId: p.id, status: "active", createdAt: { gt: new Date(Date.now() - CARD_DAYS * 86_400_000) } }, data: { status: "used", usedAt: new Date() } });
+  if (done.count !== 1) throw new AppError(409, "This card is already used, was cancelled or has expired (cards are valid for 7 days).");
+  await tellCustomerCardUsed(param(req, "rid"), p.name);
   send(res, await dash(p), "Marked as used");
 }));
 

@@ -35,6 +35,11 @@ export default function CustomersPage() {
   const [exporting, setExporting] = useState(false);
   const [tick, setTick] = useState(0);
   const canSuspend = true;
+  // a notification link can open this page already searching for one customer: ?q=<phone>
+  useEffect(() => {
+    const t = setTimeout(() => { const v = new URLSearchParams(window.location.search).get("q"); if (v) setSearch(v.slice(0, 60)); }, 0);
+    return () => clearTimeout(t);
+  }, []);
 
   async function suspend(c: CustomerRow) {
     if (!guard("customers.suspend")) return;

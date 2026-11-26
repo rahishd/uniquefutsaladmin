@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Camera, Check, CheckCircle2, ChevronDown, Loader2, Lock, LockOpen, LogOut, Pencil, Phone, Plus, Trash2, Users, X } from "lucide-react";
-import { ApiError, setToken } from "@/lib/api";
+import { Camera, Check, ChevronDown, Loader2, Lock, LockOpen, LogOut, Pencil, Phone, Plus, Trash2, Users, X } from "lucide-react";
+import { ApiError } from "@/lib/api";
 import { logout, setAvatar } from "@/lib/auth";
 import { rs } from "@/lib/bookings";
-import { Bill, fmtDay, range } from "@/lib/hosted-tournaments";
+import { Bill, SERVICES, fmtDay, range } from "@/lib/hosted-tournaments";
 import { askConfirm } from "@/lib/confirm";
-import { OrgMe, OrgTeam, TeamInput, orgAddTeam, orgBilling, orgChangePassword, orgDeleteTeam, orgEditTeam, orgSetRegistrationClosed } from "@/lib/organizer";
+import { OrgMe, OrgTeam, TeamInput, orgAddTeam, orgBilling, orgDeleteTeam, orgEditTeam, orgSetRegistrationClosed } from "@/lib/organizer";
 
 const msg = (e: unknown) => (e instanceof ApiError || e instanceof Error ? e.message : "Something went wrong");
 const field = "w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
@@ -49,7 +49,7 @@ function TeamSheet({ tid, team, onClose, onSaved }: { tid: string; team: OrgTeam
         <label className="block text-sm font-medium">Team name<input value={name} maxLength={40} onChange={(e) => { setName(e.target.value); setErr(""); }} placeholder="Madhan FC" className={field + " mt-1"} /></label>
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block text-sm font-medium">Captain<input value={captain} maxLength={40} onChange={(e) => { setCaptain(e.target.value); setErr(""); }} placeholder="Captain name" className={field + " mt-1"} /></label>
-          <label className="block text-sm font-medium">Captain&apos;s phone<input value={phone} inputMode="tel" maxLength={17} onChange={(e) => { setPhone(e.target.value.replace(/[^\d+\s-]/g, "")); setErr(""); }} placeholder="98XXXXXXXX" className={field + " mt-1"} /></label>
+          <label className="block text-sm font-medium">Captain&apos;s phone<input value={phone} inputMode="numeric" maxLength={10} onChange={(e) => { setPhone(e.target.value.replace(/\D/g, "").slice(0, 10)); setErr(""); }} placeholder="98XXXXXXXX" className={field + " mt-1"} /></label>
         </div>
         <label className="block text-sm font-medium">Players <span className="font-normal text-muted">(one name on each line, optional)</span><textarea value={players} rows={5} onChange={(e) => setPlayers(e.target.value)} className={field + " mt-1"} /></label>
         {err && <p role="alert" className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600">{err}</p>}
@@ -193,14 +193,24 @@ export function BillingTab({ tid }: { tid: string }) {
         <h3 className="text-sm font-bold">Days and hours</h3>
         <ul className="mt-2 space-y-1.5 text-sm">{bill.days.map((d) => <li key={d.id} className="flex justify-between gap-3"><span>{fmtDay(d.date)}<span className="block text-xs text-muted">{range(d)}</span></span><span className="tabular-nums text-muted">{rs(d.amount)}</span></li>)}</ul>
       </section>
-      {(bill.serviceLines?.length ?? 0) > 0 && (
-        <section className="rounded-2xl bg-surface p-4 shadow-sm">
+        <section className="rounded-2xl bg-surface p-4 shadow-sm" aria-label="Additional services">
           <h3 className="text-sm font-bold">Additional services</h3>
-          <ul className="mt-2 divide-y divide-line text-sm">
-            {bill.serviceLines.map((l) => <li key={l.id} className="flex items-start justify-between gap-3 py-1.5"><span className="min-w-0"><span className="block font-medium">{l.label}</span>{l.id === "mineral_water" && <span className="block text-xs text-muted">{l.quantity} bottle{l.quantity === 1 ? "" : "s"} x {rs(l.unitPrice)}</span>}</span><span className="tabular-nums font-semibold">{rs(l.amount)}</span></li>)}
+          <ul className="mt-1 divide-y divide-line">
+            {SERVICES.map((x) => {
+              const on = bill.services.includes(x.id);
+              const price = bill.serviceAmounts?.[x.id];
+              return (
+                <li key={x.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                  <span className="min-w-0">
+                    <span className={`block font-medium ${on ? "" : "text-muted"}`}>{x.label}</span>
+                    {typeof price === "number" && price > 0 && <span className="block text-xs text-muted">{rs(price)}{x.per === "bottle" ? " per bottle" : ""}{x.id === "mineral_water" && on && bill.waterBottles > 0 ? ` · ${bill.waterBottles} bottle${bill.waterBottles === 1 ? "" : "s"} taken` : ""}</span>}
+                  </span>
+                  <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${on ? "bg-emerald-500/15 text-emerald-700" : "bg-slate-500/15 text-slate-600"}`}>{on ? "Included" : "Not chosen"}</span>
+                </li>
+              );
+            })}
           </ul>
         </section>
-      )}
       {bill.lines.some((l) => l.kind === "goods") && (
         <section className="rounded-2xl bg-surface p-4 shadow-sm">
           <div className="flex items-center justify-between gap-3"><h3 className="text-sm font-bold">Inventory: goods taken from the shop</h3><span className="text-xs font-semibold text-muted">{bill.lines.filter((l) => l.kind === "goods").reduce((n, l) => n + l.quantity, 0)} items</span></div>
@@ -228,29 +238,10 @@ export function BillingTab({ tid }: { tid: string }) {
 
 /* ---------------- Account: change password and sign out (opened from the Dashboard) ---------------- */
 export function AccountPanel({ onSignOut }: { onSignOut: () => void }) {
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState("");
-  const [ok, setOk] = useState("");
-  const [cur, setCur] = useState("");
-  const [next, setNext] = useState("");
-  async function password(ev: React.FormEvent) {
-    ev.preventDefault();
-    setErr(""); setOk("");
-    if (next.length < 10) return setErr("The new password needs at least 10 characters.");
-    setBusy(true);
-    try { const r = await orgChangePassword(cur, next); setToken(r.token); setCur(""); setNext(""); setOk("Password changed. Other devices are signed out."); }
-    catch (e) { setErr(msg(e)); } finally { setBusy(false); }
-  }
+  // no password change here: the venue staff reset a host's PIN or password
   return (
     <div className="space-y-3">
-      <form onSubmit={password} className="space-y-3 rounded-2xl bg-surface p-4 shadow-sm">
-        <h3 className="text-sm font-bold">Change password</h3>
-        <input type="password" autoComplete="current-password" placeholder="Current password" aria-label="Current password" value={cur} onChange={(e) => setCur(e.target.value)} className={field} />
-        <input type="password" autoComplete="new-password" placeholder="New password (10 or more characters)" aria-label="New password" value={next} onChange={(e) => setNext(e.target.value)} className={field} />
-        <button type="submit" disabled={!cur || !next || busy} className="flex w-full items-center justify-center gap-2 rounded-full bg-brand px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{busy ? <Loader2 size={15} className="animate-spin" /> : null} Change password</button>
-      </form>
-      {err && <p role="alert" className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600">{err}</p>}
-      {ok && <p role="status" className="flex items-center gap-2 rounded-xl bg-emerald-500/10 p-3 text-sm text-emerald-700"><CheckCircle2 size={16} /> {ok}</p>}
+      <p className="rounded-2xl bg-surface p-4 text-sm text-muted shadow-sm">Forgot your PIN or want it changed? Ask the Unique Futsal staff. Only they can reset it.</p>
       <button type="button" onClick={() => { logout(); onSignOut(); }} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-red-600 px-4 py-3 text-sm font-semibold text-white shadow-sm"><LogOut size={16} /> Sign out</button>
     </div>
   );

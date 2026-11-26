@@ -147,7 +147,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           {/* the frequent pages as icons, on every page, for quick switching (the name shows on hover or long press) */}
           {/* the Dashboard is the page of shortcuts itself, so the icon row is not shown there */}
           {!pathname.startsWith("/dashboard") && (
-            <nav aria-label="Frequent pages" className="order-last mx-0 flex min-w-0 basis-full md:order-none md:flex-1 md:basis-auto items-center justify-between gap-1.5 overflow-x-auto py-1 max-md:-mr-2 md:mx-3 md:justify-center md:gap-2.5 md:[mask-image:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <nav aria-label="Frequent pages" className="order-last mx-0 flex min-w-0 basis-full md:order-none md:flex-1 md:basis-auto items-center justify-between gap-1.5 overflow-x-auto py-2 max-md:-mr-2 md:mx-3 md:justify-center md:gap-2.5 md:[mask-image:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {visible.filter((f) => !f.notInTopBar).map((f) => {
                 const on = isActive(f.href);
                 const n = live.unseenFor(f.href).length;

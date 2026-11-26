@@ -1539,6 +1539,7 @@ model MarketplacePartner {
   id             String                  @id @default(cuid())
   name           String
   category       String
+  registrationNo String? // the company's registration number
   contactName    String?
   contactPhone   String?
   about          String?
@@ -1588,7 +1589,8 @@ model MarketplaceRedemption {
   userId       String // User.phoneNumber
   customerName String?
   points       Decimal            @db.Decimal(8, 1)
-  code         String             @unique // the card code the customer shows
+  code         String             @unique // the unique internal card code
+  shortCode    String? // the 4-digit code the customer shows (unique among this partner's active cards); older cards have none and show `code`
   status       String             @default("active") // active | used | cancelled
   spent        String? // JSON: which points (and expiry dates) were spent, so a cancel gives each part back
   createdAt    DateTime           @default(now())
@@ -1597,6 +1599,7 @@ model MarketplaceRedemption {
   offer        MarketplaceOffer   @relation(fields: [offerId], references: [id])
 
   @@index([partnerId, createdAt])
+  @@index([partnerId, shortCode, status])
   @@index([userId])
 }
 
