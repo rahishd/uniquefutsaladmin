@@ -9,14 +9,20 @@ import VipTag from "./VipTag";
 import { rs } from "@/lib/bookings";
 import { guard } from "@/lib/access";
 import { useHighlight } from "@/lib/highlight";
-import { CustomerList, CustomerRow, Filter, PAGE_SIZE, downloadCustomersExcel, initials, listCustomers, setActive } from "@/lib/customers";
+import { CustomerList, CustomerRow, Filter, PAGE_SIZE, WalkIn, downloadCustomersExcel, initials, listCustomers, listWalkIns, setActive } from "@/lib/customers";
+import { currentAdmin } from "@/lib/auth";
+import WalkInSheet from "./WalkInSheet";
 
 import { askConfirm } from "@/lib/confirm";
-const MODES: { id: Filter | ""; label: string }[] = [{ id: "", label: "Everyone" }, { id: "captain", label: "Captains" }, { id: "player", label: "Regular players" }, { id: "vip", label: "VIP" }, { id: "member", label: "Membership" }];
+type Tab = Filter | "" | "walkin";
+const MODES: { id: Tab; label: string }[] = [{ id: "", label: "Everyone" }, { id: "captain", label: "Captains" }, { id: "player", label: "Regular players" }, { id: "vip", label: "VIP" }, { id: "member", label: "Membership" }, { id: "walkin", label: "Walk-in customers" }];
 
 export default function CustomersPage() {
   useHighlight();
-  const [mode, setMode] = useState<Filter | "">("");
+  const isAdmin = ["owner", "admin"].includes(currentAdmin()?.role ?? ""); // walk-in customers and their game records are for the Owner and Admins only
+  const [mode, setMode] = useState<Tab>("");
+  const [walks, setWalks] = useState<{ items: WalkIn[]; total: number } | null>(null);
+  const [walkOpen, setWalkOpen] = useState<WalkIn | null>(null);
   const [status, setStatus] = useState<"" | "active" | "suspended">("");
   const [search, setSearch] = useState("");
   const [q, setQ] = useState("");
@@ -48,20 +54,48 @@ export default function CustomersPage() {
 
   useEffect(() => {
     let live = true;
+    if (mode === "walkin") {
+      listWalkIns({ q, page: pageNo }).then((d) => { if (live) { setWalks(d); setError(""); } }).catch((e) => { if (live) setError(e instanceof Error ? e.message : "Could not load walk-in customers"); });
+      return () => { live = false; };
+    }
     listCustomers({ q, mode, status, page: pageNo })
       .then((d) => { if (live) { setData(d); setTotals(d.totals); setError(""); } })
       .catch((e) => { if (live) setError(e instanceof Error ? e.message : "Could not load customers"); });
+    // searching Everyone also finds walk-in customers (they have no account), tagged "Walk-in"
+    if (isAdmin && mode === "" && q.trim() && pageNo === 1) listWalkIns({ q, page: 1 }).then((d) => { if (live) setWalks(d); }).catch(() => { if (live) setWalks(null); });
+    else setWalks(null);
     return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, mode, status, pageNo, tick]);
 
-  const pick = (fn: () => void) => { fn(); setPageNo(1); setData(null); setError(""); };
+  const pick = (fn: () => void) => { fn(); setPageNo(1); setData(null); setWalks(null); setError(""); };
+  const walkTab = mode === "walkin";
+  const walkRows = (list: WalkIn[]) => list.map((w) => (
+    <li key={w.key} className="rounded-2xl bg-surface p-3 shadow-sm">
+      <div className="flex items-center gap-3">
+        <button onClick={() => setWalkOpen(w)} className="flex min-w-0 flex-1 items-center gap-3 text-left" aria-label={`Open walk-in ${w.name ?? w.phone ?? ""}`}>
+          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-violet-500/15 font-bold text-violet-700">{initials(w.name, w.phone ?? "")}</span>
+          <span className="min-w-0 flex-1">
+            <span className="flex flex-wrap items-center gap-x-2 gap-y-1"><span className="min-w-0 break-words font-semibold">{w.name || "No name"}</span><Badge tone="bg-violet-500/15 text-violet-700">Walk-in</Badge></span>
+            <span className="block text-sm text-muted">{w.phone ?? "No phone number"}</span>
+            <span className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted">
+              <span><strong className="text-foreground">{w.games}</strong> games</span>
+              <span>paid <strong className="text-foreground">{rs(w.paid)}</strong></span>
+              {w.unpaid > 0 && <span className="font-semibold text-amber-600">owes {rs(w.unpaid)}</span>}
+            </span>
+          </span>
+        </button>
+        {w.phone && <a href={`tel:${w.phone}`} aria-label={`Call ${w.name ?? w.phone}`} className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-brand text-white"><Phone size={18} /></a>}
+      </div>
+    </li>
+  ));
 
   // the customers as an Excel file, with the search and filters currently on screen (none = everyone)
   async function exportExcel() {
     if (!guard("customers.export")) return;
     setExporting(true);
     setError("");
-    try { await downloadCustomersExcel({ q, mode, status }); } catch (e) { setError(e instanceof Error ? e.message : "Could not export"); } finally { setExporting(false); }
+    try { await downloadCustomersExcel({ q, mode: mode === "walkin" ? "" : mode, status }); } catch (e) { setError(e instanceof Error ? e.message : "Could not export"); } finally { setExporting(false); }
   }
   const pages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1;
   const input = "rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
@@ -97,7 +131,7 @@ export default function CustomersPage() {
       </div>
 
       <div className="flex gap-1 overflow-x-auto rounded-2xl bg-surface p-1 shadow-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="tablist" aria-label="Customer type">
-        {MODES.map((m) => (
+        {MODES.filter((m) => m.id !== "walkin" || isAdmin).map((m) => (
           <button key={m.label} role="tab" aria-selected={mode === m.id} onClick={() => pick(() => setMode(m.id))}
             className={`flex-1 whitespace-nowrap rounded-xl px-3 py-2.5 text-sm font-semibold ${mode === m.id ? "bg-brand text-white" : "text-muted hover:bg-surface-2"}`}>{m.label}</button>
         ))}
@@ -116,8 +150,29 @@ export default function CustomersPage() {
       </div>
 
       {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600" role="alert">{error}</p>}
-      {!data && !error && <p className="py-10 text-center text-sm text-muted">Loading customers…</p>}
-      {data && data.items.length === 0 && (
+      {walkTab && !walks && !error && <p className="py-10 text-center text-sm text-muted">Loading walk-in customers…</p>}
+      {walkTab && walks && (
+        <>
+          <p className="text-xs text-muted">People booked at the desk who have no app account. Only the Owner and Admins see this. Tap one for their game records.</p>
+          {walks.items.length === 0 && <div className="grid place-items-center gap-2 rounded-2xl bg-surface py-14 text-center text-muted shadow-sm"><Users size={32} strokeWidth={1.5} /><p>{q ? "No walk-in customers match this search." : "No walk-in customers yet."}</p></div>}
+          <ul className="grid items-start gap-2 xl:grid-cols-2">{walkRows(walks.items)}</ul>
+          {walks.total > PAGE_SIZE && (
+            <div className="flex items-center justify-between pt-2 text-sm">
+              <button disabled={pageNo <= 1} onClick={() => { setPageNo(pageNo - 1); setWalks(null); }} className="flex items-center gap-1 rounded-xl bg-surface px-3 py-2 shadow-sm disabled:opacity-40"><ChevronLeft size={16} /> Previous</button>
+              <span className="text-muted">Page {pageNo} of {Math.max(1, Math.ceil(walks.total / PAGE_SIZE))} · {walks.total} walk-in customers</span>
+              <button disabled={pageNo >= Math.ceil(walks.total / PAGE_SIZE)} onClick={() => { setPageNo(pageNo + 1); setWalks(null); }} className="flex items-center gap-1 rounded-xl bg-surface px-3 py-2 shadow-sm disabled:opacity-40">Next <ChevronRight size={16} /></button>
+            </div>
+          )}
+        </>
+      )}
+      {!walkTab && !data && !error && <p className="py-10 text-center text-sm text-muted">Loading customers…</p>}
+      {!walkTab && mode === "" && walks && walks.items.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-muted">Walk-in customers (no app account)</p>
+          <ul className="grid items-start gap-2 xl:grid-cols-2">{walkRows(walks.items.slice(0, 6))}</ul>
+        </div>
+      )}
+      {!walkTab && data && data.items.length === 0 && !(walks && walks.items.length > 0) && (
         <div className="grid place-items-center gap-2 rounded-2xl bg-surface py-14 text-center text-muted shadow-sm">
           <Users size={32} strokeWidth={1.5} />
           <p>{q || mode || status ? "No customers match these filters." : "No customers yet."}</p>
@@ -125,7 +180,7 @@ export default function CustomersPage() {
       )}
 
       <ul className="grid items-start gap-2 xl:grid-cols-2">
-        {data?.items.map((c) => (
+        {!walkTab && data?.items.map((c) => (
           <li key={c.phoneNumber} data-hl={`u-${c.phoneNumber}`} className={`rounded-2xl p-3 shadow-sm ${c.vip ? "bg-amber-400/10 ring-2 ring-amber-400/70" : "bg-surface"}`}>
             <div className="flex items-center gap-3">
             <button onClick={() => setOpen(c)} className="flex min-w-0 flex-1 items-center gap-3 text-left" aria-label={`Open ${c.name ?? c.phoneNumber}`}>
@@ -160,7 +215,7 @@ export default function CustomersPage() {
         ))}
       </ul>
 
-      {data && data.total > PAGE_SIZE && (
+      {!walkTab && data && data.total > PAGE_SIZE && (
         <div className="flex items-center justify-between pt-2 text-sm">
           <button disabled={pageNo <= 1} onClick={() => { setPageNo(pageNo - 1); setData(null); }} className="flex items-center gap-1 rounded-xl bg-surface px-3 py-2 shadow-sm disabled:opacity-40"><ChevronLeft size={16} /> Previous</button>
           <span className="text-muted">Page {pageNo} of {pages} · {data.total} customers</span>
@@ -169,6 +224,7 @@ export default function CustomersPage() {
       )}
 
       {adding && <AddCustomerSheet onClose={() => setAdding(false)} onAdded={(phone) => { setSearch(phone); setMode(""); setStatus(""); setPageNo(1); setTick((t) => t + 1); }} />}
+      {walkOpen && <WalkInSheet who={walkOpen} onClose={() => setWalkOpen(null)} />}
       {open && <CustomerSheet customer={open} onClose={() => setOpen(null)} onChanged={() => setTick((t) => t + 1)} />}
     </div>
   );

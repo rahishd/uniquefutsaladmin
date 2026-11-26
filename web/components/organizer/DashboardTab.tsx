@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Award, CalendarDays, ChevronLeft, ChevronRight, Loader2, Medal, Minus, Plus, Receipt, ScrollText, Trash2, Trophy, UserCog, Users } from "lucide-react";
 import { BillingTab, AccountPanel } from "./SimpleTabs";
 import { ApiError } from "@/lib/api";
 import { rs } from "@/lib/bookings";
-import { Bill, SERVICES, fmtDay, h12 } from "@/lib/hosted-tournaments";
-import { OrgMe, OrgPrize, OrgTeam, OrgTournament, orgBilling, orgSaveMaxTeams, orgSavePrizes, orgSaveRules } from "@/lib/organizer";
+import { fmtDay, h12 } from "@/lib/hosted-tournaments";
+import HostSetting from "../tournaments/HostSetting";
+import { OrgMe, OrgPrize, OrgTeam, OrgTournament, orgSaveEntryFee, orgSaveMaxTeams, orgSavePrizes, orgSaveRules } from "@/lib/organizer";
 
 export type DashView = "" | "tournament" | "prizes" | "rules" | "billing" | "profile";
 type View = DashView;
@@ -30,7 +31,7 @@ export default function DashboardTab({ me, t, teams, maxTeams, onMaxTeams, onMe,
       <div className="space-y-3">
         <div><h2 className="text-lg font-bold">Dashboard</h2><p className="text-xs text-muted">Everything about your tournament in one place.</p></div>
         <ul className="grid grid-cols-2 gap-2.5">
-          {TILES.map(({ id, label, hint, icon: Icon, tone }) => (
+          {TILES.filter((x) => x.id !== "prizes").map(({ id, label, hint, icon: Icon, tone }) => ( // the prizes are on the Tournament page
             <li key={id}>
               <button type="button" onClick={() => setView(id)} className="flex h-full w-full flex-col items-center gap-1.5 rounded-2xl bg-surface p-3.5 text-center shadow-sm transition active:scale-[0.98]">
                 <span className={`grid h-11 w-11 place-items-center rounded-xl ${tone}`}><Icon size={22} /></span>
@@ -51,7 +52,7 @@ export default function DashboardTab({ me, t, teams, maxTeams, onMaxTeams, onMe,
       <h2 className="flex items-center gap-2 text-lg font-bold"><tile.icon size={20} className="text-brand" /> {tile.label}</h2>
       {view === "profile" && <AccountPanel onSignOut={onSignOut} />}
       {view !== "profile" && !t && <p className="rounded-2xl bg-surface p-8 text-center text-sm text-muted shadow-sm">No tournament is assigned to this account yet. Ask the venue.</p>}
-      {t && view === "tournament" && <TournamentPage t={t} teams={teams} maxTeams={maxTeams} onMaxTeams={onMaxTeams} />}
+      {t && view === "tournament" && <TournamentPage t={t} me={me} onMe={onMe} setView={setView} teams={teams} maxTeams={maxTeams} onMaxTeams={onMaxTeams} />}
       {t && view === "prizes" && <PrizesPage key={t.id} t={t} me={me} onMe={onMe} />}
       {t && view === "rules" && <RulesPage key={t.id} t={t} me={me} onMe={onMe} />}
       {t && view === "billing" && <BillingTab key={t.id} tid={t.id} />}
@@ -60,9 +61,7 @@ export default function DashboardTab({ me, t, teams, maxTeams, onMaxTeams, onMe,
 }
 
 /* ---------------- Tournament: the details ---------------- */
-function TournamentPage({ t, teams, maxTeams, onMaxTeams }: { t: OrgTournament; teams: OrgTeam[] | null; maxTeams: number; onMaxTeams: (n: number) => void }) {
-  const [bill, setBill] = useState<Bill | null>(null);
-  useEffect(() => { let live = true; orgBilling(t.id).then((b) => live && setBill(b)).catch(() => {}); return () => { live = false; }; }, [t.id]);
+function TournamentPage({ t, me, onMe, setView, teams, maxTeams, onMaxTeams }: { t: OrgTournament; me: OrgMe; onMe: (m: OrgMe) => void; setView: (v: DashView) => void; teams: OrgTeam[] | null; maxTeams: number; onMaxTeams: (n: number) => void }) {
   const approved = teams?.filter((x) => x.status === "approved").length ?? 0;
   const waiting = teams?.filter((x) => x.status === "pending").length ?? 0;
   const row = (label: string, value: React.ReactNode) => <div className="flex items-start justify-between gap-4 py-2 text-sm"><span className="text-muted">{label}</span><span className="text-right font-semibold">{value}</span></div>;
@@ -75,8 +74,26 @@ function TournamentPage({ t, teams, maxTeams, onMaxTeams }: { t: OrgTournament; 
           {row("Dates", t.startDate === t.endDate ? fmtDay(t.startDate) : `${fmtDay(t.startDate)} to ${fmtDay(t.endDate)}`)}
           {row("Organizer", t.hostName ?? me0(t))}
           {row("Teams", <span className="tabular-nums">{approved} / {maxTeams}{waiting > 0 && <span className="ml-1 text-xs font-medium text-amber-600">({waiting} waiting)</span>}</span>)}
+          {row("Entry fee", t.entryFee > 0 ? `${rs(t.entryFee)} per team` : "Free entry")}
           {row("Prize pool", t.prizePool > 0 ? rs(t.prizePool) : "Not set yet")}
         </div>
+      </section>
+      <section className="rounded-2xl bg-surface p-4 shadow-sm">
+        <h3 className="flex items-center gap-2 text-sm font-bold"><Receipt size={16} className="text-brand" /> Entry fee</h3>
+        <p className="mb-3 mt-1 text-xs text-muted">The fee each team pays to register. Teams see it when they sign up.</p>
+        <HostSetting key={`${t.id}-${t.entryFee}`} id="org-entry-fee" label="Entry fee per team" hint="0 = free entry" prefix="Rs." noun="fee" saved={t.entryFee}
+          save={async (n) => { const r = await orgSaveEntryFee(t.id, n); onMe({ ...me, tournaments: me.tournaments.map((x) => (x.id === t.id ? { ...x, entryFee: r.entryFee } : x)) }); return r.entryFee; }}
+          doneText={(n) => (n === 0 ? "Entry is free. Teams see that." : `Saved: ${rs(n)} per team.`)} />
+      </section>
+      <section className="rounded-2xl bg-gradient-to-br from-amber-400/20 to-amber-500/5 p-4 shadow-sm">
+        <h3 className="flex items-center gap-2 text-sm font-bold"><Medal size={16} className="text-amber-700" /> Prize pool</h3>
+        <p className="mt-2 text-3xl font-extrabold tabular-nums">{t.prizePool > 0 ? rs(t.prizePool) : "Not set yet"}</p>
+        {t.prizes.length > 0 && (
+          <ul className="mt-2 divide-y divide-line/60 text-sm">
+            {t.prizes.map((p, i) => <li key={`${p.place}-${i}`} className="flex justify-between gap-3 py-1.5"><span className="font-semibold">{p.place}</span><span className="text-right tabular-nums">{p.cash > 0 ? rs(p.cash) : "No cash"}{p.trophy ? `, ${p.trophy}` : ""}</span></li>)}
+          </ul>
+        )}
+        <button type="button" onClick={() => setView("prizes")} className="mt-3 w-full rounded-2xl border border-line bg-surface py-2.5 text-sm font-semibold">{t.prizes.length > 0 ? "Change the prizes" : "Set the prizes"}</button>
       </section>
       <MaxTeamsCard key={`${t.id}-${maxTeams}`} t={t} held={approved + waiting} maxTeams={maxTeams} onMaxTeams={onMaxTeams} />
       <section className="rounded-2xl bg-surface p-4 shadow-sm">
@@ -86,26 +103,6 @@ function TournamentPage({ t, teams, maxTeams, onMaxTeams }: { t: OrgTournament; 
           {t.days.length === 0 && <li className="py-2 text-muted">No days yet.</li>}
         </ul>
       </section>
-      {bill && (
-        <section className="rounded-2xl bg-surface p-4 shadow-sm" aria-label="Additional services">
-          <h3 className="text-sm font-bold">Additional services</h3>
-          <ul className="mt-1 divide-y divide-line">
-            {SERVICES.map((x) => {
-              const on = bill.services.includes(x.id);
-              const price = bill.serviceAmounts?.[x.id];
-              return (
-                <li key={x.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
-                  <span className="min-w-0">
-                    <span className={`block font-medium ${on ? "" : "text-muted"}`}>{x.label}</span>
-                    {typeof price === "number" && price > 0 && <span className="block text-xs text-muted">{rs(price)}{x.per === "bottle" ? " per bottle" : ""}{x.id === "mineral_water" && on && bill.waterBottles > 0 ? ` · ${bill.waterBottles} bottle${bill.waterBottles === 1 ? "" : "s"} taken` : ""}</span>}
-                  </span>
-                  <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${on ? "bg-emerald-500/15 text-emerald-700" : "bg-slate-500/15 text-slate-600"}`}>{on ? "Included" : "Not chosen"}</span>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      )}
       <p className="flex items-center gap-2 text-xs text-muted"><Users size={14} /> The registered teams are on the Teams page.</p>
     </div>
   );

@@ -6,6 +6,7 @@ import { ChevronLeft, Link2, ListOrdered, UserPlus, X } from "lucide-react";
 import { Badge } from "../bookings/Badge";
 import BillingPanel from "./BillingPanel";
 import HostLinkCard from "./HostLinkCard";
+import HostLoginCard from "./HostLoginCard";
 import RegistrationsCard from "./RegistrationsCard";
 import TieSheetEditor from "./TieSheetEditor";
 import { canDo } from "@/lib/access";
@@ -70,8 +71,9 @@ export default function TournamentDetail({ id }: { id: string }) {
             <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center" onClick={() => setPanel("")}>
               <div role="dialog" aria-label={panel === "registrations" ? "Team registrations" : "Match-day host link"} className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl bg-background p-4 shadow-xl sm:rounded-3xl" onClick={(e) => e.stopPropagation()}>
                 <button type="button" onClick={() => setPanel("")} aria-label="Close" className="absolute right-3 top-3 z-10 grid h-8 w-8 place-items-center rounded-full bg-surface-2"><X size={16} /></button>
-                {panel === "registrations" && <RegistrationsCard tournamentId={id} name={data.tournament.name} finished={data.tournament.state === "completed"} entryFee={data.tournament.entryFee} onFeeSaved={reload} />}
-                {panel === "host" && data.canShare && <HostLinkCard tournamentId={id} name={data.tournament.name} link={data.hostLink} onChanged={reload} />}
+                {panel === "registrations" && <RegistrationsCard tournamentId={id} name={data.tournament.name} finished={data.tournament.state === "completed"} />}
+                {panel === "host" && data.canShare && <HostLinkCard tournamentId={id} name={data.tournament.name} endDate={data.tournament.endDate} link={data.hostLink} onChanged={reload} />}
+                {panel === "host" && data.canShare && <div className="mt-4"><HostLoginCard tournamentId={id} name={data.tournament.name} /></div>}
               </div>
             </div>
           )}

@@ -9,6 +9,7 @@ import { audit } from "../lib/audit";
 import { todayKey } from "../lib/dates";
 import { AppError, handler, page, param, parse, send } from "../lib/http";
 import { requirePermission } from "../middleware/auth";
+import { isAdminRole } from "../lib/permissions";
 import { NOT_LEDGER } from "./bookings";
 import { cancellationProfile, cancellationStreaks } from "./cancellations";
 import { CATEGORIES } from "./complaints";
@@ -74,6 +75,73 @@ customersRouter.get("/export", requirePermission("customers.export"), handler(as
     "Cache-Control": "no-store",
   });
   res.send(Buffer.from(await wb.xlsx.writeBuffer()));
+}));
+
+// ---- Walk-in customers: people staff booked at the desk who have no app account. Their name and number live on the booking only. ----
+// Their game records are for the Owner and Admins only.
+const adminOnly = (req: { staff?: { role: string } }) => {
+  if (!req.staff || !isAdminRole(req.staff.role)) throw new AppError(403, "Only the Owner or an Admin can see walk-in customers");
+};
+const walkKey = (phone: string | null, name: string | null) => (phone ? `p:${phone}` : `n:${(name ?? "").trim().toLowerCase()}`);
+
+async function walkInBookings(q: string) {
+  const term = q.trim();
+  const rows = await prisma.booking.findMany({
+    where: {
+      AND: [NOT_LEDGER, { userId: null }, { notes: { contains: "WALK_IN" } }, { OR: [{ customerPhone: { not: null } }, { customerName: { not: null } }] },
+        ...(term ? [{ OR: [{ customerName: { contains: term, mode: "insensitive" as const } }, { customerPhone: { contains: term } }] }] : [])],
+    },
+    select: { id: true, code: true, date: true, startTime: true, duration: true, customerName: true, customerPhone: true, totalPrice: true, paymentStatus: true, paymentMethod: true, status: true },
+    orderBy: [{ date: "desc" }, { startTime: "desc" }], take: 3000,
+  });
+  // someone who has since made an account is a normal customer now
+  const phones = [...new Set(rows.flatMap((r) => (r.customerPhone ? [r.customerPhone] : [])))];
+  const registered = new Set((await prisma.user.findMany({ where: { phoneNumber: { in: phones } }, select: { phoneNumber: true } })).map((u) => u.phoneNumber));
+  return rows.filter((r) => !(r.customerPhone && registered.has(r.customerPhone)));
+}
+
+customersRouter.get("/walk-ins", requirePermission("customers.view"), handler(async (req, res) => {
+  adminOnly(req);
+  const q = req.query as Record<string, string | undefined>;
+  const { pageNo, limit } = page(q);
+  const groups = new Map<string, { key: string; name: string | null; phone: string | null; games: number; paid: number; unpaid: number; lastDate: string }>();
+  for (const b of await walkInBookings(q.q ?? "")) {
+    const key = walkKey(b.customerPhone, b.customerName);
+    const g = groups.get(key) ?? { key, name: b.customerName, phone: b.customerPhone, games: 0, paid: 0, unpaid: 0, lastDate: b.date };
+    if (!g.name && b.customerName) g.name = b.customerName;
+    if (!DEAD.includes(b.status)) { g.games += 1; if (b.paymentStatus === "completed") g.paid += b.totalPrice; else g.unpaid += b.totalPrice; }
+    groups.set(key, g);
+  }
+  const all = [...groups.values()].sort((a, b) => b.lastDate.localeCompare(a.lastDate));
+  send(res, { items: all.slice((pageNo - 1) * limit, pageNo * limit), total: all.length, page: pageNo, limit });
+}));
+
+customersRouter.get("/walk-ins/records", requirePermission("customers.view"), handler(async (req, res) => {
+  adminOnly(req);
+  const q = req.query as Record<string, string | undefined>;
+  const phone = (q.phone ?? "").trim(), name = (q.name ?? "").trim();
+  if (!phone && !name) throw new AppError(400, "Say which walk-in customer");
+  const key = walkKey(phone || null, name || null);
+  const rows = (await walkInBookings(phone || name)).filter((b) => walkKey(b.customerPhone, b.customerName) === key);
+  await audit(req, "view-walk-in", "customers", null, { phone: phone || null });
+  send(res, {
+    phone: phone || null, name: rows.find((b) => b.customerName)?.customerName ?? (name || null),
+    games: rows.map((b) => ({ code: b.code ?? "UF-" + b.id.slice(-6).toUpperCase(), date: b.date, time: b.startTime, hours: b.duration, amount: b.totalPrice, status: DEAD.includes(b.status) ? "cancelled" : b.status, paid: b.paymentStatus === "completed", method: b.paymentMethod })),
+  });
+}));
+
+// Tournament hosts (people who hold a hosted tournament, with or without an app account), found by mobile number or name.
+// Used by the manual-booking form so a host's number is recognised there too.
+customersRouter.get("/hosts", requirePermission("customers.view"), handler(async (req, res) => {
+  const q = String((req.query as Record<string, string | undefined>).q ?? "").trim().slice(0, 40);
+  if (q.length < 2) return send(res, { items: [] });
+  const rows = await prisma.tournament.findMany({
+    where: { hostedEvent: true, status: { not: "cancelled" }, OR: [{ hostPhone: { contains: q } }, { hostName: { contains: q, mode: "insensitive" } }] },
+    select: { hostPhone: true, hostName: true }, orderBy: { createdAt: "desc" }, take: 30,
+  });
+  const seen = new Set<string>();
+  const items = rows.flatMap((r) => (r.hostPhone && !seen.has(r.hostPhone) ? (seen.add(r.hostPhone), [{ phoneNumber: r.hostPhone, name: r.hostName, host: true }]) : [])).slice(0, 6);
+  send(res, { items });
 }));
 
 customersRouter.get("/", requirePermission("customers.view"), handler(async (req, res) => {

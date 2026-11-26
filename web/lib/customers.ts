@@ -56,6 +56,21 @@ export type VipInput = { code: string; type: "percent" | "flat"; value: number; 
 
 export const PAGE_SIZE = 20;
 
+// Walk-in customers: booked at the desk, no app account. Owner and Admins only (the server refuses everyone else).
+export type WalkIn = { key: string; name: string | null; phone: string | null; games: number; paid: number; unpaid: number; lastDate: string };
+export type WalkInRecords = { phone: string | null; name: string | null; games: { code: string; date: string; time: string; hours: number; amount: number; status: string; paid: boolean; method: string }[] };
+export const listWalkIns = (p: { q: string; page: number }) => {
+  const qs = new URLSearchParams({ page: String(p.page), limit: String(PAGE_SIZE) });
+  if (p.q.trim()) qs.set("q", p.q.trim());
+  return api<{ items: WalkIn[]; total: number; page: number; limit: number }>(`/admin/customers/walk-ins?${qs}`);
+};
+export const walkInRecords = (w: { phone: string | null; name: string | null }) => {
+  const qs = new URLSearchParams();
+  if (w.phone) qs.set("phone", w.phone);
+  if (w.name) qs.set("name", w.name);
+  return api<WalkInRecords>(`/admin/customers/walk-ins/records?${qs}`);
+};
+
 export const listCustomers = (p: { q: string; mode: Filter | ""; status: "" | "active" | "suspended"; page: number }) => {
   const qs = new URLSearchParams({ page: String(p.page), limit: String(PAGE_SIZE) });
   if (p.q.trim()) qs.set("q", p.q.trim());

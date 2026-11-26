@@ -37,8 +37,11 @@ function SignIn({ onDone, notice }: { onDone: () => void; notice?: string }) {
   const [id, setId] = useState("");
   const [pw, setPw] = useState("");
   const [show, setShow] = useState(false);
+  const [focus, setFocus] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(notice ?? "");
+  // A host signs in with a mobile number and the 4-digit PIN the venue set. An account made with an email address keeps a normal password.
+  const usePin = !id.includes("@");
 
   async function submit(ev: React.FormEvent) {
     ev.preventDefault();
@@ -56,30 +59,39 @@ function SignIn({ onDone, notice }: { onDone: () => void; notice?: string }) {
     <main className="min-h-dvh bg-white text-[#0c0b5d]" style={{ colorScheme: "light" }}>
       <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col">
         {/* dark blue header with the logo */}
-        <header className="relative overflow-hidden rounded-b-[2.5rem] bg-[linear-gradient(160deg,#0b1f4d_0%,#0a1b44_60%,#081738_100%)] px-6 pb-12 pt-[max(env(safe-area-inset-top),2.5rem)] text-center text-white shadow-[0_18px_40px_-18px_rgba(12,11,93,0.6)]">
-          <svg aria-hidden className="pointer-events-none absolute inset-0 h-full w-full opacity-[0.12]" viewBox="0 0 400 300" preserveAspectRatio="xMidYMax slice" fill="none" stroke="#fff" strokeWidth="1.5">
-            {[0, 1, 2, 3].map((i) => <path key={i} d={`M ${-20 + i * 30} 320 Q ${140 + i * 40} ${60 + i * 20} ${380 + i * 20} -10`} />)}
-          </svg>
+        <header className="relative overflow-hidden rounded-b-[2.5rem] bg-[linear-gradient(160deg,#0b1f4d_0%,#0a1b44_60%,#081738_100%)] px-6 pb-7 pt-[max(env(safe-area-inset-top),1.5rem)] text-center text-white shadow-[0_18px_40px_-18px_rgba(12,11,93,0.6)]">
           <div className="relative flex flex-col items-center">
-            <span className="grid h-24 w-24 place-items-center rounded-full bg-white/10 ring-1 ring-white/20"><Logo className="h-14" /></span>
-            <h1 className="mt-5 text-[1.7rem] font-extrabold leading-tight tracking-tight">Tournament Organizer</h1>
-            <p className="mt-1 text-sm font-medium uppercase tracking-[0.25em] text-white/70">Unique Futsal</p>
+            <Logo className="h-14" />
+            <h1 className="mt-3 text-2xl font-extrabold leading-tight tracking-tight">Unique Futsal</h1>
+            <p className="mt-0.5 text-sm font-medium uppercase tracking-[0.2em] text-white/70">Tournament Host Portal</p>
           </div>
         </header>
 
-        <form onSubmit={submit} className="flex flex-1 flex-col gap-4 px-6 pb-10 pt-8" noValidate>
-          <div>
+        <form onSubmit={submit} className="flex flex-1 flex-col gap-4 px-6 pb-8 pt-5" noValidate>
+          <div className="text-center">
             <h2 className="text-xl font-extrabold">Welcome</h2>
-            <p className="mt-1 text-sm text-slate-500">Sign in with your Unique Futsal ID (email or mobile number) and your password.</p>
+            <p className="mt-1 text-sm text-slate-500">{usePin ? "Sign in with your Unique Futsal ID (your mobile number) and your 4-digit PIN." : "Sign in with your Unique Futsal ID and your password."}</p>
           </div>
           <label className={box}><UserRound size={19} className="shrink-0 text-slate-400" />
-            <input value={id} onChange={(e) => setId(e.target.value)} autoComplete="username" inputMode="email" placeholder="Unique Futsal ID" aria-label="Unique Futsal ID" autoCapitalize="none" className="w-full bg-transparent text-base text-[#0c0b5d] outline-none placeholder:text-slate-400" /></label>
-          <label className={box}><Lock size={19} className="shrink-0 text-slate-400" />
-            <input value={pw} onChange={(e) => setPw(e.target.value)} type={show ? "text" : "password"} autoComplete="current-password" placeholder="Password" aria-label="Password" className="w-full bg-transparent text-base text-[#0c0b5d] outline-none placeholder:text-slate-400" />
-            <button type="button" onClick={() => setShow((v) => !v)} aria-label={show ? "Hide password" : "Show password"} className="shrink-0 text-slate-400">{show ? <EyeOff size={19} /> : <Eye size={19} />}</button></label>
+            <input value={id} onChange={(e) => { let v = e.target.value; if (/^d+$/.test(v)) v = v.slice(0, 10); /* a mobile number is 10 digits; an email can be any length */ if (v.includes("@") !== id.includes("@")) setPw(""); setId(v); }} autoComplete="username" inputMode="email" placeholder="Unique Futsal ID" aria-label="Unique Futsal ID" autoCapitalize="none" className="w-full bg-transparent text-base text-[#0c0b5d] outline-none placeholder:text-slate-400" /></label>
+          {usePin ? (
+            <label className={`${box} relative cursor-text`}><Lock size={19} className="shrink-0 text-slate-400" /><span className="shrink-0 text-base font-semibold text-slate-400">PIN</span>
+              <span className="flex flex-1 items-center justify-center gap-3" aria-hidden>
+                {[0, 1, 2, 3].map((i) => (
+                  <span key={i} className={`grid h-10 w-10 place-items-center border-b-[3px] text-center text-2xl font-extrabold transition-colors ${focus && i === Math.min(pw.length, 3) ? "border-[#0c0b5d]" : pw[i] ? "border-slate-400" : "border-slate-300"}`}>{pw[i] ? (show ? pw[i] : "•") : ""}</span>
+                ))}
+              </span>
+              <button type="button" onClick={() => setShow((v) => !v)} aria-label={show ? "Hide PIN" : "Show PIN"} className="relative z-10 shrink-0 text-slate-400">{show ? <EyeOff size={19} /> : <Eye size={19} />}</button>
+              <input value={pw} onChange={(e) => setPw(e.target.value.replace(/[^0-9]/g, "").slice(0, 4))} onFocus={() => setFocus(true)} onBlur={() => setFocus(false)} type="password" inputMode="numeric" pattern="[0-9]*" autoComplete="current-password" aria-label="PIN" placeholder="PIN" className="absolute inset-y-0 left-12 right-14 opacity-0" />
+            </label>
+          ) : (
+            <label className={box}><Lock size={19} className="shrink-0 text-slate-400" />
+              <input value={pw} onChange={(e) => setPw(e.target.value)} type={show ? "text" : "password"} autoComplete="current-password" placeholder="Password" aria-label="Password" className="w-full bg-transparent text-base text-[#0c0b5d] outline-none placeholder:text-slate-400" />
+              <button type="button" onClick={() => setShow((v) => !v)} aria-label={show ? "Hide password" : "Show password"} className="shrink-0 text-slate-400">{show ? <EyeOff size={19} /> : <Eye size={19} />}</button></label>
+          )}
           {err && <p role="alert" className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{err}</p>}
-          <button type="submit" disabled={busy || !id.trim() || !pw} className="mt-1 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#0c0b5d] px-5 py-4 text-base font-bold text-white shadow-[0_12px_24px_-10px_rgba(12,11,93,0.7)] transition active:scale-[0.99] disabled:opacity-50">{busy && <Loader2 size={18} className="animate-spin" />} Sign in</button>
-          <p className="mt-auto pt-6 text-center text-xs text-slate-500">Registered a tournament with the venue? Use the mobile number and password of your Unique Futsal account. Forgot it?<b className="mt-1 block text-sm font-bold text-slate-700">Ask the venue.</b></p>
+          <button type="submit" disabled={busy || !id.trim() || (usePin ? pw.length !== 4 : !pw)} className="mt-1 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#0c0b5d] px-5 py-4 text-base font-bold text-white shadow-[0_12px_24px_-10px_rgba(12,11,93,0.7)] transition active:scale-[0.99] disabled:opacity-50">{busy && <Loader2 size={18} className="animate-spin" />} Sign in</button>
+          <p className="pt-4 text-center text-xs text-slate-500">Registered a tournament with the venue? Use your mobile number and the 4-digit PIN the venue gave you. Forgot it?<b className="mt-1 block text-sm font-bold text-slate-700">Ask the venue.</b></p>
         </form>
       </div>
     </main>
@@ -101,7 +113,7 @@ export default function OrganizerApp() {
   const open = useCallback(async () => {
     try {
       const m = await orgMe();
-      setMe(m); setTid((cur) => (m.tournaments.some((t) => t.id === cur) ? cur : m.tournaments[0]?.id ?? "")); setPhase("ready");
+      setMe(m); setTid(m.tournaments.find((t) => t.state === "live")?.id ?? m.tournaments.find((t) => t.state === "upcoming")?.id ?? m.tournaments[0]?.id ?? ""); setPhase("ready");
     } catch (e) {
       if (!(e instanceof ApiError && (e.status === 401 || e.status === 403))) setError(msg(e));
       setPhase("signin");
@@ -166,18 +178,10 @@ export default function OrganizerApp() {
 
         {/* the tournament's details card is only on the Tournament page of the Dashboard; every other page keeps just a small switch when there is more than one tournament */}
         {t && !(tab === "dashboard" && dashView === "tournament") ? (
-          me.tournaments.length > 1 && (
-            <select value={tid} onChange={(e) => setTid(e.target.value)} aria-label="Tournament" className="mt-3 w-full rounded-xl bg-white/15 px-3 py-2 text-sm font-bold text-white outline-none">
-              {me.tournaments.map((x) => <option key={x.id} value={x.id} className="text-black">{x.name}</option>)}
-            </select>
-          )
+          <p className="mt-3 truncate rounded-xl bg-white/15 px-3 py-2 text-sm font-bold">{t.name}</p>
         ) : t ? (
           <div className="mt-3 space-y-2 rounded-2xl bg-white/10 p-3.5">
-            {me.tournaments.length > 1 ? (
-              <select value={tid} onChange={(e) => setTid(e.target.value)} aria-label="Tournament" className="w-full rounded-xl bg-white/15 px-3 py-2 text-base font-bold text-white outline-none">
-                {me.tournaments.map((x) => <option key={x.id} value={x.id} className="text-black">{x.name}</option>)}
-              </select>
-            ) : <h1 className="text-lg font-extrabold leading-snug">{t.name}</h1>}
+            <h1 className="text-lg font-extrabold leading-snug">{t.name}</h1>
             <p className="flex items-center gap-2 text-xs text-white/80"><CalendarDays size={14} /> {t.startDate === t.endDate ? fmtDay(t.startDate) : `${fmtDay(t.startDate)} to ${fmtDay(t.endDate)}`}</p>
             {days.length > 0 && <p className="text-xs text-white/70">{days.map((d) => `${h12(d.startHour)} to ${h12(d.endHour)}`).filter((v, i, a) => a.indexOf(v) === i).join(" · ")} · {teams ? `${teams.filter((x) => x.status === "approved").length} teams` : "..."}</p>}
             {t.hostName && <p className="text-xs text-white/70">Organizer: {t.hostName}</p>}

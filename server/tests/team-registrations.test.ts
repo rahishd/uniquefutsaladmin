@@ -74,20 +74,34 @@ describe("Tournament team registrations", () => {
     assert.equal((await api.patch(`/tournaments/${t.id}/registrations/${reg.id}`, decider.auth, { status: "approved" })).status, 200);
     assert.equal((await request(app).get(`/api/admin/tournaments/${t.id}/registrations`)).status, 401);
   });
-  it("sets the entry fee, which customers see, and checks it", async () => {
+  it("the host sets the entry fee from the host link, customers see it, and staff cannot", async () => {
     const mgr = await staff("admin");
     const { t } = await setup();
-    const ok = await api.patch(`/tournaments/${t.id}/entry-fee`, mgr.auth, { entryFee: 1500 });
-    assert.equal(ok.status, 200);
+    const token = (await api.post(`/tournaments/${t.id}/host-link`, mgr.auth)).body.data.token as string;
+    const put = (body: unknown, tk = token) => request(app).put(`/api/admin/host/${tk}/entry-fee`).send(body as object);
+    assert.equal((await put({ entryFee: 1500 })).status, 200);
     assert.equal((await prisma.tournament.findUnique({ where: { id: t.id } }))!.entryFee, 1500);
+    assert.equal((await request(app).get(`/api/admin/host/${token}`)).body.data.tournament.entryFee, 1500);
     assert.equal((await api.get(`/tournaments/${t.id}`, mgr.auth)).body.data.tournament.entryFee, 1500);
-    assert.equal((await api.get("/tournaments", mgr.auth)).body.data[0].entryFee, 1500);
-    assert.equal((await api.patch(`/tournaments/${t.id}/entry-fee`, mgr.auth, { entryFee: 0 })).status, 200, "0 means free entry");
-    assert.equal((await api.patch(`/tournaments/${t.id}/entry-fee`, mgr.auth, { entryFee: -5 })).status, 400);
-    assert.equal((await api.patch(`/tournaments/${t.id}/entry-fee`, mgr.auth, { entryFee: 99.5 })).status, 400);
-    assert.equal((await api.patch("/tournaments/nope/entry-fee", mgr.auth, { entryFee: 100 })).status, 404);
-    const viewer = await staffWith(["tournaments.view"], "v2@test.np");
-    assert.equal((await api.patch(`/tournaments/${t.id}/entry-fee`, viewer.auth, { entryFee: 10 })).status, 403);
+    assert.equal((await put({ entryFee: 0 })).status, 200, "0 means free entry");
+    assert.equal((await put({ entryFee: -5 })).status, 400);
+    assert.equal((await put({ entryFee: 99.5 })).status, 400);
+    assert.equal((await put({ entryFee: 100 }, "x".repeat(32))).status, 404, "a wrong link does nothing");
+    assert.equal((await api.patch(`/tournaments/${t.id}/entry-fee`, mgr.auth, { entryFee: 10 })).status, 404, "staff no longer set the fee");
     assert.ok((await prisma.adminAuditLog.count({ where: { entity: "tournament", action: "entry-fee" } })) >= 2);
+  });
+  it("the host sets the most teams, 0 means no limit, and it cannot go below the teams already in", async () => {
+    const mgr = await staff("admin");
+    const { t, mk } = await setup(0);
+    await mk(1); await mk(2); await mk(3);
+    const token = (await api.post(`/tournaments/${t.id}/host-link`, mgr.auth)).body.data.token as string;
+    const put = (body: unknown, tk = token) => request(app).put(`/api/admin/host/${tk}/max-teams`).send(body as object);
+    assert.equal((await request(app).get(`/api/admin/host/${token}`)).body.data.tournament.maxTeams, 0);
+    assert.equal((await put({ maxTeams: 2 })).status, 409, "3 teams are already in");
+    assert.equal((await put({ maxTeams: 3 })).status, 200);
+    assert.equal((await prisma.tournament.findUnique({ where: { id: t.id } }))!.maxTeams, 3);
+    assert.equal((await put({ maxTeams: 0 })).status, 200, "0 means no limit");
+    assert.equal((await put({ maxTeams: -1 })).status, 400);
+    assert.equal((await put({ maxTeams: 5 }, "x".repeat(32))).status, 404);
   });
 });

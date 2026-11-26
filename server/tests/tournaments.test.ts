@@ -163,6 +163,15 @@ describe("Tournament page: the host link", () => {
     assert.equal((await host("x".repeat(32))).status, 404);
   });
 
+  it("no new link can be made once the tournament is over", async () => {
+    const owner = await staff("owner");
+    const { t } = await sheet(owner);
+    await prisma.tournament.update({ where: { id: t.id }, data: { startDate: "2020-01-01", endDate: "2020-01-05" } });
+    const r = await api.post(`/tournaments/${t.id}/host-link`, owner.auth);
+    assert.equal(r.status, 409);
+    assert.match(r.body.message, /over/);
+  });
+
   it("an expired link says so", async () => {
     const owner = await staff("owner");
     const { t } = await sheet(owner);

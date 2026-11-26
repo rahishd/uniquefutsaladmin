@@ -40,6 +40,11 @@ const json = (body: unknown) => ({ body: JSON.stringify(body) });
 export const listTournaments = () => api<TournamentItem[]>("/admin/tournaments");
 export const getTournament = (id: string) => api<TournamentDetail>(`/admin/tournaments/${id}`);
 export const createHostLink = (id: string) => api<HostLink>(`/admin/tournaments/${id}/host-link`, { method: "POST" });
+export type HostLoginInfo = { available: boolean; phone: string | null; hostName: string | null; account: { exists: false } | { exists: true; active: boolean; lastLoginAt: string | null; tournaments: number; isOrganizer: boolean } };
+export const getHostLogin = (id: string) => api<HostLoginInfo>(`/admin/tournaments/${id}/host-login`);
+export const setHostLogin = (id: string, pin: string) => api<{ phone: string }>(`/admin/tournaments/${id}/host-login`, { method: "PUT", body: JSON.stringify({ pin }) });
+export const switchOffHostLogin = (id: string) => api<{ phone: string }>(`/admin/tournaments/${id}/host-login`, { method: "DELETE" });
+export const smsHostLogin = (id: string, pin: string, url: string) => api<{ phone: string }>(`/admin/tournaments/${id}/host-login/sms`, { method: "POST", body: JSON.stringify({ pin, url }) });
 export const revokeHostLink = (id: string) => api<null>(`/admin/tournaments/${id}/host-link`, { method: "DELETE" });
 
 export const staffEditor = (id: string): EditorApi => ({
@@ -58,8 +63,12 @@ async function hostCall<T>(token: string, path: string, init: RequestInit = {}):
   return (body?.data ?? body) as T;
 }
 
-export type HostView = { tournament: { id: string; name: string; startDate: string; endDate: string; state: TournamentItem["state"] }; rounds: Round[]; expiresAt: string | null };
+export type HostView = { tournament: { id: string; name: string; startDate: string; endDate: string; state: TournamentItem["state"]; entryFee: number; maxTeams: number }; rounds: Round[]; expiresAt: string | null };
 export const hostView = (token: string) => hostCall<HostView>(token, "");
+
+export const hostSetEntryFee = (token: string, entryFee: number) => hostCall<{ entryFee: number }>(token, "/entry-fee", { method: "PUT", ...json({ entryFee }) });
+
+export const hostSetMaxTeams = (token: string, maxTeams: number) => hostCall<{ maxTeams: number }>(token, "/max-teams", { method: "PUT", ...json({ maxTeams }) });
 
 export const hostEditor = (token: string): EditorApi => ({
   load: () => hostView(token).then((d) => d.rounds),
@@ -79,7 +88,6 @@ export const nepalTime = (iso: string | null) =>
 export const hostUrl = (token: string) => `${typeof window === "undefined" ? "" : window.location.origin}${withBase("/host/" + token)}`;
 
 /* ---------- team registrations (teams that signed up from the shareable link on the customer site) ---------- */
-export const setEntryFee = (id: string, entryFee: number) => api<{ entryFee: number }>(`/admin/tournaments/${id}/entry-fee`, { method: "PATCH", body: JSON.stringify({ entryFee }) });
 export type RegStatus = "pending" | "approved" | "rejected";
 export type TeamRegistration = { id: string; teamName: string; captainName: string; contactPhone: string; contactEmail: string | null; players: string[]; status: RegStatus; createdAt: string };
 export const listRegistrations = (id: string) => api<{ maxTeams: number; items: TeamRegistration[] }>(`/admin/tournaments/${id}/registrations`);
@@ -111,3 +119,6 @@ export async function downloadContactsExcel(tournamentId?: string) {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
+
+// Where the host signs in with the ID and PIN
+export const organizerUrl = () => `${typeof window === "undefined" ? "" : window.location.origin}${withBase("/organizer")}`;

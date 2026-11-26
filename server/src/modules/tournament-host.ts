@@ -1,12 +1,13 @@
 import { Router, Request } from "express";
+import { z } from "zod";
 import rateLimit from "express-rate-limit";
 import { prisma } from "../db";
 import { AppError, handler, param, parse, send } from "../lib/http";
-import { Actor, addGoal, goalBody, loadSheet, removeGoal, saveStructure, setStatus, statusBody, structureBody } from "../lib/tiesheet";
+import { Actor, addGoal, goalBody, loadSheet, record, removeGoal, saveStructure, setStatus, statusBody, structureBody } from "../lib/tiesheet";
 import { stateOf } from "./tournaments";
 
 // The match-day host link. NO staff sign-in: the long random token in the link is the key, and it opens ONE tournament only. The host
-// sees the tie-sheet and every goal, can add goals, kick off, finish, correct scores and change the sheet. Never shown here: registrations,
+// sees the tie-sheet and every goal, can add goals, kick off, finish, correct scores, change the sheet and set the entry fee. Never shown here: registrations,
 // phone numbers, money. Staff create, renew or switch off the link on the Tournament page.
 export const tournamentHostRouter = Router();
 
@@ -24,7 +25,29 @@ const host = (req: Request, linkId: string): Actor => ({ id: `host:${linkId}`, n
 tournamentHostRouter.get("/:token", handler(async (req, res) => {
   const link = await linkOr404(req);
   const t = await prisma.tournament.findUniqueOrThrow({ where: { id: link.tournamentId }, include: { days: { select: { date: true, endHour: true } } } });
-  send(res, { tournament: { id: t.id, name: t.name, startDate: t.startDate, endDate: t.endDate, state: stateOf(t) }, rounds: await loadSheet(t.id), expiresAt: link.expiresAt });
+  send(res, { tournament: { id: t.id, name: t.name, startDate: t.startDate, endDate: t.endDate, state: stateOf(t), entryFee: t.entryFee, maxTeams: t.maxTeams }, rounds: await loadSheet(t.id), expiresAt: link.expiresAt });
+}));
+
+// The entry fee per team (rupees, 0 = free entry): customers see it on the tournament and registration pages. The host manages it, not the venue staff.
+tournamentHostRouter.put("/:token/entry-fee", handler(async (req, res) => {
+  const link = await linkOr404(req);
+  const b = parse(z.object({ entryFee: z.number().int("Whole rupees only").min(0, "The fee cannot be below 0").max(1_000_000, "That fee is too high") }), req.body);
+  const t = await prisma.tournament.findUniqueOrThrow({ where: { id: link.tournamentId }, select: { entryFee: true } });
+  await prisma.tournament.update({ where: { id: link.tournamentId }, data: { entryFee: b.entryFee } });
+  await record(host(req, link.id), "entry-fee", link.tournamentId, { from: t.entryFee, to: b.entryFee });
+  send(res, { entryFee: b.entryFee }, "Entry fee saved");
+}));
+
+// The most teams that may register (0 = no limit). It cannot be set below the teams that have already registered.
+tournamentHostRouter.put("/:token/max-teams", handler(async (req, res) => {
+  const link = await linkOr404(req);
+  const b = parse(z.object({ maxTeams: z.number().int("Whole number only").min(0, "The limit cannot be below 0").max(1000, "That limit is too high") }), req.body);
+  const t = await prisma.tournament.findUniqueOrThrow({ where: { id: link.tournamentId }, select: { maxTeams: true } });
+  const taken = await prisma.registration.count({ where: { tournamentId: link.tournamentId, status: { not: "rejected" } } });
+  if (b.maxTeams > 0 && b.maxTeams < taken) throw new AppError(409, `${taken} teams have already registered, so the limit cannot be below ${taken}.`);
+  await prisma.tournament.update({ where: { id: link.tournamentId }, data: { maxTeams: b.maxTeams } });
+  await record(host(req, link.id), "max-teams", link.tournamentId, { from: t.maxTeams, to: b.maxTeams });
+  send(res, { maxTeams: b.maxTeams }, "Team limit saved");
 }));
 
 tournamentHostRouter.put("/:token/tiesheet", handler(async (req, res) => {

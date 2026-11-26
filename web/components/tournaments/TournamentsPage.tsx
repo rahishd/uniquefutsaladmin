@@ -18,6 +18,7 @@ export default function TournamentsPage() {
   const [items, setItems] = useState<TournamentItem[] | null>(null);
   const [error, setError] = useState("");
   const [registering, setRegistering] = useState(false);
+  const [tab, setTab] = useState<"hosted" | "upcoming">("hosted"); // only one group of cards is shown at a time
   const router = useRouter();
 
   useEffect(() => {
@@ -27,6 +28,10 @@ export default function TournamentsPage() {
     const t = setInterval(load, 30_000);
     return () => { live = false; clearInterval(t); };
   }, []);
+
+  const hosted = items?.filter((t) => t.hostedEvent) ?? [];
+  const upcoming = items?.filter((t) => !t.hostedEvent && t.state !== "completed") ?? [];
+  const shown = tab === "hosted" ? hosted : upcoming;
 
   return (
     <div className="w-full space-y-4">
@@ -43,12 +48,19 @@ export default function TournamentsPage() {
 
       {error && <p role="alert" className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600">{error}</p>}
       {!items && !error && <p className="py-10 text-center text-sm text-muted">Loading…</p>}
-      {items && items.length === 0 && (
-        <div className="grid place-items-center gap-3 rounded-2xl bg-surface py-14 text-center text-muted shadow-sm"><Trophy size={34} strokeWidth={1.5} /><p>No tournaments yet.</p></div>
+      {items && (
+        <div role="tablist" aria-label="Tournaments" className="flex gap-2">
+          {([["hosted", "Hosted", hosted.length], ["upcoming", "Upcoming", upcoming.length]] as const).map(([id, label, n]) => (
+            <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={`rounded-full px-5 py-2 text-sm font-semibold transition ${tab === id ? "bg-brand text-white" : "bg-surface text-foreground shadow-sm"}`}>{label} <span className="opacity-70">{n}</span></button>
+          ))}
+        </div>
+      )}
+      {items && shown.length === 0 && (
+        <div className="grid place-items-center gap-3 rounded-2xl bg-surface py-14 text-center text-muted shadow-sm"><Trophy size={34} strokeWidth={1.5} /><p>{tab === "hosted" ? "No hosted tournaments yet." : "No upcoming tournaments."}</p></div>
       )}
 
       <ul className="grid grid-cols-[minmax(0,1fr)] items-start gap-3 xl:grid-cols-2">
-        {items?.map((t) => (
+        {shown.map((t) => (
           <li key={t.id}>
             <Link href={`/tournaments/${t.id}`} className="block space-y-3 rounded-2xl bg-surface p-4 shadow-sm transition hover:shadow-md">
               <div className="flex items-start gap-3">
@@ -70,7 +82,7 @@ export default function TournamentsPage() {
                   <span className="flex items-center gap-1.5 text-muted"><Users size={14} /> Hosted by <strong className="text-foreground">{t.hostName ?? "a manager"}</strong>. Open it for the bill and payments.</span>
                 ) : (
                   <>
-                    <span className="flex items-center gap-1.5 text-muted"><Users size={14} /> <strong className="text-foreground">{t.registrations}</strong> of {t.maxTeams} teams registered</span>
+                    <span className="flex items-center gap-1.5 text-muted"><Users size={14} /> <strong className="text-foreground">{t.registrations}</strong>{t.maxTeams > 0 ? ` of ${t.maxTeams}` : ""} teams registered</span>
                     <span className="text-muted">Prize pool <strong className="text-foreground">{rs(t.prizePool)}</strong></span>
                   </>
                 )}

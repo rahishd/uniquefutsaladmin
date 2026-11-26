@@ -75,6 +75,10 @@ authRouter.post("/organizer-login", loginLimiter, handler(async (req, res) => {
 
   let s = await prisma.staffUser.findUnique({ where: { email: key } });
   if (s && s.role !== "organizer") throw fail(); // portal staff do not come in here
+  if (s && s.role === "organizer") {
+    const since = new Date(Date.now() - 15 * 60 * 1000);
+    if ((await prisma.adminAuditLog.count({ where: { staffId: s.id, action: "organizer-login-failed", createdAt: { gte: since } } })) >= 5) throw new AppError(429, "Too many wrong tries. Please wait 15 minutes, or ask the venue.");
+  }
   let ok = await bcrypt.compare(password, s?.passwordHash ?? DUMMY_HASH);
 
   if (!ok && isPhone) {
@@ -89,7 +93,10 @@ authRouter.post("/organizer-login", loginLimiter, handler(async (req, res) => {
       ok = true;
     }
   }
-  if (!s || !ok || !s.isActive) throw fail();
+  if (!s || !ok || !s.isActive) {
+    if (s && s.role === "organizer") await prisma.adminAuditLog.create({ data: { staffId: s.id, staffName: s.name, action: "organizer-login-failed", entity: "staff", entityId: s.id, ip: req.ip ?? null } });
+    throw fail();
+  }
   await prisma.staffUser.update({ where: { id: s.id }, data: { lastLoginAt: new Date() } });
   req.staff = { id: s.id, email: s.email, name: s.name, role: s.role, permissions: effectivePermissions(s) };
   await audit(req, "login", "staff", s.id);
@@ -110,6 +117,7 @@ authRouter.post("/avatar", express.json({ limit: "14mb" }), requireStaff, handle
 }));
 
 authRouter.post("/change-password", requireStaff, handler(async (req, res) => {
+  if (req.staff!.role === "organizer") throw new AppError(403, "Ask the Unique Futsal staff to change your password.");
   const { current, next } = parse(z.object({ current: z.string(), next: z.string().min(10, "at least 10 characters") }), req.body);
   const s = await prisma.staffUser.findUniqueOrThrow({ where: { id: req.staff!.id } });
   if (!(await bcrypt.compare(current, s.passwordHash))) throw new AppError(400, "Current password is wrong");

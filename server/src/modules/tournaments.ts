@@ -1,3 +1,4 @@
+import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
 import ExcelJS from "exceljs";
 import { Router } from "express";
@@ -9,6 +10,7 @@ import { AppError, handler, param, parse, send } from "../lib/http";
 import { requirePermission } from "../middleware/auth";
 import { audit } from "../lib/audit";
 import { notify } from "../lib/customer-effects";
+import { sendSms, smsConfigured } from "../lib/sms-send";
 import { Actor, addGoal, goalBody, loadSheet, record, removeGoal, saveStructure, setStatus, statusBody, structureBody } from "../lib/tiesheet";
 
 // Tournament page: the list, one tournament's tie-sheet with live scores and goals, and the private link a match-day host uses.
@@ -123,16 +125,6 @@ tournamentsRouter.get("/:id", requirePermission("tournaments.view"), handler(asy
   });
 }));
 
-// The entry fee customers see on the tournament page and on the registration page (rupees per team, 0 = free entry).
-tournamentsRouter.patch("/:id/entry-fee", requirePermission("tournaments.edit"), handler(async (req, res) => {
-  const b = parse(z.object({ entryFee: z.number().int("Whole rupees only").min(0, "The fee cannot be below 0").max(1_000_000, "That fee is too high") }), req.body);
-  const t = await prisma.tournament.findUnique({ where: { id: param(req, "id") }, select: { id: true, name: true, entryFee: true } });
-  if (!t) throw new AppError(404, "Tournament not found");
-  await prisma.tournament.update({ where: { id: t.id }, data: { entryFee: b.entryFee } });
-  await audit(req, "entry-fee", "tournament", t.id, { tournament: t.name, from: t.entryFee, to: b.entryFee });
-  send(res, { entryFee: b.entryFee }, "Entry fee saved");
-}));
-
 // ---- team registrations: teams that signed up from the shareable link on the customer site ----
 const players = (raw: string): string[] => { try { const v = JSON.parse(raw); return Array.isArray(v) ? v.map(String) : []; } catch { return []; } };
 const registrationView = (r: { id: string; teamName: string; captainName: string; contactPhone: string; contactEmail: string; players: string; status: string; createdAt: Date }) => ({
@@ -193,10 +185,76 @@ tournamentsRouter.post("/matches/:id/status", requirePermission("tournaments.edi
 tournamentsRouter.post("/:id/host-link", requirePermission("tournaments.share"), handler(async (req, res) => {
   const t = await prisma.tournament.findUnique({ where: { id: param(req, "id") } });
   if (!t) throw new AppError(404, "Tournament not found");
+  if (linkExpiry(t.endDate) < new Date()) throw new AppError(409, "This tournament is over, so a new match-day link cannot be made.");
   const data = { token: newToken(), active: true, expiresAt: linkExpiry(t.endDate), createdBy: req.staff!.name, lastUsedAt: null };
   const link = await prisma.tournamentHostLink.upsert({ where: { tournamentId: t.id }, create: { tournamentId: t.id, ...data }, update: data });
   await record(who(req), "host-link-create", t.id, { expiresAt: link.expiresAt });
   send(res, linkView(link), "Host link ready", 201);
+}));
+
+// ---- the host's own login (Tournament Organizer app): ID = the host's contact number, PIN = 4 digits set by staff ----
+// One account per contact number holds every hosted tournament registered with that number. It signs in at /organizer (auth.ts organizer-login).
+const last10 = (v: string) => v.replace(/\D/g, "").slice(-10);
+const pinBody = z.object({ pin: z.string().regex(/^\d{4}$/, "The PIN must be exactly 4 digits") });
+
+async function hostPhoneOf(tournamentId: string) {
+  const t = await prisma.tournament.findUnique({ where: { id: tournamentId }, select: { id: true, name: true, hostedEvent: true, hostName: true, hostPhone: true } });
+  if (!t) throw new AppError(404, "Tournament not found");
+  const phone = t.hostedEvent && t.hostPhone ? last10(t.hostPhone) : "";
+  return { t, phone: /^\d{10}$/.test(phone) ? phone : null };
+}
+const accountView = async (phone: string) => {
+  const a = await prisma.staffUser.findUnique({ where: { email: phone }, select: { id: true, role: true, isActive: true, lastLoginAt: true } });
+  if (!a) return { exists: false as const };
+  const tournaments = await prisma.tournamentOrganizer.count({ where: { staffId: a.id } });
+  return { exists: true as const, active: a.isActive, lastLoginAt: a.lastLoginAt, tournaments, isOrganizer: a.role === "organizer" };
+};
+
+tournamentsRouter.get("/:id/host-login", requirePermission("tournaments.share"), handler(async (req, res) => {
+  const { t, phone } = await hostPhoneOf(param(req, "id"));
+  send(res, phone ? { available: true, phone, hostName: t.hostName, account: await accountView(phone) } : { available: false, phone: null, hostName: t.hostName, account: { exists: false } });
+}));
+
+// Make the login, or set a new PIN for it (the old PIN stops working at once). Every hosted tournament of this number is given to it.
+tournamentsRouter.put("/:id/host-login", requirePermission("tournaments.share"), handler(async (req, res) => {
+  const { pin } = parse(pinBody, req.body);
+  const { t, phone } = await hostPhoneOf(param(req, "id"));
+  if (!phone) throw new AppError(409, "This tournament has no host contact number (a 10-digit mobile number), so there is no login ID to make.");
+  const hash = await bcrypt.hash(pin, 12);
+  let acc = await prisma.staffUser.findUnique({ where: { email: phone } });
+  if (acc && acc.role !== "organizer") throw new AppError(409, "This number already belongs to another account. Use a different contact number for the host.");
+  if (acc) acc = await prisma.staffUser.update({ where: { id: acc.id }, data: { passwordHash: hash, isActive: true, sessionVersion: { increment: 1 } } });
+  else acc = await prisma.staffUser.create({ data: { email: phone, name: t.hostName?.trim() || phone, role: "organizer", permissions: [], passwordHash: hash } });
+  const hosted = (await prisma.tournament.findMany({ where: { hostedEvent: true, status: { not: "cancelled" }, hostPhone: { not: null } }, select: { id: true, hostPhone: true } })).filter((x) => last10(x.hostPhone ?? "") === phone);
+  await prisma.tournamentOrganizer.createMany({ data: hosted.map((x) => ({ staffId: acc!.id, tournamentId: x.id })), skipDuplicates: true });
+  await audit(req, "host-login-set", "tournament", t.id, { phone, tournaments: hosted.length }); // the PIN itself is never written down
+  send(res, { phone, account: await accountView(phone) }, "Host login ready", 201);
+}));
+
+tournamentsRouter.delete("/:id/host-login", requirePermission("tournaments.share"), handler(async (req, res) => {
+  const { t, phone } = await hostPhoneOf(param(req, "id"));
+  if (!phone) throw new AppError(409, "This tournament has no host contact number.");
+  const acc = await prisma.staffUser.findUnique({ where: { email: phone } });
+  if (!acc || acc.role !== "organizer") throw new AppError(404, "There is no host login for this number.");
+  await prisma.staffUser.update({ where: { id: acc.id }, data: { isActive: false, sessionVersion: { increment: 1 } } });
+  await audit(req, "host-login-off", "tournament", t.id, { phone });
+  send(res, { phone, account: await accountView(phone) }, "Host login switched off");
+}));
+
+// The login details by SMS (under 30 words). Only the PIN that is really set can be sent; the log keeps the text without it.
+tournamentsRouter.post("/:id/host-login/sms", requirePermission("tournaments.share"), handler(async (req, res) => {
+  const b = parse(pinBody.extend({ url: z.string().url().max(200) }), req.body);
+  const { t, phone } = await hostPhoneOf(param(req, "id"));
+  if (!phone) throw new AppError(409, "This tournament has no host contact number.");
+  if (!smsConfigured()) throw new AppError(503, "The SMS gateway is not set up on the admin server yet. Use WhatsApp, or ask the developer to add the SMS settings.");
+  const acc = await prisma.staffUser.findUnique({ where: { email: phone } });
+  if (!acc || acc.role !== "organizer" || !acc.isActive || !(await bcrypt.compare(b.pin, acc.passwordHash))) throw new AppError(409, "Set the PIN first, then send it.");
+  const where = b.url.replace(/^https?:\/\//, "").replace(/\/+$/, "") + "/organizer";
+  const text = (p: string) => `Unique Futsal Tournament Host Portal. ID: ${phone} PIN: ${p} Sign in at ${where}`;
+  const r = await sendSms({ phone, message: text(b.pin), kind: "login_details", name: t.hostName, logMessage: text("****") });
+  await audit(req, "host-login-sms", "tournament", t.id, { phone, ok: r.ok });
+  if (!r.ok) throw new AppError(502, `The text was not sent: ${r.error}`);
+  send(res, { phone }, "Login details sent by SMS");
 }));
 
 tournamentsRouter.delete("/:id/host-link", requirePermission("tournaments.share"), handler(async (req, res) => {

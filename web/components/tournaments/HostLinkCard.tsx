@@ -10,16 +10,19 @@ import SendPdfButton from "../SendPdfButton";
 import { pdfFileName } from "@/lib/branded-pdf";
 import { linkPdf } from "@/lib/report-pdfs";
 import { HostLink, createHostLink, hostUrl, nepalTime, revokeHostLink } from "@/lib/tournaments";
+import { nepalToday, shiftDay } from "@/lib/reports";
 
 import { askConfirm } from "@/lib/confirm";
 // The private match-day link. Whoever has it can follow every goal and change scores and the tie-sheet of THIS tournament, without
 // signing in. Making a new link switches the old one off at once.
-export default function HostLinkCard({ tournamentId, name, link, onChanged }: { tournamentId: string; name: string; link: HostLink | null; onChanged: () => void }) {
+export default function HostLinkCard({ tournamentId, name, endDate, link, onChanged }: { tournamentId: string; name: string; endDate: string; link: HostLink | null; onChanged: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const working = !!link && link.active && !link.expired;
   const url = link ? hostUrl(link.token) : "";
+  // a link works until 3 days after the last day (the server sets that); once that has passed no new link is offered
+  const over = !!link?.expired || nepalToday() > shiftDay(endDate, 3);
 
   async function run(job: () => Promise<unknown>) {
     if (!guard("tournaments.share")) return;
@@ -55,7 +58,8 @@ export default function HostLinkCard({ tournamentId, name, link, onChanged }: { 
       {error && <p role="alert" className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600">{error}</p>}
 
       <div className="flex flex-wrap gap-2 border-t border-line pt-3">
-        {!working && <button type="button" disabled={busy} onClick={() => run(() => createHostLink(tournamentId))} className="flex items-center gap-1.5 rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"><Link2 size={15} /> {link ? "Make a new link" : "Create host link"}</button>}
+        {!working && over && <p className="text-sm text-muted">This tournament is over, so its match-day link has ended and a new one cannot be made.</p>}
+        {!working && !over && <button type="button" disabled={busy} onClick={() => run(() => createHostLink(tournamentId))} className="flex items-center gap-1.5 rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"><Link2 size={15} /> {link ? "Make a new link" : "Create host link"}</button>}
         {working && <button type="button" disabled={busy} onClick={async () => (await askConfirm("Make a new link? The old link stops working at once, so send the new one to the host.")) && run(() => createHostLink(tournamentId))} className="flex items-center gap-1.5 rounded-full bg-surface-2 px-4 py-2 text-sm font-semibold disabled:opacity-60"><RefreshCw size={14} /> Make a new link</button>}
         {working && <button type="button" disabled={busy} onClick={async () => (await askConfirm("Switch the host link off? Whoever has it can no longer open it.")) && run(() => revokeHostLink(tournamentId))} className="flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold text-red-600 disabled:opacity-60"><ShieldOff size={14} /> Switch off</button>}
       </div>

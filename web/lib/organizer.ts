@@ -6,7 +6,7 @@ import type { EditorApi, Match, Round, StructureRound, TournamentItem } from "./
 // tournaments given to it, through /admin/organizer/*.
 export type OrgPrize = { place: string; cash: number; trophy: string; note: string };
 export type OrgTournament = {
-  id: string; name: string; startDate: string; endDate: string; state: TournamentItem["state"]; hostName: string | null; description: string | null; prizePool: number; prizes: OrgPrize[]; rules: string; maxTeams: number;
+  id: string; name: string; startDate: string; endDate: string; state: TournamentItem["state"]; hostName: string | null; description: string | null; prizePool: number; prizes: OrgPrize[]; rules: string; maxTeams: number; entryFee: number;
   days: { date: string; startHour: number; endHour: number }[];
 };
 export type OrgMe = { id: string; name: string; email: string; avatar: string | null; tournaments: OrgTournament[] };
@@ -25,6 +25,7 @@ export const orgDeleteTeam = (tid: string, id: string) => api<null>(`${base(tid)
 export const orgSavePrizes = (tid: string, prizes: OrgPrize[]) => api<{ prizes: OrgPrize[]; prizePool: number }>(`${base(tid)}/prizes`, { method: "PUT", ...json({ prizes }) });
 export const orgSaveRules = (tid: string, rules: string) => api<{ rules: string }>(`${base(tid)}/rules`, { method: "PUT", ...json({ rules }) });
 export const orgSaveMaxTeams = (tid: string, maxTeams: number) => api<{ maxTeams: number }>(`${base(tid)}/max-teams`, { method: "PUT", ...json({ maxTeams }) });
+export const orgSaveEntryFee = (tid: string, entryFee: number) => api<{ entryFee: number }>(`${base(tid)}/entry-fee`, { method: "PUT", ...json({ entryFee }) });
 export const orgSetLiveLink = (tid: string, matchId: string, url: string | null) => api<{ liveUrl: string | null }>(`${base(tid)}/matches/${encodeURIComponent(matchId)}/live-link`, { method: "PUT", ...json({ url }) });
 export const orgBilling = (tid: string) => api<Bill | null>(`${base(tid)}/billing`);
 export const orgChangePassword = (current: string, next: string) => api<{ token: string }>("/admin/auth/change-password", { method: "POST", ...json({ current, next }) });

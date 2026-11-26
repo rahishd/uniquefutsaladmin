@@ -58,7 +58,6 @@ export default function RegisterTournament({ onClose, onCreated }: { onClose: ()
   const key = JSON.stringify([sorted, minRate]);
   const shown = preview?.key === key ? preview.data : null;
 
-  const quick: [string, string][] = [["Today", today], ["Tomorrow", shift(today, 1)], ["Day after tomorrow", shift(today, 2)]];
   const has = (date: string) => days.some((d) => d.date === date);
   const toggle = (date: string) => { setDays((x) => (x.some((d) => d.date === date) ? x.filter((d) => d.date !== date) : [...x, { date, startHour: 9, endHour: 12 }])); setError(""); };
   const patch = (date: string, p: Partial<HostDay>) => setDays((x) => x.map((d) => (d.date === date ? { ...d, ...p } : d)));
@@ -100,7 +99,7 @@ export default function RegisterTournament({ onClose, onCreated }: { onClose: ()
         <label className="block text-sm font-medium">Event name<input className={`${input} mt-1`} value={name} maxLength={80} onChange={(e) => { setName(e.target.value); setError(""); }} placeholder="Tuna Cup 2026" /></label>
         <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-1">
           <label className="block text-sm font-medium">Host / manager name<input className={`${input} mt-1`} value={hostName} maxLength={60} onChange={(e) => { setHostName(e.target.value); setError(""); }} placeholder="Anil Gurung" /></label>
-          <label className="block text-sm font-medium">Their contact number<input inputMode="tel" className={`${input} mt-1`} value={hostPhone} maxLength={17} onChange={(e) => { setHostPhone(e.target.value.replace(/[^\d+\s-]/g, "")); setError(""); }} placeholder="98XXXXXXXX" />
+          <label className="block text-sm font-medium">Their contact number<input inputMode="numeric" className={`${input} mt-1`} value={hostPhone} maxLength={10} onChange={(e) => { setHostPhone(e.target.value.replace(/\D/g, "").slice(0, 10)); setError(""); }} placeholder="98XXXXXXXX" />
             {shownKnown && (
               <span role="status" className="mt-1.5 flex flex-wrap items-center gap-2 rounded-xl bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-700">
                 Registered customer: <strong>{shownKnown.name}</strong>
@@ -133,14 +132,11 @@ export default function RegisterTournament({ onClose, onCreated }: { onClose: ()
         <div className="space-y-3">
         <div className="space-y-3 rounded-xl border border-line p-3">
           <p className="text-sm font-bold">Days and times</p>
-          <div className="flex flex-wrap gap-1.5">
-            {quick.map(([label, date]) => <button key={date} type="button" aria-pressed={has(date)} onClick={() => toggle(date)} className={`rounded-full px-3 py-1.5 text-xs font-bold ${has(date) ? "bg-brand text-white" : "border border-line"}`}>{label}</button>)}
-          </div>
           <div className="flex gap-2">
             <input type="date" className={input} value={extra} min={today} onChange={(e) => setExtra(e.target.value)} aria-label="Another date" />
             <button type="button" onClick={addPicked} disabled={!extra || has(extra)} className="flex shrink-0 items-center gap-1 rounded-full border border-line px-4 text-sm font-semibold disabled:opacity-40"><Plus size={15} /> Add day</button>
           </div>
-          {sorted.length === 0 && <p className="text-xs text-muted">Pick today, tomorrow, the day after, or add any other date. Then choose the hours for each day.</p>}
+          {sorted.length === 0 && <p className="text-xs text-muted">Pick a date and press Add day. Then choose the hours for each day.</p>}
           <ul className="space-y-2">
             {sorted.map((d) => (
               <li key={d.date} className="flex flex-wrap items-center gap-2 rounded-xl bg-surface-2 p-2.5">
@@ -170,8 +166,8 @@ export default function RegisterTournament({ onClose, onCreated }: { onClose: ()
         )}
         {daysOk && minRate >= 100 && shown && !clash && <p className="text-sm font-semibold text-brand">All these hours are free.</p>}
 
-        {(error || problem) && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600" role="alert">{error || problem}</p>}
-        <button onClick={save} disabled={busy || !!problem || clash || !shown} className="w-full rounded-xl bg-brand py-3 font-semibold text-white disabled:opacity-50">{busy ? "Registering…" : "Register and hold the court"}</button>
+        {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600" role="alert">{error}</p>}
+        <button onClick={save} disabled={busy || clash || (!problem && !shown)} className="w-full rounded-xl bg-brand py-3 font-semibold text-white disabled:opacity-50">{busy ? "Registering…" : "Register and hold the court"}</button>
         </div>
         </div>
       </div>

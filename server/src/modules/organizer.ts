@@ -41,8 +41,8 @@ const prizesOf = (raw: unknown): Prize[] => {
   return raw.flatMap((p) => (p && typeof p === "object" ? [{ place: String((p as Prize).place ?? ""), cash: Number((p as Prize).cash) || 0, trophy: String((p as Prize).trophy ?? ""), note: String((p as Prize).note ?? "") }] : []));
 };
 
-const summary = (t: { id: string; name: string; startDate: string; endDate: string; hostName: string | null; description: string | null; prizePool: number; prizes: unknown; rules: string | null; maxTeams: number; days: { date: string; startHour: number; endHour: number }[] } & Parameters<typeof stateOf>[0]) => ({
-  id: t.id, name: t.name, startDate: t.startDate, endDate: t.endDate, state: stateOf(t), hostName: t.hostName, description: t.description, prizePool: t.prizePool, prizes: prizesOf(t.prizes), rules: t.rules ?? "", maxTeams: t.maxTeams,
+const summary = (t: { id: string; name: string; startDate: string; endDate: string; hostName: string | null; description: string | null; prizePool: number; prizes: unknown; rules: string | null; maxTeams: number; entryFee: number; days: { date: string; startHour: number; endHour: number }[] } & Parameters<typeof stateOf>[0]) => ({
+  id: t.id, name: t.name, startDate: t.startDate, endDate: t.endDate, state: stateOf(t), hostName: t.hostName, description: t.description, prizePool: t.prizePool, prizes: prizesOf(t.prizes), rules: t.rules ?? "", maxTeams: t.maxTeams, entryFee: t.entryFee,
   days: t.days.map((d) => ({ date: d.date, startHour: d.startHour, endHour: d.endHour })),
 });
 
@@ -103,6 +103,15 @@ organizerRouter.put("/tournaments/:id/max-teams", handler(async (req, res) => {
   await prisma.tournament.update({ where: { id: t.id }, data: { maxTeams } });
   await audit(req, "max-teams", "tournament", t.id, { from: t.maxTeams, to: maxTeams });
   send(res, { maxTeams }, "Team limit saved");
+}));
+
+// ---- the entry fee each team pays: the organizer decides (0 = free entry) ----
+organizerRouter.put("/tournaments/:id/entry-fee", handler(async (req, res) => {
+  const t = await mine(req);
+  const { entryFee } = parse(z.object({ entryFee: z.number().int("Whole rupees only").min(0, "The fee cannot be below 0").max(1_000_000, "That fee is too high") }), req.body);
+  await prisma.tournament.update({ where: { id: t.id }, data: { entryFee } });
+  await audit(req, "entry-fee", "tournament", t.id, { from: t.entryFee, to: entryFee });
+  send(res, { entryFee }, "Entry fee saved");
 }));
 
 // ---- live link: the Facebook, TikTok or Instagram address of the live video of a match (other sites are refused) ----

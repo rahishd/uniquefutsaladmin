@@ -14,6 +14,7 @@ import { audit } from "../lib/audit";
 import { addDaysKey, currentHour, todayKey } from "../lib/dates";
 import { AppError, dateStr, handler, param, parse, send } from "../lib/http";
 import { memberHolds } from "../lib/member-holds";
+import { pushToUsers } from "../lib/push";
 import { buildGoods, paysSchema, PAY_METHODS, resolvePays } from "../lib/settle";
 import { requirePermission } from "../middleware/auth";
 
@@ -124,6 +125,20 @@ tournamentEventsRouter.get("/hosted", requirePermission("tournaments.view"), han
   send(res, await Promise.all(rows.map(async (r) => { const b = await bill(r.id); return { id: b.id, name: b.name, hostName: b.hostName, hostPhone: b.hostPhone, days: b.days.map((d) => ({ date: d.date, startHour: d.startHour, endHour: d.endHour })), hours: b.hours, total: b.total, paid: b.paid, due: b.due, closed: !!b.closedAt }; })));
 }));
 
+// Tells every active customer (bell notice plus a push to their phone) that a new tournament is coming. Never blocks or fails the registration.
+async function alertCustomersNewTournament(id: string, name: string, from: string, to: string) {
+  try {
+    const users = await prisma.user.findMany({ where: { role: "user", isActive: true }, select: { phoneNumber: true } });
+    const targets = users.map((u) => u.phoneNumber);
+    if (!targets.length) return;
+    const title = "New tournament";
+    const message = `${name} is coming to Unique Futsal${from === to ? ` on ${fmtDay(from)}` : `, ${fmtDay(from)} to ${fmtDay(to)}`}. Tap to see it.`.slice(0, 240);
+    const batch = `tournament-${id}`;
+    await prisma.notification.createMany({ data: targets.map((userId) => ({ userId, type: "tournament", title, message, href: "/tournaments", dedupeKey: `${batch}-${userId}` })), skipDuplicates: true });
+    await pushToUsers(targets, { title, body: message, href: "/tournaments", tag: batch });
+  } catch { /* the alert is a courtesy; the tournament is already saved */ }
+}
+
 // ---------- register a hosted tournament (dryRun only checks) ----------
 tournamentEventsRouter.post("/", requirePermission("tournaments.create"), handler(async (req, res) => {
   const b = parse(createBody, req.body);
@@ -147,7 +162,7 @@ tournamentEventsRouter.post("/", requirePermission("tournaments.create"), handle
   try {
     created = await prisma.$transaction(async (tx) => {
       const t = await tx.tournament.create({
-        data: { name: b.name, prizePool: 0, minTeams: 2, maxTeams: 16, startDate: days[0].date, endDate: days[days.length - 1].date, status: "active", isActive: true, totalAmount: hours * b.minRate, hostedEvent: true, services: [...new Set(b.services)], serviceAmounts: cleanAmounts(b.serviceAmounts, b.services), hostName: b.hostName, hostPhone: b.hostPhone.replace(/\s|-/g, ""), minRate: b.minRate, createdBy: req.staff!.id },
+        data: { name: b.name, prizePool: 0, minTeams: 2, maxTeams: 0, startDate: days[0].date, endDate: days[days.length - 1].date, status: "active", isActive: true, totalAmount: hours * b.minRate, hostedEvent: true, services: [...new Set(b.services)], serviceAmounts: cleanAmounts(b.serviceAmounts, b.services), hostName: b.hostName, hostPhone: b.hostPhone.replace(/\s|-/g, ""), minRate: b.minRate, createdBy: req.staff!.id },
       });
       for (const d of days) {
         const ids: string[] = [];
@@ -165,6 +180,7 @@ tournamentEventsRouter.post("/", requirePermission("tournaments.create"), handle
     throw e;
   }
   await audit(req, "host", "tournament", created, { name: b.name, host: b.hostName, days: days.map((d) => `${d.date} ${d.startHour}-${d.endHour}`), rate: b.minRate });
+  await alertCustomersNewTournament(created, b.name, days[0].date, days[days.length - 1].date);
   send(res, await bill(created), "Tournament registered and the court is held", 201);
 }));
 
