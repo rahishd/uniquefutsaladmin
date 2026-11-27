@@ -218,13 +218,13 @@ export default function SlotsPage() {
 
   return (
     <div className="w-full space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="text-xl font-bold leading-tight">Manual Booking</h1>
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <h1 className="text-xl font-bold leading-tight">Manual Booking</h1>
+        <div className="flex items-center gap-2 max-sm:w-full">
+          <DatePicker date={date} onChange={go} />
+          <button onClick={() => guard("bookings.create") && setBulk(true)} className="flex shrink-0 items-center whitespace-nowrap gap-1.5 rounded-full border border-line bg-surface px-3 py-2 text-xs font-semibold hover:border-brand"><CalendarPlus size={14} /> Bulk booking</button>
         </div>
-        <button onClick={() => guard("bookings.create") && setBulk(true)} className="flex shrink-0 items-center whitespace-nowrap gap-1.5 rounded-full border border-line bg-surface px-3 py-2 text-xs font-semibold hover:border-brand"><CalendarPlus size={14} /> Bulk booking</button>
       </div>
-      <DatePicker date={date} onChange={go} />
 
       {date !== todayKey() && <button onClick={() => go(todayKey())} className="text-sm font-semibold text-brand">Back to today</button>}
 

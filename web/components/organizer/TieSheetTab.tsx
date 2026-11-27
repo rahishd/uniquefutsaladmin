@@ -86,7 +86,7 @@ function Generator({ tournament, teams, hasSheet, playedAlready, onSaved, onCanc
   const [error, setError] = useState("");
   const box = useRef<HTMLDivElement>(null);
 
-  const registered = useMemo(() => teams.filter((t) => t.status !== "rejected"), [teams]);
+  const registered = useMemo(() => teams.filter((t) => t.status !== "rejected" && t.status !== "cancelled"), [teams]);
   const lower = (s: string) => s.trim().toLowerCase();
   const isPicked = (n: string) => picked.some((p) => lower(p) === lower(n));
   // typing suggests registered teams that are not in the list yet

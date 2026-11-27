@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Download, MoreVertical, PlusSquare, X } from "lucide-react";
+import { usePathname } from "next/navigation";
 
 // Installing the portal to the home screen is what removes the browser's address bar and buttons. Shown on phones until the portal is
 // installed; "Not now" hides it for this visit only. A browser cannot install by itself: Android installs with one tap, an iPhone opens
@@ -22,7 +23,16 @@ const dismissedNow = () => {
   try { return sessionStorage.getItem(DISMISS_KEY) === "1"; } catch { return false; }
 };
 
+// The name shown follows who is signed in here: a partner or a tournament host sees their own role, never "Admin".
+const roleOf = (path: string) => {
+  const p = base && path.startsWith(base) ? path.slice(base.length) : path;
+  if (p.startsWith("/partner")) return "Partner";
+  if (p.startsWith("/organizer") || p.startsWith("/host")) return "Host";
+  return "Admin";
+};
+
 export default function InstallPrompt() {
+  const role = roleOf(usePathname() ?? "");
   const [mode, setMode] = useState<"android" | "android-menu" | "ios" | null>(null);
   const [hint, setHint] = useState(false);
   const deferred = useRef<BeforeInstallPromptEvent | null>(null);
@@ -69,7 +79,7 @@ export default function InstallPrompt() {
   async function iosDownload() {
     setHint(true);
     try {
-      await navigator.share?.({ title: "Unique Futsal Admin", url: window.location.origin + base + "/" });
+      await navigator.share?.({ title: `Unique Futsal ${role}`, url: window.location.origin + base + "/" });
     } catch {
       // closed without choosing: the hint stays so they can try again
     }
@@ -78,13 +88,13 @@ export default function InstallPrompt() {
   if (!mode) return null;
 
   return (
-    <div role="dialog" aria-label="Install Unique Futsal Admin" className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+5.5rem)] z-[60] px-4 lg:hidden">
+    <div role="dialog" aria-label={`Install Unique Futsal ${role}`} className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+5.5rem)] z-[60] px-4 lg:hidden">
       <div className="relative mx-auto max-w-sm rounded-3xl bg-white p-5 text-slate-800 shadow-2xl ring-1 ring-slate-200">
         <button type="button" onClick={dismiss} aria-label="Close" className="absolute right-4 top-4 text-slate-400"><X size={18} /></button>
         <div className="flex items-center gap-3 pr-6">
           <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#0c0b5d] text-base font-bold text-white shadow-md">UF</span>
           <div>
-            <p className="font-semibold">Get the Admin app</p>
+            <p className="font-semibold">Get the {role} app</p>
             <p className="text-xs text-slate-500">Open it full screen from your home screen, without the browser bars.</p>
           </div>
         </div>

@@ -23,7 +23,10 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const href = (event.notification.data && event.notification.data.href) || "/dashboard";
+  // the portal may live under a base path (shared domain): the worker's scope tells which, so a tap lands on the right page
+  const base = new URL(self.registration.scope).pathname.replace(/\/+$/, "");
+  const raw = (event.notification.data && event.notification.data.href) || "/dashboard";
+  const href = raw.startsWith("/") && base && !raw.startsWith(base + "/") ? base + raw : raw;
   event.waitUntil((async () => {
     const all = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
     for (const c of all) {

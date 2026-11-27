@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Award, CalendarDays, ChevronLeft, ChevronRight, Loader2, Medal, Minus, Plus, Receipt, ScrollText, Trash2, Trophy, UserCog, Users } from "lucide-react";
+import { Award, ChevronLeft, ChevronRight, Loader2, Medal, Wallet, Minus, Plus, Receipt, ScrollText, Trash2, Trophy, UserCog, Users } from "lucide-react";
 import { BillingTab, AccountPanel } from "./SimpleTabs";
 import { ApiError } from "@/lib/api";
 import { rs } from "@/lib/bookings";
-import { fmtDay, h12 } from "@/lib/hosted-tournaments";
+import { fmtDay } from "@/lib/hosted-tournaments";
 import HostSetting from "../tournaments/HostSetting";
-import { OrgMe, OrgPrize, OrgTeam, OrgTournament, orgSaveEntryFee, orgSaveMaxTeams, orgSavePrizes, orgSaveRules } from "@/lib/organizer";
+import { OrgMe, OrgPrize, OrgTeam, OrgTournament, orgSaveEntryFee, orgSaveMaxTeams, orgSavePayNumbers, orgSavePrizes, orgSaveRules } from "@/lib/organizer";
 
 export type DashView = "" | "tournament" | "prizes" | "rules" | "billing" | "profile";
 type View = DashView;
@@ -72,7 +72,8 @@ function TournamentPage({ t, me, onMe, setView, teams, maxTeams, onMaxTeams }: {
         {t.description && <p className="mt-1 text-sm text-muted">{t.description}</p>}
         <div className="mt-2 divide-y divide-line">
           {row("Dates", t.startDate === t.endDate ? fmtDay(t.startDate) : `${fmtDay(t.startDate)} to ${fmtDay(t.endDate)}`)}
-          {row("Organizer", t.hostName ?? me0(t))}
+          {row("Days and hours", t.days.length === 0 ? "No days yet" : <ul className="space-y-0.5">{t.days.map((d) => <li key={d.date}>{weekday(d.date)}: <span className="tabular-nums">{hr(d.startHour)} - {hr(d.endHour)}</span></li>)}</ul>)}
+          {row("Host name", t.hostName ?? me0(t))}
           {row("Teams", <span className="tabular-nums">{approved} / {maxTeams}{waiting > 0 && <span className="ml-1 text-xs font-medium text-amber-600">({waiting} waiting)</span>}</span>)}
           {row("Entry fee", t.entryFee > 0 ? `${rs(t.entryFee)} per team` : "Free entry")}
           {row("Prize pool", t.prizePool > 0 ? rs(t.prizePool) : "Not set yet")}
@@ -85,6 +86,7 @@ function TournamentPage({ t, me, onMe, setView, teams, maxTeams, onMaxTeams }: {
           save={async (n) => { const r = await orgSaveEntryFee(t.id, n); onMe({ ...me, tournaments: me.tournaments.map((x) => (x.id === t.id ? { ...x, entryFee: r.entryFee } : x)) }); return r.entryFee; }}
           doneText={(n) => (n === 0 ? "Entry is free. Teams see that." : `Saved: ${rs(n)} per team.`)} />
       </section>
+      <PayNumbersCard key={`${t.id}-${t.esewaNumber}-${t.khaltiNumber}`} t={t} onSaved={(esewaNumber, khaltiNumber) => onMe({ ...me, tournaments: me.tournaments.map((x) => (x.id === t.id ? { ...x, esewaNumber, khaltiNumber } : x)) })} />
       <section className="rounded-2xl bg-gradient-to-br from-amber-400/20 to-amber-500/5 p-4 shadow-sm">
         <h3 className="flex items-center gap-2 text-sm font-bold"><Medal size={16} className="text-amber-700" /> Prize pool</h3>
         <p className="mt-2 text-3xl font-extrabold tabular-nums">{t.prizePool > 0 ? rs(t.prizePool) : "Not set yet"}</p>
@@ -96,17 +98,12 @@ function TournamentPage({ t, me, onMe, setView, teams, maxTeams, onMaxTeams }: {
         <button type="button" onClick={() => setView("prizes")} className="mt-3 w-full rounded-2xl border border-line bg-surface py-2.5 text-sm font-semibold">{t.prizes.length > 0 ? "Change the prizes" : "Set the prizes"}</button>
       </section>
       <MaxTeamsCard key={`${t.id}-${maxTeams}`} t={t} held={approved + waiting} maxTeams={maxTeams} onMaxTeams={onMaxTeams} />
-      <section className="rounded-2xl bg-surface p-4 shadow-sm">
-        <h3 className="flex items-center gap-2 text-sm font-bold"><CalendarDays size={16} className="text-brand" /> Days and hours</h3>
-        <ul className="mt-2 divide-y divide-line text-sm">
-          {t.days.map((d) => <li key={d.date} className="flex justify-between gap-3 py-2"><span className="font-medium">{fmtDay(d.date)}</span><span className="text-muted">{h12(d.startHour)} to {h12(d.endHour)}</span></li>)}
-          {t.days.length === 0 && <li className="py-2 text-muted">No days yet.</li>}
-        </ul>
-      </section>
       <p className="flex items-center gap-2 text-xs text-muted"><Users size={14} /> The registered teams are on the Teams page.</p>
     </div>
   );
 }
+const weekday = (k: string) => new Date(`${k}T00:00:00Z`).toLocaleDateString("en-GB", { weekday: "long", timeZone: "UTC" });
+const hr = (h: number) => `${h % 24 % 12 || 12} ${h % 24 < 12 ? "AM" : "PM"}`;
 const me0 = (t: OrgTournament) => t.hostName ?? "-";
 
 /* ---------------- the most teams the tournament takes: the host decides ---------------- */
@@ -272,5 +269,37 @@ function RulesPage({ t, me, onMe }: { t: OrgTournament; me: OrgMe; onMe: (m: Org
         <button type="button" onClick={save} disabled={busy} className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-brand py-3 text-sm font-semibold text-white disabled:opacity-50">{busy && <Loader2 size={15} className="animate-spin" />} Save rules</button>
       </div>
     </div>
+  );
+}
+
+/* ---------------- where teams pay the entry fee: the host's eSewa and Khalti numbers ---------------- */
+function PayNumbersCard({ t, onSaved }: { t: OrgTournament; onSaved: (esewa: string, khalti: string) => void }) {
+  const [esewa, setEsewa] = useState(t.esewaNumber ?? "");
+  const [khalti, setKhalti] = useState(t.khaltiNumber ?? "");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const digits = (v: string) => v.replace(/\D/g, "").slice(0, 10);
+  const bad = (v: string) => v.length > 0 && !/^9\d{9}$/.test(v);
+  const changed = esewa !== (t.esewaNumber ?? "") || khalti !== (t.khaltiNumber ?? "");
+  async function save() {
+    const wrong = [["eSewa", esewa], ["Khalti", khalti]].find(([, v]) => bad(v));
+    if (wrong) { setMsg({ ok: false, text: wrong[1].length < 10 ? `The ${wrong[0]} number needs all 10 digits.` : `The ${wrong[0]} number must start with 9, like 98XXXXXXXX (a Nepal mobile number).` }); return; }
+    setBusy(true); setMsg(null);
+    try { const r = await orgSavePayNumbers(t.id, { esewaNumber: esewa, khaltiNumber: khalti }); onSaved(r.esewaNumber, r.khaltiNumber); setMsg({ ok: true, text: "Saved. Teams see these numbers when they register." }); }
+    catch (e) { setMsg({ ok: false, text: e instanceof ApiError ? e.message : "Could not save. Try again." }); }
+    finally { setBusy(false); }
+  }
+  const field = "w-full rounded-xl border border-line bg-surface-2 px-3 py-2.5 text-sm outline-none focus:border-brand";
+  return (
+    <section className="rounded-2xl bg-surface p-4 shadow-sm">
+      <h3 className="flex items-center gap-2 text-sm font-bold"><Wallet size={16} className="text-brand" /> Payment numbers</h3>
+      <p className="mb-3 mt-1 text-xs text-muted">The eSewa and Khalti numbers where teams send the entry fee. Teams see them when they register. Fill in one or both.</p>
+      <div className="space-y-2.5">
+        <label className="block text-sm font-medium">eSewa number<input value={esewa} onChange={(e) => { setEsewa(digits(e.target.value)); setMsg(null); }} inputMode="numeric" maxLength={10} placeholder="98XXXXXXXX" className={field + " mt-1"} /></label>
+        <label className="block text-sm font-medium">Khalti number<input value={khalti} onChange={(e) => { setKhalti(digits(e.target.value)); setMsg(null); }} inputMode="numeric" maxLength={10} placeholder="98XXXXXXXX" className={field + " mt-1"} /></label>
+      </div>
+      <button type="button" onClick={save} disabled={busy || !changed} className="mt-3 flex w-full items-center justify-center gap-2 rounded-full bg-brand py-2.5 text-sm font-semibold text-white disabled:opacity-50">{busy && <Loader2 size={14} className="animate-spin" />}Save payment numbers</button>
+      {msg && <p role={msg.ok ? "status" : "alert"} className={"mt-2 text-xs " + (msg.ok ? "text-emerald-700" : "text-red-600")}>{msg.text}</p>}
+    </section>
   );
 }

@@ -48,8 +48,8 @@ export default function DatePicker({ date, onChange }: { date: string; onChange:
   const cells = [...Array(lead).fill(null), ...Array.from({ length: total }, (_, i) => `${month}-${String(i + 1).padStart(2, "0")}`)];
 
   return (
-    <div ref={box} className="relative">
-      <div className="flex w-full items-center gap-1 rounded-full bg-surface px-2 py-1.5 shadow-sm sm:w-[23rem]">
+    <div ref={box} className="relative max-sm:min-w-0 max-sm:flex-1">
+      <div className="flex w-full items-center gap-1 rounded-full bg-surface px-1 py-0.5 shadow-sm sm:w-[17rem]">
         <button onClick={() => pick(shiftDate(date, -1))} aria-label="Previous day" className="rounded-full p-1.5 hover:bg-surface-2"><ChevronLeft size={16} /></button>
         <button onClick={toggle} aria-haspopup="dialog" aria-expanded={open} aria-label="Choose a date from the calendar"
           className="flex min-w-0 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-full px-2 py-1 text-[11px] font-extrabold tracking-wide hover:bg-surface-2">
@@ -62,7 +62,7 @@ export default function DatePicker({ date, onChange }: { date: string; onChange:
       </div>
 
       {open && (
-        <div role="dialog" aria-label="Calendar" className="absolute left-0 z-40 mt-2 w-[19rem] max-w-[calc(100vw-2rem)] rounded-2xl border border-line bg-surface p-3 shadow-xl">
+        <div role="dialog" aria-label="Calendar" className="absolute right-0 z-40 mt-2 w-[19rem] max-w-[calc(100vw-2rem)] rounded-2xl border border-line bg-surface p-3 shadow-xl">
           <div className="mb-2 flex items-center justify-between">
             <button onClick={() => setMonth(shiftMonth(month, -1))} aria-label="Previous month" className="rounded-full p-1.5 hover:bg-surface-2"><ChevronLeft size={16} /></button>
             <span className="text-sm font-bold">{monthTitle(month)}</span>

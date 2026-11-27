@@ -1,14 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, CalendarDays, Eye, EyeOff, LayoutDashboard, Loader2, Lock, Network, Radio, UserRound, Users } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, LayoutDashboard, Loader2, Lock, Network, Radio, UserRound, Users } from "lucide-react";
 import TieSheetTab from "./TieSheetTab";
 import DashboardTab, { type DashView } from "./DashboardTab";
 import LiveTab from "./LiveTab";
 import { TeamsTab } from "./SimpleTabs";
 import { ApiError, getToken } from "@/lib/api";
 import { currentAdmin, loginOrganizer, logout } from "@/lib/auth";
-import { fmtDay, h12 } from "@/lib/hosted-tournaments";
 import { OrgMe, OrgTeam, OrgTournament, orgMe, orgTeams } from "@/lib/organizer";
 
 // The Tournament Organizer app (opened at /organizer). A staff-made "Unique Futsal ID" (the account's email) and password sign in; the
@@ -73,7 +72,7 @@ function SignIn({ onDone, notice }: { onDone: () => void; notice?: string }) {
             <p className="mt-1 text-sm text-slate-500">{usePin ? "Sign in with your Unique Futsal ID (your mobile number) and your 4-digit PIN." : "Sign in with your Unique Futsal ID and your password."}</p>
           </div>
           <label className={box}><UserRound size={19} className="shrink-0 text-slate-400" />
-            <input value={id} onChange={(e) => { let v = e.target.value; if (/^d+$/.test(v)) v = v.slice(0, 10); /* a mobile number is 10 digits; an email can be any length */ if (v.includes("@") !== id.includes("@")) setPw(""); setId(v); }} autoComplete="username" inputMode="email" placeholder="Unique Futsal ID" aria-label="Unique Futsal ID" autoCapitalize="none" className="w-full bg-transparent text-base text-[#0c0b5d] outline-none placeholder:text-slate-400" /></label>
+            <input value={id} onChange={(e) => { let v = e.target.value; if (/^\d+$/.test(v)) v = v.slice(0, 10); /* a mobile number is 10 digits; an email can be any length */ if (v.includes("@") !== id.includes("@")) setPw(""); setId(v); }} autoComplete="username" inputMode="email" placeholder="Unique Futsal ID" aria-label="Unique Futsal ID" autoCapitalize="none" className="w-full bg-transparent text-base text-[#0c0b5d] outline-none placeholder:text-slate-400" /></label>
           {usePin ? (
             <label className={`${box} relative cursor-text`}><Lock size={19} className="shrink-0 text-slate-400" /><span className="shrink-0 text-base font-semibold text-slate-400">PIN</span>
               <span className="flex flex-1 items-center justify-center gap-3" aria-hidden>
@@ -108,6 +107,7 @@ export default function OrganizerApp() {
   const [teams, setTeams] = useState<OrgTeam[] | null>(null);
   const [maxTeams, setMaxTeams] = useState(0);
   const [regClosed, setRegClosed] = useState(false);
+  const [regReason, setRegReason] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   const open = useCallback(async () => {
@@ -129,7 +129,7 @@ export default function OrganizerApp() {
   // the registered teams of the chosen tournament (the tie-sheet suggests them, the Teams page lists them)
   const reloadTeams = useCallback(() => {
     if (!tid) return;
-    orgTeams(tid).then((r) => { setTeams(r.items); setMaxTeams(r.maxTeams); setRegClosed(r.registrationClosed); }).catch(() => setTeams([]));
+    orgTeams(tid).then((r) => { setTeams(r.items); setMaxTeams(r.maxTeams); setRegClosed(r.registrationClosed); setRegReason(r.appClosedReason); }).catch(() => setTeams([]));
   }, [tid]);
   useEffect(() => {
     const t = setTimeout(() => { setTeams(null); reloadTeams(); }, 0);
@@ -166,7 +166,6 @@ export default function OrganizerApp() {
   if (phase === "signin" || !me) return <SignIn onDone={() => { setPhase("loading"); void open(); }} notice={error} />;
 
   const t = me.tournaments.find((x) => x.id === tid);
-  const days = t?.days ?? [];
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col bg-background">
       <header className="sticky top-0 z-30 bg-header px-4 pb-4 pt-[max(env(safe-area-inset-top),0.75rem)] text-white shadow-lg">
@@ -176,16 +175,9 @@ export default function OrganizerApp() {
           {t && <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${STATE[t.state].tone}`}>{STATE[t.state].label}</span>}
         </div>
 
-        {/* the tournament's details card is only on the Tournament page of the Dashboard; every other page keeps just a small switch when there is more than one tournament */}
-        {t && !(tab === "dashboard" && dashView === "tournament") ? (
+        {/* only the tournament's name here; its dates, hours and teams are on the Tournament page of the Dashboard, so they are not repeated on every page */}
+        {t ? (
           <p className="mt-3 truncate rounded-xl bg-white/15 px-3 py-2 text-sm font-bold">{t.name}</p>
-        ) : t ? (
-          <div className="mt-3 space-y-2 rounded-2xl bg-white/10 p-3.5">
-            <h1 className="text-lg font-extrabold leading-snug">{t.name}</h1>
-            <p className="flex items-center gap-2 text-xs text-white/80"><CalendarDays size={14} /> {t.startDate === t.endDate ? fmtDay(t.startDate) : `${fmtDay(t.startDate)} to ${fmtDay(t.endDate)}`}</p>
-            {days.length > 0 && <p className="text-xs text-white/70">{days.map((d) => `${h12(d.startHour)} to ${h12(d.endHour)}`).filter((v, i, a) => a.indexOf(v) === i).join(" · ")} · {teams ? `${teams.filter((x) => x.status === "approved").length} teams` : "..."}</p>}
-            {t.hostName && <p className="text-xs text-white/70">Organizer: {t.hostName}</p>}
-          </div>
         ) : <p className="mt-3 rounded-2xl bg-white/10 p-3.5 text-sm">No tournament is assigned to this account yet. Ask the venue.</p>}
       </header>
 
@@ -193,7 +185,7 @@ export default function OrganizerApp() {
         {tab === "dashboard" && <DashboardTab me={me} t={t} teams={teams} maxTeams={maxTeams} onMaxTeams={(n) => { setMaxTeams(n); setMe((m) => (m ? { ...m, tournaments: m.tournaments.map((x) => (x.id === tid ? { ...x, maxTeams: n } : x)) } : m)); }} onMe={setMe} onSignOut={() => { setMe(null); setPhase("signin"); }} view={dashView} setView={setDashView} />}
         {t && tab === "live" && <LiveTab key={t.id} tournament={t} />}
         {t && tab === "tiesheet" && <TieSheetTab key={t.id} tournament={t} teams={teams ?? []} />}
-        {t && tab === "teams" && <TeamsTab tid={t.id} teams={teams} max={maxTeams} closed={regClosed} onClosed={setRegClosed} onChanged={reloadTeams} />}
+        {t && tab === "teams" && <TeamsTab tid={t.id} teams={teams} max={maxTeams} closed={regClosed} reason={regReason} onClosed={setRegClosed} onChanged={reloadTeams} />}
         {!t && <p className="py-16 text-center text-sm text-muted">Nothing to show yet.</p>}
         <footer className="mt-auto pt-10 text-center text-[11px] leading-relaxed text-muted"><p className="font-semibold">Unique Futsal Product &copy; 2027</p><p>Designed &amp; Developed By: Rahish Dumre</p></footer>
       </main>

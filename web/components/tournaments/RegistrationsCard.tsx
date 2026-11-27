@@ -13,8 +13,8 @@ import { copyText } from "@/lib/vip";
 import { RegStatus, TeamRegistration, listRegistrations, registrationUrl, setRegistration } from "@/lib/tournaments";
 
 import { askConfirm } from "@/lib/confirm";
-const TONE: Record<RegStatus, string> = { pending: "bg-amber-500/15 text-amber-600", approved: "bg-brand/15 text-brand", rejected: "bg-slate-500/15 text-slate-500" };
-const LABEL: Record<RegStatus, string> = { pending: "Waiting", approved: "Confirmed", rejected: "Rejected" };
+const TONE: Record<RegStatus, string> = { pending: "bg-amber-500/15 text-amber-600", approved: "bg-brand/15 text-brand", rejected: "bg-slate-500/15 text-slate-500", cancelled: "bg-slate-500/15 text-slate-500" };
+const LABEL: Record<RegStatus, string> = { pending: "Waiting", approved: "Confirmed", rejected: "Rejected", cancelled: "Cancelled by the team" };
 const waNumber = (p: string) => (p.length === 10 ? `977${p}` : p);
 
 // The registration link of this tournament (to send to teams) and the teams that signed up through it.
@@ -37,7 +37,7 @@ export default function RegistrationsCard({ tournamentId, name, finished }: { to
     try { await setRegistration(tournamentId, r.id, status); load(); } catch (e) { setError(e instanceof ApiError ? e.message : "Could not save"); } finally { setBusy(""); }
   }
 
-  const taken = data ? data.items.filter((r) => r.status !== "rejected").length : 0;
+  const taken = data ? data.items.filter((r) => r.status !== "rejected" && r.status !== "cancelled").length : 0;
   const waiting = data ? data.items.filter((r) => r.status === "pending").length : 0;
 
   return (
@@ -90,7 +90,7 @@ export default function RegistrationsCard({ tournamentId, name, finished }: { to
               </details>
             )}
             <div className="mt-3 flex flex-wrap gap-2 border-t border-line pt-3">
-              {r.status !== "approved" && <button type="button" disabled={busy === r.id} onClick={() => decide(r, "approved")} className="flex items-center gap-1.5 rounded-full bg-brand px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-60"><Check size={14} /> Confirm</button>}
+              {r.status !== "approved" && r.status !== "cancelled" && <button type="button" disabled={busy === r.id} onClick={() => decide(r, "approved")} className="flex items-center gap-1.5 rounded-full bg-brand px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-60"><Check size={14} /> Confirm</button>}
               {r.status === "rejected" && <button type="button" disabled={busy === r.id} onClick={() => decide(r, "pending")} className="rounded-full bg-surface-2 px-4 py-1.5 text-sm font-semibold disabled:opacity-60">Put back to waiting</button>}
             </div>
           </li>

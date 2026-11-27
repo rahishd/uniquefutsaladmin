@@ -88,7 +88,7 @@ export const nepalTime = (iso: string | null) =>
 export const hostUrl = (token: string) => `${typeof window === "undefined" ? "" : window.location.origin}${withBase("/host/" + token)}`;
 
 /* ---------- team registrations (teams that signed up from the shareable link on the customer site) ---------- */
-export type RegStatus = "pending" | "approved" | "rejected";
+export type RegStatus = "pending" | "approved" | "rejected" | "cancelled";
 export type TeamRegistration = { id: string; teamName: string; captainName: string; contactPhone: string; contactEmail: string | null; players: string[]; status: RegStatus; createdAt: string };
 export const listRegistrations = (id: string) => api<{ maxTeams: number; items: TeamRegistration[] }>(`/admin/tournaments/${id}/registrations`);
 export const setRegistration = (id: string, rid: string, status: RegStatus) =>

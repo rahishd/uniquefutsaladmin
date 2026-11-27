@@ -43,7 +43,7 @@ tournamentHostRouter.put("/:token/max-teams", handler(async (req, res) => {
   const link = await linkOr404(req);
   const b = parse(z.object({ maxTeams: z.number().int("Whole number only").min(0, "The limit cannot be below 0").max(1000, "That limit is too high") }), req.body);
   const t = await prisma.tournament.findUniqueOrThrow({ where: { id: link.tournamentId }, select: { maxTeams: true } });
-  const taken = await prisma.registration.count({ where: { tournamentId: link.tournamentId, status: { not: "rejected" } } });
+  const taken = await prisma.registration.count({ where: { tournamentId: link.tournamentId, status: { notIn: ["rejected", "cancelled"] } } });
   if (b.maxTeams > 0 && b.maxTeams < taken) throw new AppError(409, `${taken} teams have already registered, so the limit cannot be below ${taken}.`);
   await prisma.tournament.update({ where: { id: link.tournamentId }, data: { maxTeams: b.maxTeams } });
   await record(host(req, link.id), "max-teams", link.tournamentId, { from: t.maxTeams, to: b.maxTeams });

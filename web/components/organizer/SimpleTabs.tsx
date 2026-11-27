@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Camera, Check, ChevronDown, Loader2, Lock, LockOpen, LogOut, Pencil, Phone, Plus, Trash2, Users, X } from "lucide-react";
+import { Camera, Check, ChevronDown, Loader2, Lock, LockOpen, LogOut, Pencil, Phone, Plus, Users, X } from "lucide-react";
 import { ApiError } from "@/lib/api";
 import { logout, setAvatar } from "@/lib/auth";
 import { rs } from "@/lib/bookings";
 import { Bill, SERVICES, fmtDay, range } from "@/lib/hosted-tournaments";
 import { askConfirm } from "@/lib/confirm";
-import { OrgMe, OrgTeam, TeamInput, orgAddTeam, orgBilling, orgDeleteTeam, orgEditTeam, orgSetRegistrationClosed } from "@/lib/organizer";
+import { OrgMe, OrgTeam, TeamInput, orgAddTeam, orgBilling, orgEditTeam, orgSetRegistrationClosed } from "@/lib/organizer";
 
 const msg = (e: unknown) => (e instanceof ApiError || e instanceof Error ? e.message : "Something went wrong");
 const field = "w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand";
@@ -17,8 +17,9 @@ const STATUS: Record<OrgTeam["status"], { label: string; tone: string }> = {
   approved: { label: "Approved", tone: "bg-emerald-500/15 text-emerald-700" },
   pending: { label: "Waiting for approval", tone: "bg-amber-500/15 text-amber-700" },
   rejected: { label: "Not accepted", tone: "bg-slate-500/15 text-slate-600" },
+  cancelled: { label: "Cancelled", tone: "bg-rose-500/15 text-rose-700" },
 };
-type TeamFilter = "registered" | "new" | "all";
+type TeamFilter = "registered" | "new" | "cancelled";
 
 // Add a team or edit one. Players go one to a line.
 function TeamSheet({ tid, team, onClose, onSaved }: { tid: string; team: OrgTeam | null; onClose: () => void; onSaved: () => void }) {
@@ -59,7 +60,7 @@ function TeamSheet({ tid, team, onClose, onSaved }: { tid: string; team: OrgTeam
   );
 }
 
-export function TeamsTab({ tid, teams, max, closed, onClosed, onChanged }: { tid: string; teams: OrgTeam[] | null; max: number; closed: boolean; onClosed: (v: boolean) => void; onChanged: () => void }) {
+export function TeamsTab({ tid, teams, max, closed, reason, onClosed, onChanged }: { tid: string; teams: OrgTeam[] | null; max: number; closed: boolean; reason: string | null; onClosed: (v: boolean) => void; onChanged: () => void }) {
   const [filter, setFilter] = useState<TeamFilter>("registered");
   const [open, setOpen] = useState<string | null>(null);
   const [form, setForm] = useState<OrgTeam | "new" | null>(null);
@@ -69,7 +70,9 @@ export function TeamsTab({ tid, teams, max, closed, onClosed, onChanged }: { tid
 
   const approved = teams.filter((t) => t.status === "approved");
   const fresh = teams.filter((t) => t.status === "pending");
-  const shown = filter === "registered" ? approved : filter === "new" ? fresh : teams;
+  const dropped = teams.filter((t) => t.status === "cancelled" || t.status === "rejected"); // cancelled by the team, or not accepted by the host
+  const shown = filter === "registered" ? approved : filter === "new" ? fresh : dropped;
+  const shut = closed || !!reason; // closed by hand, or by the rules (started, finished, full)
   const full = approved.length + fresh.length >= max;
 
   async function act(key: string, job: () => Promise<unknown>) {
@@ -81,7 +84,8 @@ export function TeamsTab({ tid, teams, max, closed, onClosed, onChanged }: { tid
     setBusy("reg"); setErr("");
     try { const r = await orgSetRegistrationClosed(tid, !closed); onClosed(r.registrationClosed); } catch (e) { setErr(msg(e)); } finally { setBusy(""); }
   }
-  const remove = async (t: OrgTeam) => { if (await askConfirm("Remove " + t.teamName + " from the tournament? This cannot be undone.")) void act("del" + t.id, () => orgDeleteTeam(tid, t.id)); };
+  // "Cancel" keeps the team on record under the Cancelled tab (the place and the name are freed); it is not deleted
+  const cancelTeam = async (t: OrgTeam) => { if (await askConfirm("Cancel the registration of " + t.teamName + "? Their place is freed. You can accept the team again later from the Cancelled tab.", { confirmLabel: "Cancel registration", cancelLabel: "Keep team", danger: true })) void act("cx" + t.id, () => orgEditTeam(tid, t.id, { status: "cancelled" })); };
 
   const chip = (id: TeamFilter, label: string, n: number, alert = false) => (
     <button key={id} type="button" role="tab" aria-selected={filter === id} onClick={() => setFilter(id)} className={"flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-semibold " + (filter === id ? "bg-brand text-white" : "text-muted hover:bg-surface-2")}>
@@ -96,12 +100,12 @@ export function TeamsTab({ tid, teams, max, closed, onClosed, onChanged }: { tid
         <button type="button" onClick={() => setForm("new")} disabled={full} title={full ? "The tournament is full" : "Add a team"} className="flex shrink-0 items-center gap-1.5 rounded-full bg-brand px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"><Plus size={16} /> Add team</button>
       </div>
 
-      <div className={"flex items-center justify-between gap-3 rounded-2xl p-3 shadow-sm " + (closed ? "bg-red-500/10" : "bg-surface")}>
+      <div className={"flex items-center justify-between gap-3 rounded-2xl p-3 shadow-sm " + (shut ? "bg-red-500/10" : "bg-surface")}>
         <div className="flex min-w-0 items-center gap-2.5">
-          <span className={"grid h-9 w-9 shrink-0 place-items-center rounded-xl " + (closed ? "bg-red-500/15 text-red-600" : "bg-emerald-500/15 text-emerald-600")}>{closed ? <Lock size={17} /> : <LockOpen size={17} />}</span>
-          <span className="min-w-0"><span className="block text-sm font-bold">{closed ? "Registration is closed" : "Registration is open"}</span><span className="block text-xs text-muted">{closed ? "Customers cannot register a team in the app." : "Customers can register a team in the app."}</span></span>
+          <span className={"grid h-9 w-9 shrink-0 place-items-center rounded-xl " + (shut ? "bg-red-500/15 text-red-600" : "bg-emerald-500/15 text-emerald-600")}>{shut ? <Lock size={17} /> : <LockOpen size={17} />}</span>
+          <span className="min-w-0"><span className="block text-sm font-bold">{shut ? "Registration is closed" : "Registration is open"}</span><span className="block text-xs text-muted">{reason ?? (closed ? "Customers cannot register a team in the app." : "Customers can register a team in the app.")}</span></span>
         </div>
-        <button type="button" onClick={toggleRegistration} disabled={busy === "reg"} className={"flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-60 " + (closed ? "bg-emerald-600 text-white" : "border border-red-500/40 text-red-600")}>
+        <button type="button" onClick={toggleRegistration} disabled={busy === "reg" || (!!reason && !closed)} title={reason && !closed ? reason : undefined} className={"flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-60 " + (closed ? "bg-emerald-600 text-white" : "border border-red-500/40 text-red-600")}>
           {busy === "reg" && <Loader2 size={14} className="animate-spin" />}{closed ? "Open registration" : "Close registration"}
         </button>
       </div>
@@ -109,13 +113,13 @@ export function TeamsTab({ tid, teams, max, closed, onClosed, onChanged }: { tid
       <div className="flex gap-1 rounded-2xl bg-surface p-1 shadow-sm" role="tablist" aria-label="Teams">
         {chip("registered", "Registered", approved.length)}
         {chip("new", "New", fresh.length, true)}
-        {chip("all", "All", teams.length)}
+        {chip("cancelled", "Cancelled", dropped.length)}
       </div>
       {err && <p role="alert" className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600">{err}</p>}
 
       {shown.length === 0 && (
         <p className="rounded-2xl bg-surface p-8 text-center text-sm text-muted shadow-sm">
-          {filter === "new" ? "No new team is waiting for you." : filter === "registered" ? "No team is registered yet. Add the first one." : "No team yet."}
+          {filter === "new" ? "No new team is waiting for you." : filter === "registered" ? "No team is registered yet. Add the first one." : "No cancelled or declined team."}
         </p>
       )}
       <ul className="space-y-2">
@@ -124,27 +128,27 @@ export function TeamsTab({ tid, teams, max, closed, onClosed, onChanged }: { tid
           const mine = busy.endsWith(t.id);
           return (
             <li key={t.id} className="overflow-hidden rounded-2xl bg-surface shadow-sm">
-              <button type="button" onClick={() => setOpen(on ? null : t.id)} aria-expanded={on} className="flex w-full items-center gap-3 p-4 text-left">
-                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand"><Users size={18} /></span>
+              <button type="button" onClick={() => setOpen(on ? null : t.id)} aria-expanded={on} className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left">
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand/10 text-brand"><Users size={16} /></span>
                 <span className="min-w-0 flex-1"><span className="block truncate font-bold">{t.teamName}</span><span className="block truncate text-xs text-muted">Captain {t.captainName} · {t.players.length} player{t.players.length === 1 ? "" : "s"}</span></span>
                 <span className={"shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold " + STATUS[t.status].tone}>{t.status === "pending" ? "New" : STATUS[t.status].label}</span>
                 <ChevronDown size={16} className={"shrink-0 text-muted transition " + (on ? "rotate-180" : "")} />
               </button>
               {on && (
-                <div className="space-y-3 border-t border-line p-4 text-sm">
-                  <div className="flex flex-wrap gap-2">
-                    <a href={"tel:" + t.phone} className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white"><Phone size={15} /> Call {t.captainName.split(" ")[0]}</a>
-                    <button type="button" onClick={() => setForm(t)} className="inline-flex items-center gap-2 rounded-full border border-line px-4 py-2 text-sm font-semibold"><Pencil size={14} /> Edit</button>
-                    <button type="button" disabled={mine} onClick={() => remove(t)} className="inline-flex items-center gap-2 rounded-full border border-red-500/40 px-4 py-2 text-sm font-semibold text-red-600 disabled:opacity-50"><Trash2 size={14} /> Delete</button>
+                <div className="space-y-2 border-t border-line px-3 py-2.5 text-sm">
+                  <div className="flex flex-wrap gap-1.5">
+                    <a href={"tel:" + t.phone} className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white"><Phone size={13} /> Call {t.captainName.split(" ")[0]}</a>
+                    <button type="button" onClick={() => setForm(t)} className="inline-flex items-center gap-2 rounded-full border border-line px-3 py-1.5 text-xs font-semibold"><Pencil size={12} /> Edit</button>
+                    {(t.status === "approved" || t.status === "pending") && <button type="button" disabled={mine} onClick={() => cancelTeam(t)} className="inline-flex items-center gap-2 rounded-full border border-red-500/40 px-3 py-1.5 text-xs font-semibold text-red-600 disabled:opacity-50"><X size={12} /> Cancel</button>}
                   </div>
                   {t.status === "pending" && (
-                    <div className="flex gap-2 rounded-xl bg-amber-500/10 p-3">
-                      <p className="flex-1 text-xs text-amber-800">This team registered by itself. Accept it into the tournament?</p>
-                      <button type="button" disabled={mine || approved.length + fresh.length > max} onClick={() => act("ok" + t.id, () => orgEditTeam(tid, t.id, { status: "approved" }))} className="flex items-center gap-1 rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"><Check size={13} /> Accept</button>
-                      <button type="button" disabled={mine} onClick={() => act("no" + t.id, () => orgEditTeam(tid, t.id, { status: "rejected" }))} className="flex items-center gap-1 rounded-full bg-slate-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"><X size={13} /> Decline</button>
+                    <div className="flex items-center gap-2 rounded-xl bg-amber-500/10 px-3 py-2">
+                      <p className="flex-1 text-xs leading-snug text-amber-800">New registration. Accept this team?</p>
+                      <button type="button" disabled={mine || approved.length + fresh.length > max} onClick={() => act("ok" + t.id, () => orgEditTeam(tid, t.id, { status: "approved" }))} className="flex items-center gap-1 rounded-full bg-green-800 px-2.5 py-1 text-xs font-semibold text-white hover:bg-green-900 disabled:opacity-60"><Check size={13} /> Accept</button>
+                      <button type="button" disabled={mine} onClick={() => act("no" + t.id, () => orgEditTeam(tid, t.id, { status: "rejected" }))} className="flex items-center gap-1 rounded-full bg-slate-600 px-2.5 py-1 text-xs font-semibold text-white disabled:opacity-50"><X size={13} /> Decline</button>
                     </div>
                   )}
-                  {t.status === "rejected" && <button type="button" disabled={mine || full} onClick={() => act("ok" + t.id, () => orgEditTeam(tid, t.id, { status: "approved" }))} className="rounded-full border border-line px-4 py-2 text-xs font-semibold">Accept this team after all</button>}
+                  {(t.status === "rejected" || t.status === "cancelled") && <button type="button" disabled={mine || full} onClick={() => act("ok" + t.id, () => orgEditTeam(tid, t.id, { status: "approved" }))} className="rounded-full border border-line px-4 py-2 text-xs font-semibold">Accept this team again</button>}
                   {t.players.length > 0 && <ol className="list-inside list-decimal space-y-0.5 text-muted">{t.players.map((p, i) => <li key={p + i}>{p}</li>)}</ol>}
                 </div>
               )}

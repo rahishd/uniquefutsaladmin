@@ -69,7 +69,7 @@ tournamentsRouter.get("/contacts-export", requirePermission("tournaments.registr
     where: only ? { id: only } : {}, include: { days: { orderBy: { date: "asc" } }, registrations: { orderBy: { createdAt: "asc" } } }, orderBy: { startDate: "desc" },
   });
   if (only && list.length === 0) throw new AppError(404, "Tournament not found");
-  const STATUS: Record<string, string> = { approved: "Registered", pending: "New", rejected: "Declined" };
+  const STATUS: Record<string, string> = { approved: "Registered", pending: "New", rejected: "Declined", cancelled: "Cancelled" };
 
   const wb = new ExcelJS.Workbook();
   wb.creator = "Unique Futsal";
@@ -147,7 +147,7 @@ tournamentsRouter.patch("/:id/registrations/:rid", requirePermission("tournament
   if (r.status === b.status) return send(res, registrationView(r), "Saved");
   // bringing a rejected team back needs a free place
   if (r.status === "rejected" && t.maxTeams > 0) {
-    const taken = await prisma.registration.count({ where: { tournamentId: t.id, status: { not: "rejected" } } });
+    const taken = await prisma.registration.count({ where: { tournamentId: t.id, status: { notIn: ["rejected", "cancelled"] } } });
     if (taken >= t.maxTeams) throw new AppError(409, "All team places are taken. Reject another team first.");
   }
   const upd = await prisma.registration.update({ where: { id: r.id }, data: { status: b.status } });

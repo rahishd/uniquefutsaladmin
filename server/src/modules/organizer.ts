@@ -4,6 +4,7 @@
 import { Request, Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db";
+import { todayKey } from "../lib/dates";
 import { audit } from "../lib/audit";
 import { AppError, handler, param, parse, send } from "../lib/http";
 import { Actor, addGoal, goalBody, loadSheet, removeGoal, saveStructure, setStatus, statusBody, structureBody } from "../lib/tiesheet";
@@ -41,8 +42,8 @@ const prizesOf = (raw: unknown): Prize[] => {
   return raw.flatMap((p) => (p && typeof p === "object" ? [{ place: String((p as Prize).place ?? ""), cash: Number((p as Prize).cash) || 0, trophy: String((p as Prize).trophy ?? ""), note: String((p as Prize).note ?? "") }] : []));
 };
 
-const summary = (t: { id: string; name: string; startDate: string; endDate: string; hostName: string | null; description: string | null; prizePool: number; prizes: unknown; rules: string | null; maxTeams: number; entryFee: number; days: { date: string; startHour: number; endHour: number }[] } & Parameters<typeof stateOf>[0]) => ({
-  id: t.id, name: t.name, startDate: t.startDate, endDate: t.endDate, state: stateOf(t), hostName: t.hostName, description: t.description, prizePool: t.prizePool, prizes: prizesOf(t.prizes), rules: t.rules ?? "", maxTeams: t.maxTeams, entryFee: t.entryFee,
+const summary = (t: { id: string; name: string; startDate: string; endDate: string; hostName: string | null; description: string | null; prizePool: number; prizes: unknown; rules: string | null; maxTeams: number; entryFee: number; esewaNumber?: string | null; khaltiNumber?: string | null; days: { date: string; startHour: number; endHour: number }[] } & Parameters<typeof stateOf>[0]) => ({
+  id: t.id, name: t.name, startDate: t.startDate, endDate: t.endDate, state: stateOf(t), hostName: t.hostName, description: t.description, prizePool: t.prizePool, prizes: prizesOf(t.prizes), rules: t.rules ?? "", maxTeams: t.maxTeams, entryFee: t.entryFee, esewaNumber: t.esewaNumber ?? "", khaltiNumber: t.khaltiNumber ?? "",
   days: t.days.map((d) => ({ date: d.date, startHour: d.startHour, endHour: d.endHour })),
 });
 
@@ -105,6 +106,16 @@ organizerRouter.put("/tournaments/:id/max-teams", handler(async (req, res) => {
   send(res, { maxTeams }, "Team limit saved");
 }));
 
+// ---- where teams send the entry fee: the host's eSewa and Khalti numbers (customers see them when they register) ----
+const payNumber = z.string().trim().regex(/^(9\d{9})?$/, "Enter a 10-digit mobile number starting with 9, or leave it empty").default("");
+organizerRouter.put("/tournaments/:id/pay-numbers", handler(async (req, res) => {
+  const t = await mine(req);
+  const b = parse(z.object({ esewaNumber: payNumber, khaltiNumber: payNumber }), req.body);
+  await prisma.tournament.update({ where: { id: t.id }, data: { esewaNumber: b.esewaNumber || null, khaltiNumber: b.khaltiNumber || null } });
+  await audit(req, "pay-numbers", "tournament", t.id, { esewa: !!b.esewaNumber, khalti: !!b.khaltiNumber });
+  send(res, { esewaNumber: b.esewaNumber, khaltiNumber: b.khaltiNumber }, "Payment numbers saved");
+}));
+
 // ---- the entry fee each team pays: the organizer decides (0 = free entry) ----
 organizerRouter.put("/tournaments/:id/entry-fee", handler(async (req, res) => {
   const t = await mine(req);
@@ -157,11 +168,22 @@ const playersOf = (raw: string): string[] => {
   try { const j = JSON.parse(raw) as unknown; if (Array.isArray(j)) return j.map(String).filter(Boolean); } catch { /* plain text */ }
   return raw.split(/[\n,]+/).map((x) => x.trim()).filter(Boolean);
 };
+function appClosedReason(t: { isActive: boolean; status: string; startDate: string; endDate: string; maxTeams: number; registrationClosed: boolean }, taken: number): string | null {
+  const today = todayKey();
+  if (!t.isActive || t.status === "cancelled") return "This tournament is not active.";
+  if (t.status === "completed" || t.endDate < today) return "This tournament has finished.";
+  if (t.registrationClosed) return null; // the host closed it by hand, shown by the switch itself
+  if (t.startDate <= today) return "The tournament has started, so the team list is fixed.";
+  if (t.maxTeams > 0 && taken >= t.maxTeams) return "All team places are taken.";
+  return null;
+}
 organizerRouter.get("/tournaments/:id/teams", handler(async (req, res) => {
   const t = await mine(req);
   const rows = await prisma.registration.findMany({ where: { tournamentId: t.id }, orderBy: { createdAt: "asc" } });
   send(res, {
     maxTeams: t.maxTeams, registrationClosed: t.registrationClosed,
+    // the same rules the customer app applies, so this page never says "open" when customers cannot register
+    appClosedReason: appClosedReason(t, rows.filter((r) => r.status !== "rejected" && r.status !== "cancelled").length),
     items: rows.map((r) => ({ id: r.id, teamName: r.teamName, captainName: r.captainName, phone: r.contactPhone, status: r.status, players: playersOf(r.players) })),
   });
 }));
@@ -173,7 +195,7 @@ const teamBody = z.object({
   phone: z.string().trim().regex(/^\+?\d[\d\s-]{6,16}$/, "Enter the captain's phone number, digits only"),
   players: z.array(z.string().trim().min(1).max(40)).max(25, "At most 25 players").default([]),
 });
-const taken = (teamName: string) => teamName.trim().toLowerCase();
+const taken = (teamName: string) => teamName.toLowerCase().replace(/[^\p{L}\p{N}]/gu, ""); // capitals, spaces and punctuation do not make a team different
 
 // a tournament holds at most maxTeams teams that are approved or still waiting
 async function room(tournamentId: string, maxTeams: number, exceptId?: string) {
@@ -181,7 +203,7 @@ async function room(tournamentId: string, maxTeams: number, exceptId?: string) {
   if (n >= maxTeams) throw new AppError(409, `The tournament is full: at most ${maxTeams} teams.`);
 }
 async function noTwin(tournamentId: string, teamName: string, exceptId?: string) {
-  const rows = await prisma.registration.findMany({ where: { tournamentId, status: { not: "rejected" }, ...(exceptId ? { id: { not: exceptId } } : {}) }, select: { teamName: true } });
+  const rows = await prisma.registration.findMany({ where: { tournamentId, status: { notIn: ["rejected", "cancelled"] }, ...(exceptId ? { id: { not: exceptId } } : {}) }, select: { teamName: true } });
   if (rows.some((r) => taken(r.teamName) === taken(teamName))) throw new AppError(409, "A team with this name is already in the tournament.");
 }
 const teamView = (r: { id: string; teamName: string; captainName: string; contactPhone: string; status: string; players: string }) => ({ id: r.id, teamName: r.teamName, captainName: r.captainName, phone: r.contactPhone, status: r.status, players: playersOf(r.players) });
@@ -198,11 +220,11 @@ organizerRouter.post("/tournaments/:id/teams", handler(async (req, res) => {
 
 organizerRouter.patch("/tournaments/:id/teams/:rid", handler(async (req, res) => {
   const t = await mine(req);
-  const b = parse(teamBody.partial().extend({ status: z.enum(["approved", "pending", "rejected"]).optional() }), req.body);
+  const b = parse(teamBody.partial().extend({ status: z.enum(["approved", "pending", "rejected", "cancelled"]).optional() }), req.body);
   const cur = await prisma.registration.findFirst({ where: { id: param(req, "rid"), tournamentId: t.id } });
   if (!cur) throw new AppError(404, "Team not found");
   if (b.teamName && taken(b.teamName) !== taken(cur.teamName)) await noTwin(t.id, b.teamName, cur.id);
-  if (b.status && b.status !== "rejected" && cur.status === "rejected") await room(t.id, t.maxTeams, cur.id);
+  if (b.status && b.status !== "rejected" && b.status !== "cancelled" && (cur.status === "rejected" || cur.status === "cancelled")) await room(t.id, t.maxTeams, cur.id);
   const r = await prisma.registration.update({
     where: { id: cur.id },
     data: { ...(b.teamName ? { teamName: b.teamName } : {}), ...(b.captainName ? { captainName: b.captainName } : {}), ...(b.phone ? { contactPhone: b.phone } : {}), ...(b.players ? { players: JSON.stringify(b.players) } : {}), ...(b.status ? { status: b.status } : {}) },

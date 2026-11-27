@@ -250,6 +250,8 @@ model Tournament {
   entryFee      Float          @default(0)
   hostName      String?
   hostPhone     String?
+  esewaNumber   String?
+  khaltiNumber  String?
   minRate       Int?
   billClosedAt  DateTime?
   createdBy     String?

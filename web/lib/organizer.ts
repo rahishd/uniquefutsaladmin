@@ -6,17 +6,17 @@ import type { EditorApi, Match, Round, StructureRound, TournamentItem } from "./
 // tournaments given to it, through /admin/organizer/*.
 export type OrgPrize = { place: string; cash: number; trophy: string; note: string };
 export type OrgTournament = {
-  id: string; name: string; startDate: string; endDate: string; state: TournamentItem["state"]; hostName: string | null; description: string | null; prizePool: number; prizes: OrgPrize[]; rules: string; maxTeams: number; entryFee: number;
+  id: string; name: string; startDate: string; endDate: string; state: TournamentItem["state"]; hostName: string | null; description: string | null; prizePool: number; prizes: OrgPrize[]; rules: string; maxTeams: number; entryFee: number; esewaNumber: string; khaltiNumber: string;
   days: { date: string; startHour: number; endHour: number }[];
 };
 export type OrgMe = { id: string; name: string; email: string; avatar: string | null; tournaments: OrgTournament[] };
-export type OrgTeam = { id: string; teamName: string; captainName: string; phone: string; status: "pending" | "approved" | "rejected"; players: string[] };
+export type OrgTeam = { id: string; teamName: string; captainName: string; phone: string; status: "pending" | "approved" | "rejected" | "cancelled"; players: string[] };
 
 const json = (body: unknown) => ({ body: JSON.stringify(body) });
 const base = (tid: string) => `/admin/organizer/tournaments/${encodeURIComponent(tid)}`;
 
 export const orgMe = () => api<OrgMe>("/admin/organizer/me");
-export const orgTeams = (tid: string) => api<{ maxTeams: number; registrationClosed: boolean; items: OrgTeam[] }>(`${base(tid)}/teams`);
+export const orgTeams = (tid: string) => api<{ maxTeams: number; registrationClosed: boolean; appClosedReason: string | null; items: OrgTeam[] }>(`${base(tid)}/teams`);
 export const orgSetRegistrationClosed = (tid: string, closed: boolean) => api<{ registrationClosed: boolean }>(`${base(tid)}/registration`, { method: "PUT", ...json({ closed }) });
 export type TeamInput = { teamName: string; captainName: string; phone: string; players: string[] };
 export const orgAddTeam = (tid: string, b: TeamInput) => api<OrgTeam>(`${base(tid)}/teams`, { method: "POST", ...json(b) });
@@ -25,6 +25,7 @@ export const orgDeleteTeam = (tid: string, id: string) => api<null>(`${base(tid)
 export const orgSavePrizes = (tid: string, prizes: OrgPrize[]) => api<{ prizes: OrgPrize[]; prizePool: number }>(`${base(tid)}/prizes`, { method: "PUT", ...json({ prizes }) });
 export const orgSaveRules = (tid: string, rules: string) => api<{ rules: string }>(`${base(tid)}/rules`, { method: "PUT", ...json({ rules }) });
 export const orgSaveMaxTeams = (tid: string, maxTeams: number) => api<{ maxTeams: number }>(`${base(tid)}/max-teams`, { method: "PUT", ...json({ maxTeams }) });
+export const orgSavePayNumbers = (tid: string, b: { esewaNumber: string; khaltiNumber: string }) => api<{ esewaNumber: string; khaltiNumber: string }>(`${base(tid)}/pay-numbers`, { method: "PUT", ...json(b) });
 export const orgSaveEntryFee = (tid: string, entryFee: number) => api<{ entryFee: number }>(`${base(tid)}/entry-fee`, { method: "PUT", ...json({ entryFee }) });
 export const orgSetLiveLink = (tid: string, matchId: string, url: string | null) => api<{ liveUrl: string | null }>(`${base(tid)}/matches/${encodeURIComponent(matchId)}/live-link`, { method: "PUT", ...json({ url }) });
 export const orgBilling = (tid: string) => api<Bill | null>(`${base(tid)}/billing`);
